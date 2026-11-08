@@ -1,0 +1,232 @@
+package ui
+
+import "github.com/raphi011/mise/internal/i18n"
+
+// AuthLayout frames the signed-out pages: a brand panel beside the form on
+// wide screens, the form alone on phones.
+templ AuthLayout(p Page, panel templ.Component) {
+	@document(p) {
+		<div class="auth">
+			<aside class="auth__panel">
+				<div class="auth__brand">
+					@logo(40)
+					<span class="auth__brand-name">mise</span>
+				</div>
+				@panel
+			</aside>
+			<main class="auth__main" id="main">
+				<div class="auth__form">
+					{ children... }
+				</div>
+			</main>
+		</div>
+	}
+}
+
+templ defaultPanel() {
+	<div class="auth__pitch">
+		<p class="auth__headline">{ i18n.T(ctx, "auth.panel.headline") }</p>
+		<p class="auth__sub">{ i18n.T(ctx, "auth.panel.sub") }</p>
+	</div>
+	<ul class="auth__chips" aria-hidden="true">
+		<li>{ i18n.T(ctx, "nav.recipes") }</li>
+		<li>{ i18n.T(ctx, "nav.plan") }</li>
+		<li>{ i18n.T(ctx, "nav.groceries") }</li>
+	</ul>
+}
+
+// SignInView is the sign-in form.
+type SignInView struct {
+	Form Form
+	// Next is the local path to return to after signing in.
+	Next string
+}
+
+templ SignIn(p Page, v SignInView) {
+	@AuthLayout(p, defaultPanel()) {
+		<div class="auth__intro">
+			<span class="auth__phone-logo">
+				@logo(56)
+			</span>
+			<h1 class="auth__title">
+				<span class="only-phone">{ i18n.T(ctx, "signin.welcome") }</span>
+				<span class="only-wide">{ i18n.T(ctx, "signin.title") }</span>
+			</h1>
+			<p class="auth__lead">
+				<span class="only-phone">{ i18n.T(ctx, "signin.lead") }</span>
+				<span class="only-wide">{ i18n.T(ctx, "signin.leadWide") }</span>
+			</p>
+		</div>
+		<form class="stack" method="post" action="/signin" novalidate>
+			@formAlert(v.Form)
+			if v.Next != "" {
+				<input type="hidden" name="next" value={ v.Next }/>
+			}
+			@textField(Field{ID: "signin-username", Name: "username", Label: i18n.T(ctx, "field.username"), Autocomplete: "username", Required: true}, v.Form)
+			<div class="field">
+				<div class="field__row">
+					<label class="field__label" for="signin-password">{ i18n.T(ctx, "field.password") }</label>
+					<a class="field__link" href="/forgot-password">{ i18n.T(ctx, "signin.forgot") }</a>
+				</div>
+				<input class="input" id="signin-password" name="password" type="password" autocomplete="current-password" required/>
+			</div>
+			<button class="btn btn--primary btn--block" type="submit">{ i18n.T(ctx, "signin.submit") }</button>
+		</form>
+		<p class="auth__footer">{ i18n.T(ctx, "signin.newHere") }</p>
+	}
+}
+
+templ ForgotPassword(p Page) {
+	@AuthLayout(p, defaultPanel()) {
+		@backLink("/signin", i18n.T(ctx, "auth.backToSignIn"))
+		<div class="auth__intro">
+			<h1 class="auth__title">{ i18n.T(ctx, "forgot.title") }</h1>
+		</div>
+		<div class="callout">
+			<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"></circle><path d="M4 20c1.5-3.5 4.5-5 8-5s6.5 1.5 8 5"></path></svg>
+			<span class="callout__body">
+				<span class="callout__title">{ i18n.T(ctx, "forgot.askAdmin.title") }</span>
+				<span>{ i18n.T(ctx, "forgot.askAdmin.body") }</span>
+			</span>
+		</div>
+		<p class="auth__footer"><a href="/signin">{ i18n.T(ctx, "auth.backToSignIn") }</a></p>
+	}
+}
+
+// SetupView is the first-run setup form.
+type SetupView struct {
+	Form Form
+	// BaseURLFixed is set when MISE_BASE_URL configures the base URL, which
+	// the form then only shows.
+	BaseURLFixed bool
+}
+
+templ setupPanel() {
+	<div class="auth__pitch">
+		<p class="auth__headline">{ i18n.T(ctx, "setup.panel.headline") }</p>
+		<p class="auth__sub">{ i18n.T(ctx, "setup.panel.sub") }</p>
+	</div>
+	<span></span>
+}
+
+templ Setup(p Page, v SetupView) {
+	@AuthLayout(p, setupPanel()) {
+		<div class="auth__intro">
+			<span class="auth__phone-logo">
+				@logo(56)
+			</span>
+			<h1 class="auth__title">{ i18n.T(ctx, "setup.title") }</h1>
+			<p class="auth__lead">{ i18n.T(ctx, "setup.lead") }</p>
+		</div>
+		<form class="stack" method="post" action="/setup" novalidate>
+			@formAlert(v.Form)
+			<fieldset class="form-group">
+				<legend class="form-group__title">{ i18n.T(ctx, "setup.household") }</legend>
+				@textField(Field{ID: "setup-household", Name: "household", Label: i18n.T(ctx, "field.householdName"), Required: true, Hint: i18n.T(ctx, "setup.householdHint")}, v.Form)
+				@textField(Field{ID: "setup-timezone", Name: "timezone", Label: i18n.T(ctx, "field.timezone"), Required: true,
+					Hint:  i18n.T(ctx, "setup.timezoneHint"),
+					Attrs: templ.Attributes{"data-init": "el.value || (el.value = Intl.DateTimeFormat().resolvedOptions().timeZone)", "spellcheck": "false", "autocapitalize": "off"}}, v.Form)
+				<div class="field">
+					<label class="field__label" for="setup-week-start">{ i18n.T(ctx, "field.weekStart") }</label>
+					<select class="input" id="setup-week-start" name="week_start">
+						<option value="mon" selected?={ v.Form.Value("week_start") != "sun" }>{ i18n.T(ctx, "weekday.monday") }</option>
+						<option value="sun" selected?={ v.Form.Value("week_start") == "sun" }>{ i18n.T(ctx, "weekday.sunday") }</option>
+					</select>
+				</div>
+			</fieldset>
+			<fieldset class="form-group">
+				<legend class="form-group__title">{ i18n.T(ctx, "setup.server") }</legend>
+				if v.BaseURLFixed {
+					<div class="field">
+						<span class="field__label">{ i18n.T(ctx, "field.baseURL") }</span>
+						<span class="field__static">{ v.Form.Value("base_url") }</span>
+						<span class="field__hint">{ i18n.T(ctx, "setup.baseURLFixed") }</span>
+					</div>
+				} else {
+					@textField(Field{ID: "setup-base-url", Name: "base_url", Label: i18n.T(ctx, "field.baseURL"), Type: "url", Required: true,
+						Hint: i18n.T(ctx, "setup.baseURLHint"), Attrs: templ.Attributes{"spellcheck": "false", "autocapitalize": "off"}}, v.Form)
+				}
+			</fieldset>
+			<fieldset class="form-group">
+				<legend class="form-group__title">{ i18n.T(ctx, "setup.admin") }</legend>
+				@accountFields("setup", v.Form)
+			</fieldset>
+			<button class="btn btn--primary btn--block" type="submit">{ i18n.T(ctx, "setup.submit") }</button>
+		</form>
+	}
+}
+
+// accountFields are the name, username, email and password inputs shared
+// by setup and invite acceptance.
+templ accountFields(prefix string, form Form) {
+	@textField(Field{ID: prefix + "-name", Name: "name", Label: i18n.T(ctx, "field.yourName"), Autocomplete: "name", Required: true}, form)
+	@textField(Field{ID: prefix + "-username", Name: "username", Label: i18n.T(ctx, "field.username"), Autocomplete: "username", Required: true,
+		Hint: i18n.T(ctx, "field.usernameHint"), Attrs: templ.Attributes{"spellcheck": "false", "autocapitalize": "off"}}, form)
+	@textField(Field{ID: prefix + "-email", Name: "email", Label: i18n.T(ctx, "field.email"), Type: "email", Autocomplete: "email",
+		LabelNote: i18n.T(ctx, "field.emailNote")}, form)
+	@textField(Field{ID: prefix + "-password", Name: "password", Label: i18n.T(ctx, "field.password"), Type: "password", Autocomplete: "new-password", Required: true,
+		Hint: i18n.T(ctx, "field.passwordHint")}, form)
+}
+
+// InviteView is what the accept page shows about the invite.
+type InviteView struct {
+	Token         string
+	HouseholdName string
+	InviterName   string
+	InviterColor  string
+	// Expires is the translated remaining validity, e.g. "Invite expires in
+	// 6 days."
+	Expires string
+}
+
+templ invitePanel(v InviteView) {
+	<div class="auth__pitch">
+		<span class="auth__invited-by">
+			@avatar(v.InviterName, v.InviterColor, "md")
+			<span>{ i18n.T(ctx, "accept.invitedYou", v.InviterName) }</span>
+		</span>
+		<p class="auth__headline">{ i18n.T(ctx, "accept.panel.headline") }</p>
+	</div>
+	<span class="auth__sub">{ v.Expires }</span>
+}
+
+templ AcceptInvite(p Page, v InviteView, form Form) {
+	@AuthLayout(p, invitePanel(v)) {
+		<span class="only-phone">
+			@backLink("/signin", i18n.T(ctx, "auth.backToSignIn"))
+		</span>
+		<div class="invited-card only-phone">
+			@avatar(v.InviterName, v.InviterColor, "")
+			<span class="invited-card__text">
+				<span class="invited-card__title">{ i18n.T(ctx, "accept.invitedYou", v.InviterName) }</span>
+				<span>{ i18n.T(ctx, "accept.share", v.HouseholdName) }</span>
+			</span>
+		</div>
+		<div class="auth__intro">
+			<h1 class="auth__title">{ i18n.T(ctx, "accept.title") }</h1>
+			<p class="auth__lead only-wide">{ i18n.T(ctx, "accept.share", v.HouseholdName) }</p>
+		</div>
+		<form class="stack" method="post" action={ templ.SafeURL("/invite/" + v.Token) } novalidate>
+			@formAlert(form)
+			@accountFields("accept", form)
+			<button class="btn btn--primary btn--block" type="submit">{ i18n.T(ctx, "accept.submit") }</button>
+		</form>
+		<p class="auth__footer">
+			{ i18n.T(ctx, "accept.haveAccount") }
+			<a href="/signin">{ i18n.T(ctx, "signin.title") }</a>
+		</p>
+	}
+}
+
+templ InviteInvalid(p Page) {
+	@AuthLayout(p, defaultPanel()) {
+		<div class="auth__intro">
+			<span class="auth__phone-logo">
+				@logo(56)
+			</span>
+			<h1 class="auth__title">{ i18n.T(ctx, "accept.invalid.title") }</h1>
+			<p class="auth__lead">{ i18n.T(ctx, "accept.invalid.body") }</p>
+		</div>
+		<a class="btn btn--secondary btn--block" href="/signin">{ i18n.T(ctx, "auth.backToSignIn") }</a>
+	}
+}

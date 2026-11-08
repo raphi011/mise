@@ -1,0 +1,391 @@
+package ui
+
+import "github.com/raphi011/mise/internal/i18n"
+
+// SettingsView is the Settings overview. On phones it is a list with
+// sub-pages; on wide screens the same sections become cards beside a
+// section index.
+type SettingsView struct {
+	Name     string
+	Username string
+	Color    string
+	Admin    bool
+	Members  []MemberRow
+	Invites  []InviteRow
+	// Prefs holds the theme and language values and errors.
+	Prefs     Form
+	Themes    []Option
+	Languages []Option
+	// Notice is a translated status message after a change.
+	Notice string
+}
+
+// MemberRow is one person in the People list.
+type MemberRow struct {
+	Name  string
+	Color string
+	// Role is the translated role.
+	Role string
+	You  bool
+	// Href links to the member page (admins only).
+	Href string
+}
+
+// InviteRow is a pending invite in the People list.
+type InviteRow struct {
+	ID    string
+	Label string
+	// Note says who invited and when it expires, translated.
+	Note string
+	Role string
+}
+
+templ Settings(p Page, v SettingsView) {
+	@Layout(p) {
+		@notice(v.Notice)
+		<div class="settings">
+			<nav class="settings-nav" aria-label={ i18n.T(ctx, "settings.sections") }>
+				<a href="#people">{ i18n.T(ctx, "settings.people") }</a>
+				<a href="#app">{ i18n.T(ctx, "settings.appAccount") }</a>
+			</nav>
+			<div class="settings-body">
+				<div class="profile-card">
+					@avatar(v.Name, v.Color, "md")
+					<span class="profile-card__text">
+						<span class="profile-card__name">{ v.Name }</span>
+						<span class="muted">{ i18n.T(ctx, "settings.signedInAs", v.Username) }</span>
+					</span>
+					<a class="btn btn--secondary btn--small" href="/settings/account">{ i18n.T(ctx, "settings.account") }</a>
+				</div>
+				<section class="settings-section" id="people" aria-labelledby="people-title">
+					<div class="settings-section__head">
+						<span class="settings-section__titles">
+							<h2 class="settings-section__title" id="people-title">{ i18n.T(ctx, "settings.people") }</h2>
+							<span class="settings-section__desc">{ i18n.T(ctx, "settings.peopleNote") }</span>
+						</span>
+						if v.Admin {
+							<a class="settings-section__action" href="/settings/invite">{ i18n.T(ctx, "settings.invite") }</a>
+						}
+					</div>
+					<ul class="list" role="list">
+						for _, m := range v.Members {
+							<li class="list__row">
+								if m.Href != "" {
+									<a class="list__link" href={ templ.SafeURL(m.Href) }>
+										@memberRowBody(m)
+										@chevron()
+									</a>
+								} else {
+									<span class="list__link">
+										@memberRowBody(m)
+									</span>
+								}
+							</li>
+						}
+						for _, inv := range v.Invites {
+							<li class="list__row">
+								<span class="list__link">
+									<span class="avatar avatar--sm avatar--pending" aria-hidden="true">?</span>
+									<span class="list__text">
+										<span>{ inv.Label }</span>
+										<span class="muted">{ inv.Note }</span>
+									</span>
+									<span class="role-label role-label--pending">{ i18n.T(ctx, "settings.pending") }</span>
+								</span>
+								@postButton("/settings/invites/"+inv.ID+"/revoke", i18n.T(ctx, "settings.revokeInvite"), "btn btn--ghost btn--small", nil)
+							</li>
+						}
+					</ul>
+					<span class="settings-section__foot">{ i18n.T(ctx, "settings.peopleNote") }</span>
+				</section>
+				<section class="settings-section" id="app" aria-labelledby="app-title">
+					<div class="settings-section__head">
+						<h2 class="settings-section__title" id="app-title">{ i18n.T(ctx, "settings.app") }</h2>
+					</div>
+					<form class="list list--form" method="post" action="/settings/preferences">
+						<div class="list__row list__row--field">
+							<span class="list__label" id="pref-theme">{ i18n.T(ctx, "settings.theme") }</span>
+							<div class="segmented" role="radiogroup" aria-labelledby="pref-theme">
+								for _, o := range v.Themes {
+									<label class="segmented__option">
+										<input type="radio" name="theme" value={ o.Value } checked?={ v.Prefs.Value("theme") == o.Value }/>
+										<span>{ o.Label }</span>
+									</label>
+								}
+							</div>
+						</div>
+						<div class="list__row list__row--field">
+							<label class="list__label" for="pref-language">{ i18n.T(ctx, "settings.language") }</label>
+							<select class="input input--compact" id="pref-language" name="language">
+								for _, o := range v.Languages {
+									<option value={ o.Value } selected?={ v.Prefs.Value("language") == o.Value }>{ o.Label }</option>
+								}
+							</select>
+						</div>
+						<div class="list__row list__row--actions">
+							<button class="btn btn--secondary btn--small" type="submit">{ i18n.T(ctx, "form.save") }</button>
+						</div>
+					</form>
+					<div class="settings-actions">
+						<a class="btn btn--secondary" href="/settings/account">{ i18n.T(ctx, "settings.accountAndSecurity") }</a>
+						@postButton("/signout", i18n.T(ctx, "settings.signOut"), "btn btn--destructive", nil)
+					</div>
+				</section>
+			</div>
+		</div>
+	}
+}
+
+templ memberRowBody(m MemberRow) {
+	@avatar(m.Name, m.Color, "sm")
+	<span class="list__text">
+		if m.You {
+			{ i18n.T(ctx, "settings.you", m.Name) }
+		} else {
+			{ m.Name }
+		}
+	</span>
+	<span class="role-label">{ m.Role }</span>
+}
+
+// AccountView is the account page.
+type AccountView struct {
+	Name     string
+	Username string
+	Color    string
+	Colors   []Option
+	Profile  Form
+	Password Form
+	// PasswordOpen expands the change-password form, e.g. after an error.
+	PasswordOpen bool
+	Sessions     []SessionRow
+	Notice       string
+}
+
+// SessionRow is one signed-in device.
+type SessionRow struct {
+	ID string
+	// Device is a translated description of the user agent.
+	Device   string
+	LastSeen string
+	Current  bool
+}
+
+templ Account(p Page, v AccountView) {
+	@Layout(p) {
+		@notice(v.Notice)
+		<div class="narrow stack-lg">
+			<form class="stack-lg" method="post" action="/settings/account/profile" novalidate>
+				@formAlert(v.Profile)
+				<div class="account-hero">
+					@avatar(v.Name, v.Color, "lg")
+					<span class="muted">{ "@" + v.Username }</span>
+				</div>
+				<fieldset class="swatches">
+					<legend class="field__label">{ i18n.T(ctx, "account.color") }</legend>
+					<div class="swatches__options">
+						for _, c := range v.Colors {
+							<label class={ "swatch avatar--" + c.Value }>
+								<input type="radio" name="avatar_color" value={ c.Value } checked?={ v.Profile.Value("avatar_color") == c.Value }/>
+								<span class="visually-hidden">{ c.Label }</span>
+							</label>
+						}
+					</div>
+					@fieldError("avatar-color-error", v.Profile.Error("avatar_color"))
+				</fieldset>
+				<div class="card stack">
+					@textField(Field{ID: "account-name", Name: "name", Label: i18n.T(ctx, "field.name"), Autocomplete: "name", Required: true}, v.Profile)
+					@textField(Field{ID: "account-email", Name: "email", Label: i18n.T(ctx, "field.email"), Type: "email", Autocomplete: "email", LabelNote: i18n.T(ctx, "field.emailNote")}, v.Profile)
+					<span class="field__hint">{ i18n.T(ctx, "account.visibleNote") }</span>
+					<div>
+						<button class="btn btn--primary" type="submit">{ i18n.T(ctx, "form.save") }</button>
+					</div>
+				</div>
+			</form>
+			<section class="settings-section settings-section--plain" aria-labelledby="security-title">
+				<div class="settings-section__head">
+					<h2 class="settings-section__title" id="security-title">{ i18n.T(ctx, "account.security") }</h2>
+				</div>
+				<div class="list">
+					<details class="disclosure" open?={ v.PasswordOpen }>
+						<summary class="list__link">
+							<span class="list__text">{ i18n.T(ctx, "account.changePassword") }</span>
+							@chevron()
+						</summary>
+						<form class="stack disclosure__body" method="post" action="/settings/account/password" novalidate>
+							@formAlert(v.Password)
+							@textField(Field{ID: "account-current-password", Name: "current_password", Label: i18n.T(ctx, "field.currentPassword"), Type: "password", Autocomplete: "current-password", Required: true}, v.Password)
+							@textField(Field{ID: "account-new-password", Name: "new_password", Label: i18n.T(ctx, "field.newPassword"), Type: "password", Autocomplete: "new-password", Required: true, Hint: i18n.T(ctx, "field.passwordHint")}, v.Password)
+							<span class="field__hint">{ i18n.T(ctx, "account.passwordOthersSignedOut") }</span>
+							<div>
+								<button class="btn btn--primary" type="submit">{ i18n.T(ctx, "account.changePassword") }</button>
+							</div>
+						</form>
+					</details>
+				</div>
+			</section>
+			<section class="settings-section settings-section--plain" aria-labelledby="devices-title">
+				<div class="settings-section__head">
+					<h2 class="settings-section__title" id="devices-title">{ i18n.T(ctx, "account.devices") }</h2>
+					if len(v.Sessions) > 1 {
+						@postButton("/settings/account/sessions/revoke-others", i18n.T(ctx, "account.signOutOthers"), "settings-section__action btn-link", nil)
+					}
+				</div>
+				<ul class="list" role="list">
+					for _, sess := range v.Sessions {
+						<li class="list__row">
+							<span class="list__link">
+								<span class="list__text">
+									<span>{ sess.Device }</span>
+									<span class="muted">
+										if sess.Current {
+											{ i18n.T(ctx, "account.thisDevice") }
+										} else {
+											{ i18n.T(ctx, "account.lastSeen", sess.LastSeen) }
+										}
+									</span>
+								</span>
+							</span>
+							if !sess.Current {
+								@postButton("/settings/account/sessions/"+sess.ID+"/revoke", i18n.T(ctx, "account.revoke"), "btn btn--ghost btn--small", nil)
+							}
+						</li>
+					}
+				</ul>
+			</section>
+			<div class="stack">
+				@postButton("/signout", i18n.T(ctx, "settings.signOut"), "btn btn--destructive btn--block", nil)
+				<p class="fine-print">{ i18n.T(ctx, "account.deleteNote") }</p>
+			</div>
+		</div>
+	}
+}
+
+// InvitePageView is the invite sheet: the form, or the created link.
+type InvitePageView struct {
+	Form  Form
+	Roles []Option
+	// Link is the invite URL just created, shown once.
+	Link string
+}
+
+templ InvitePage(p Page, v InvitePageView) {
+	@Layout(p) {
+		<div class="sheet narrow">
+			<p class="lead">{ i18n.T(ctx, "invite.lead") }</p>
+			if v.Link != "" {
+				<div class="stack" data-signals:copied="false">
+					<label class="field__label" for="invite-link">{ i18n.T(ctx, "invite.link") }</label>
+					<div class="link-box">
+						<input class="link-box__input" id="invite-link" type="text" readonly value={ v.Link } aria-describedby="invite-link-hint"/>
+						<button
+							class="btn btn--secondary btn--small"
+							type="button"
+							data-on:click="const link = document.getElementById('invite-link'); navigator.clipboard.writeText(link.value).then(() => { $copied = true }, () => { link.focus(); link.select() })"
+						>{ i18n.T(ctx, "invite.copy") }</button>
+					</div>
+					<span class="field__hint" id="invite-link-hint">{ i18n.T(ctx, "invite.linkHint") }</span>
+					<p class="notice" role="status" aria-live="polite" data-copied={ i18n.T(ctx, "invite.copied") } data-text="$copied ? el.dataset.copied : ''"></p>
+					<div class="settings-actions">
+						<a class="btn btn--primary" href="/settings#people">{ i18n.T(ctx, "invite.done") }</a>
+						<a class="btn btn--secondary" href="/settings/invite">{ i18n.T(ctx, "invite.another") }</a>
+					</div>
+				</div>
+			} else {
+				<form class="stack-lg" method="post" action="/settings/invites" novalidate>
+					@formAlert(v.Form)
+					@textField(Field{ID: "invite-email", Name: "email", Label: i18n.T(ctx, "field.email"), Type: "email", Autocomplete: "off",
+						LabelNote: i18n.T(ctx, "field.optional"), Hint: i18n.T(ctx, "invite.emailHint"), Attrs: templ.Attributes{"placeholder": "name@example.com"}}, v.Form)
+					@roleChoice("invite-role", v.Roles, v.Form)
+					<span class="field__hint">{ i18n.T(ctx, "invite.expiry") }</span>
+					<div>
+						<button class="btn btn--primary btn--block" type="submit">{ i18n.T(ctx, "invite.create") }</button>
+					</div>
+				</form>
+			}
+		</div>
+	}
+}
+
+templ roleChoice(id string, roles []Option, form Form) {
+	<fieldset class="choices" aria-describedby={ id + "-error" }>
+		<legend class="field__label">{ i18n.T(ctx, "invite.joinAs") }</legend>
+		for _, o := range roles {
+			<label class="choice">
+				<input type="radio" name="role" value={ o.Value } checked?={ form.Value("role") == o.Value }/>
+				<span class="choice__text">
+					<span class="choice__title">{ o.Label }</span>
+					<span class="choice__hint">{ o.Hint }</span>
+				</span>
+			</label>
+		}
+		@fieldError(id+"-error", form.Error("role"))
+	</fieldset>
+}
+
+// MemberPageView is an admin's view of one member.
+type MemberPageView struct {
+	ID       string
+	Name     string
+	Username string
+	Color    string
+	Joined   string
+	You      bool
+	Roles    []Option
+	RoleForm Form
+	Password Form
+	Remove   Form
+	Notice   string
+}
+
+templ MemberPage(p Page, v MemberPageView) {
+	@Layout(p) {
+		@notice(v.Notice)
+		<div class="narrow stack-lg">
+			<div class="profile-card">
+				@avatar(v.Name, v.Color, "md")
+				<span class="profile-card__text">
+					<span class="profile-card__name">{ v.Name }</span>
+					<span class="muted">{ "@" + v.Username + " · " + v.Joined }</span>
+				</span>
+			</div>
+			if v.You {
+				<p class="callout">
+					<span class="callout__body">
+						<span>{ i18n.T(ctx, "member.isYou") }</span>
+						<a href="/settings/account">{ i18n.T(ctx, "settings.accountAndSecurity") }</a>
+					</span>
+				</p>
+			}
+			<form class="card stack" method="post" action={ templ.SafeURL("/settings/people/" + v.ID + "/role") }>
+				@formAlert(v.RoleForm)
+				@roleChoice("member-role", v.Roles, v.RoleForm)
+				<div>
+					<button class="btn btn--primary" type="submit">{ i18n.T(ctx, "member.saveRole") }</button>
+				</div>
+			</form>
+			if !v.You {
+				<form class="card stack" method="post" action={ templ.SafeURL("/settings/people/" + v.ID + "/password") } novalidate>
+					<h2 class="card__title">{ i18n.T(ctx, "member.resetPassword") }</h2>
+					@formAlert(v.Password)
+					@textField(Field{ID: "member-password", Name: "password", Label: i18n.T(ctx, "field.newPassword"), Type: "password", Autocomplete: "new-password", Required: true,
+						Hint: i18n.T(ctx, "member.resetHint", v.Name)}, v.Password)
+					<div>
+						<button class="btn btn--secondary" type="submit">{ i18n.T(ctx, "member.setPassword") }</button>
+					</div>
+				</form>
+				<details class="card disclosure disclosure--danger" open?={ v.Remove.HasErrors() }>
+					<summary class="disclosure__summary">{ i18n.T(ctx, "member.remove") }</summary>
+					<form class="stack disclosure__body" method="post" action={ templ.SafeURL("/settings/people/" + v.ID + "/remove") }>
+						@formAlert(v.Remove)
+						<p>{ i18n.T(ctx, "member.removeBody", v.Name) }</p>
+						<input type="hidden" name="confirm" value="yes"/>
+						<div>
+							<button class="btn btn--destructive" type="submit">{ i18n.T(ctx, "member.removeConfirm", v.Name) }</button>
+						</div>
+					</form>
+				</details>
+			}
+		</div>
+	}
+}

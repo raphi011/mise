@@ -20,6 +20,11 @@ type Page struct {
 	Active NavItem
 	// Theme is "light", "dark", or empty for the system preference.
 	Theme string
+	// User is the signed-in user, or nil.
+	User *Viewer
+	// BackHref, when set, renders a back link before the title.
+	BackHref  string
+	BackLabel string
 }
 
 func fontFaces() string {
@@ -27,7 +32,9 @@ func fontFaces() string {
 		`@font-face{font-family:"Bricolage Grotesque";font-style:normal;font-weight:500 700;font-display:swap;src:url(` + Asset("fonts/bricolage-grotesque-latin.woff2") + `) format("woff2")}`
 }
 
-templ Layout(p Page) {
+// document is the HTML skeleton shared by the app shell and the signed-out
+// pages.
+templ document(p Page) {
 	<!DOCTYPE html>
 	<html
 		lang={ i18n.Locale(ctx).String() }
@@ -47,26 +54,38 @@ templ Layout(p Page) {
 			<script type="module" src={ Asset("js/datastar.js") }></script>
 		</head>
 		<body>
-			<div class="shell">
-				@nav(p.Active)
-				<main class="main" id="main">
-					<div class="content">
-						<header class="page-header">
-							<h1 class="page-title">{ p.Title }</h1>
-							@avatarLink()
-						</header>
-						{ children... }
-					</div>
-				</main>
-			</div>
+			{ children... }
 		</body>
 	</html>
 }
 
-templ nav(active NavItem) {
+// Layout is the app shell for signed-in pages.
+templ Layout(p Page) {
+	@document(p) {
+		<div class="shell">
+			@nav(p.Active, p.User)
+			<main class="main" id="main">
+				<div class="content">
+					<header class="page-header">
+						if p.BackHref != "" {
+							@backLink(p.BackHref, p.BackLabel)
+						}
+						<h1 class="page-title">{ p.Title }</h1>
+						if p.User != nil {
+							@avatarLink(p.User)
+						}
+					</header>
+					{ children... }
+				</div>
+			</main>
+		</div>
+	}
+}
+
+templ nav(active NavItem, user *Viewer) {
 	<nav class="nav" aria-label={ i18n.T(ctx, "nav.main") }>
 		<a class="nav__brand" href="/" aria-label="mise">
-			@logo()
+			@logo(32)
 			<span class="nav__brand-name" aria-hidden="true">mise</span>
 		</a>
 		<div class="nav__links">
@@ -74,10 +93,19 @@ templ nav(active NavItem) {
 			@navLink("/plan", i18n.T(ctx, "nav.plan"), active == NavPlan, iconPlan())
 			@navLink("/groceries", i18n.T(ctx, "nav.groceries"), active == NavGroceries, iconGroceries())
 		</div>
-		<div class="nav__footer">
-			@avatarLink()
-			<a href="/settings">{ i18n.T(ctx, "nav.settings") }</a>
-		</div>
+		if user != nil {
+			<a
+				class="nav__footer"
+				href="/settings"
+				if active == NavSettings {
+					aria-current="page"
+				}
+			>
+				@avatar(user.Name, user.Color, "sm")
+				<span class="nav__footer-name">{ user.Name }</span>
+				<span class="nav__footer-settings">{ i18n.T(ctx, "nav.settings") }</span>
+			</a>
+		}
 	</nav>
 }
 
@@ -96,15 +124,15 @@ templ navLink(href, label string, active bool, icon templ.Component) {
 	</a>
 }
 
-// avatarLink opens Settings. It shows a person icon until accounts exist.
-templ avatarLink() {
-	<a class="avatar" href="/settings" aria-label={ i18n.T(ctx, "nav.settings") }>
-		<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"></circle><path d="M4 20c1.5-3.5 4.5-5 8-5s6.5 1.5 8 5"></path></svg>
+// avatarLink opens Settings: the user's initial in their avatar colour.
+templ avatarLink(user *Viewer) {
+	<a class={ avatarClass(user.Color, "") + " avatar--link" } href="/settings" aria-label={ i18n.T(ctx, "nav.settings") }>
+		<span aria-hidden="true">{ Initial(user.Name) }</span>
 	</a>
 }
 
-templ logo() {
-	<svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="10" fill="#2E6A43"></rect><path d="M5.5 16h6.5a3.25 3.25 0 0 1-6.5 0zM12.75 16h6.5a3.25 3.25 0 0 1-6.5 0zM20 16h6.5a3.25 3.25 0 0 1-6.5 0z" fill="#FFFFFF"></path><circle cx="16" cy="11.5" r="1.8" fill="#E3B86E"></circle></svg>
+templ logo(size int) {
+	<svg width={ size } height={ size } viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="10" fill="#2E6A43"></rect><path d="M5.5 16h6.5a3.25 3.25 0 0 1-6.5 0zM12.75 16h6.5a3.25 3.25 0 0 1-6.5 0zM20 16h6.5a3.25 3.25 0 0 1-6.5 0z" fill="#FFFFFF"></path><circle cx="16" cy="11.5" r="1.8" fill="#E3B86E"></circle></svg>
 }
 
 templ iconRecipes() {

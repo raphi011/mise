@@ -1,0 +1,118 @@
+package ui
+
+import "github.com/raphi011/mise/internal/i18n"
+
+// textField renders a labelled input. Validation messages are tied to the
+// input with aria-describedby and aria-invalid.
+templ textField(f Field, form Form) {
+	<div class="field">
+		<label class="field__label" for={ f.ID }>
+			{ f.Label }
+			if f.LabelNote != "" {
+				<span class="field__note">{ f.LabelNote }</span>
+			}
+		</label>
+		<input
+			class="input"
+			id={ f.ID }
+			name={ f.Name }
+			type={ inputType(f.Type) }
+			if f.Type != "password" {
+				value={ form.Value(f.Name) }
+			}
+			if f.Autocomplete != "" {
+				autocomplete={ f.Autocomplete }
+			}
+			if f.Required {
+				required
+			}
+			if form.Error(f.Name) != "" {
+				aria-invalid="true"
+			}
+			if describedBy(f, form) != "" {
+				aria-describedby={ describedBy(f, form) }
+			}
+			{ f.Attrs... }
+		/>
+		if f.Hint != "" {
+			<span class="field__hint" id={ f.ID + "-hint" }>{ f.Hint }</span>
+		}
+		if form.Error(f.Name) != "" {
+			<span class="field__error" id={ f.ID + "-error" }>{ form.Error(f.Name) }</span>
+		}
+	</div>
+}
+
+func inputType(t string) string {
+	if t == "" {
+		return "text"
+	}
+	return t
+}
+
+func describedBy(f Field, form Form) string {
+	var ids []string
+	if f.Hint != "" {
+		ids = append(ids, f.ID+"-hint")
+	}
+	if form.Error(f.Name) != "" {
+		ids = append(ids, f.ID+"-error")
+	}
+	switch len(ids) {
+	case 0:
+		return ""
+	case 1:
+		return ids[0]
+	}
+	return ids[0] + " " + ids[1]
+}
+
+// fieldError renders the message for a field that is not a text input
+// (radio groups, selects).
+templ fieldError(id, msg string) {
+	if msg != "" {
+		<span class="field__error" id={ id }>{ msg }</span>
+	}
+}
+
+// formAlert renders a form-level error, announced when the page loads.
+templ formAlert(form Form) {
+	if form.Alert != "" {
+		<p class="alert" role="alert">{ form.Alert }</p>
+	} else if len(form.Errors) > 0 {
+		<p class="alert" role="alert">{ i18n.T(ctx, "form.error.summary") }</p>
+	}
+}
+
+// notice renders a status message after a successful action.
+templ notice(msg string) {
+	<p class="notice" role="status" aria-live="polite">
+		if msg != "" {
+			{ msg }
+		}
+	</p>
+}
+
+templ avatar(name, color, size string) {
+	<span class={ avatarClass(color, size) } aria-hidden="true">{ Initial(name) }</span>
+}
+
+templ backLink(href, label string) {
+	<a class="back-link" href={ templ.SafeURL(href) } aria-label={ label }>
+		<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>
+	</a>
+}
+
+templ chevron() {
+	<svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>
+}
+
+// postButton is a one-button form for actions like sign out or revoke.
+templ postButton(action, label, class string, hidden map[string]string) {
+	<form method="post" action={ templ.SafeURL(action) } class="inline-form">
+		for k, v := range hidden {
+			<input type="hidden" name={ k } value={ v }/>
+		}
+		<button type="submit" class={ class }>{ label }</button>
+	</form>
+}
