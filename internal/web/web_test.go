@@ -54,10 +54,19 @@ func TestHealth(t *testing.T) {
 	}
 }
 
+// signedIn returns a request for target carrying the session cookie.
+func signedIn(t *testing.T, c *http.Cookie, method, target string) *http.Request {
+	t.Helper()
+	r := newReq(t, method, target, nil)
+	r.AddCookie(c)
+	return r
+}
+
 func TestPages(t *testing.T) {
 	h := newTestServer(t, config.Config{})
+	c := doSetup(t, h)
 
-	res, _ := do(t, h, newReq(t, "GET", "/", nil))
+	res, _ := do(t, h, signedIn(t, c, "GET", "/"))
 	if res.StatusCode != http.StatusFound || res.Header.Get("Location") != "/groceries" {
 		t.Errorf("/: %d -> %q", res.StatusCode, res.Header.Get("Location"))
 	}
@@ -68,7 +77,7 @@ func TestPages(t *testing.T) {
 		"/groceries": "Groceries",
 		"/settings":  "Settings",
 	} {
-		res, body := do(t, h, newReq(t, "GET", path, nil))
+		res, body := do(t, h, signedIn(t, c, "GET", path))
 		if res.StatusCode != 200 {
 			t.Errorf("%s: status %d", path, res.StatusCode)
 			continue
@@ -76,27 +85,52 @@ func TestPages(t *testing.T) {
 		if !strings.Contains(body, "<title>"+title+" · mise</title>") {
 			t.Errorf("%s: missing title %q", path, title)
 		}
-		if !strings.Contains(body, `href="`+path+`" aria-current="page"`) && path != "/settings" {
+		if !strings.Contains(body, `href="`+path+`" aria-current="page"`) {
 			t.Errorf("%s: nav entry not marked current", path)
 		}
 		if res.Header.Get("X-Content-Type-Options") != "nosniff" {
 			t.Errorf("%s: missing security headers", path)
 		}
+
+		// Signed out, pages lead to sign-in and the shell is not shown.
+		res, _ = do(t, h, newReq(t, "GET", path, nil))
+		if res.StatusCode != http.StatusFound || !strings.HasPrefix(res.Header.Get("Location"), "/signin?next=") {
+			t.Errorf("%s signed out: %d -> %q", path, res.StatusCode, res.Header.Get("Location"))
+		}
+	}
+
+	_, body := do(t, h, newReq(t, "GET", "/signin", nil))
+	if strings.Contains(body, `href="/settings"`) {
+		t.Error("settings link shown to signed-out visitors")
 	}
 }
 
 func TestLocale(t *testing.T) {
 	h := newTestServer(t, config.Config{})
-	req := newReq(t, "GET", "/groceries", nil)
+	req := newReq(t, "GET", "/setup", nil)
 	req.Header.Set("Accept-Language", "de-AT,de;q=0.9")
 	_, body := do(t, h, req)
-	if !strings.Contains(body, `<html lang="de"`) || !strings.Contains(body, "<title>Einkauf · mise</title>") {
+	if !strings.Contains(body, `<html lang="de"`) || !strings.Contains(body, "<title>mise einrichten · mise</title>") {
 		t.Errorf("German page not rendered:\n%.400s", body)
+	}
+
+	// Signed in, the household default (English, from the setup request)
+	// beats Accept-Language.
+	c := doSetup(t, h)
+	req = signedIn(t, c, "GET", "/groceries")
+	req.Header.Set("Accept-Language", "de-AT,de;q=0.9")
+	if _, body := do(t, h, req); !strings.Contains(body, "<title>Groceries · mise</title>") {
+		t.Errorf("household language not preferred:\n%.400s", body)
 	}
 }
 
 func TestNotFound(t *testing.T) {
 	h := newTestServer(t, config.Config{})
+	res, _ := do(t, h, newReq(t, "GET", "/nope", nil))
+	if res.StatusCode != http.StatusFound || res.Header.Get("Location") != "/setup" {
+		t.Errorf("before setup: status %d -> %q", res.StatusCode, res.Header.Get("Location"))
+	}
+	doSetup(t, h)
 	res, body := do(t, h, newReq(t, "GET", "/nope", nil))
 	if res.StatusCode != 404 || !strings.Contains(body, "Page not found") {
 		t.Errorf("status %d", res.StatusCode)
@@ -105,7 +139,7 @@ func TestNotFound(t *testing.T) {
 
 func TestStaticAssets(t *testing.T) {
 	h := newTestServer(t, config.Config{})
-	_, body := do(t, h, newReq(t, "GET", "/groceries", nil))
+	_, body := do(t, h, newReq(t, "GET", "/setup", nil))
 
 	hrefs := regexp.MustCompile(`(?:href|src)="(/static/[^"]+)"`).FindAllStringSubmatch(body, -1)
 	if len(hrefs) < 3 {
@@ -137,18 +171,19 @@ func TestCrossOriginWritesRejected(t *testing.T) {
 		t.Errorf("cross-site POST: status %d, want 403", res.StatusCode)
 	}
 
+	// Past CSRF, a write before setup is sent to the setup page.
 	same := newReq(t, "POST", "/anything", nil)
 	same.Header.Set("Sec-Fetch-Site", "same-origin")
-	if res, _ := do(t, h, same); res.StatusCode != http.StatusNotFound {
-		t.Errorf("same-origin POST: status %d, want 404 from catch-all", res.StatusCode)
+	if res, _ := do(t, h, same); res.StatusCode != http.StatusSeeOther {
+		t.Errorf("same-origin POST: status %d, want 303 to setup", res.StatusCode)
 	}
 
 	// A proxy rewrote Host, but the Origin is the configured base URL.
 	proxied := newReq(t, "POST", "/anything", nil)
 	proxied.Host = "mise:8080"
 	proxied.Header.Set("Origin", "https://mise.example.com")
-	if res, _ := do(t, h, proxied); res.StatusCode != http.StatusNotFound {
-		t.Errorf("trusted origin POST: status %d, want 404", res.StatusCode)
+	if res, _ := do(t, h, proxied); res.StatusCode != http.StatusSeeOther {
+		t.Errorf("trusted origin POST: status %d, want 303", res.StatusCode)
 	}
 }
 
@@ -203,10 +238,11 @@ func TestRequestLogIncludesRoute(t *testing.T) {
 	var buf strings.Builder
 	log := slog.New(slog.NewTextHandler(&buf, nil))
 	h := newServer(t, config.Config{}, storetest.SQLite(t), log).Handler()
-	do(t, h, newReq(t, "GET", "/recipes", nil))
+	doSetup(t, h)
+	do(t, h, newReq(t, "GET", "/signin", nil))
 	do(t, h, newReq(t, "GET", "/nope", nil))
 	out := buf.String()
-	if !strings.Contains(out, `route="GET /recipes"`) {
+	if !strings.Contains(out, `route="GET /signin"`) {
 		t.Errorf("matched route not logged:\n%s", out)
 	}
 	if !strings.Contains(out, `route=/ status=404`) || !strings.Contains(out, "path=/nope") {
@@ -262,8 +298,8 @@ func TestAddTrustedOrigin(t *testing.T) {
 	if err := s.AddTrustedOrigin("https://mise.example.com"); err != nil {
 		t.Fatal(err)
 	}
-	if res, _ := do(t, h, req()); res.StatusCode != http.StatusNotFound {
-		t.Errorf("after: status %d, want 404 from catch-all", res.StatusCode)
+	if res, _ := do(t, h, req()); res.StatusCode != http.StatusSeeOther {
+		t.Errorf("after: status %d, want 303 to setup", res.StatusCode)
 	}
 	if err := s.AddTrustedOrigin("not an origin"); err == nil {
 		t.Error("invalid origin accepted")

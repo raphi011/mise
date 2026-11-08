@@ -81,6 +81,9 @@ func serve(ctx context.Context, cfg config.Config, db *store.DB, log *slog.Logge
 	if err != nil {
 		return err
 	}
+	if err := server.LoadSettings(ctx); err != nil {
+		return err
+	}
 	srv := &http.Server{
 		Addr:              cfg.Listen,
 		Handler:           server.Handler(),

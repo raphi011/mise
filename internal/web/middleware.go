@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/raphi011/mise/internal/auth"
 	"github.com/raphi011/mise/internal/i18n"
 	"github.com/raphi011/mise/internal/tenant"
 )
@@ -142,11 +143,15 @@ func securityHeaders(next http.Handler) http.Handler {
 	})
 }
 
-// withLocale picks the UI language. Until accounts exist it only looks at
-// Accept-Language; later the user's and household's settings come first.
+// withLocale picks the UI language: the signed-in user's choice, then the
+// household default, then Accept-Language.
 func withLocale(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		tag := i18n.Match(r.Header.Get("Accept-Language"))
+		var prefs []string
+		if id, ok := auth.FromContext(r.Context()); ok {
+			prefs = append(prefs, id.Language, id.HouseholdLanguage)
+		}
+		tag := i18n.Match(append(prefs, r.Header.Get("Accept-Language"))...)
 		next.ServeHTTP(w, r.WithContext(i18n.WithLocale(r.Context(), tag)))
 	})
 }
