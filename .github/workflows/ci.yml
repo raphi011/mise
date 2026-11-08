@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: mise
+          POSTGRES_PASSWORD: mise
+          POSTGRES_DB: mise
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U mise"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      MISE_TEST_POSTGRES_URL: postgres://mise:mise@localhost:5432/mise?sslmode=disable
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      # git status (unlike git diff) also reports new, untracked files.
+      - name: templ generate is up to date
+        run: |
+          go tool templ generate
+          status="$(git status --porcelain -- '*_templ.go')"
+          if [ -n "$status" ]; then
+            echo "Generated templ files are stale; run 'go tool templ generate' and commit:"
+            echo "$status"
+            exit 1
+          fi
+
+      - name: go mod tidy is up to date
+        run: |
+          go mod tidy
+          status="$(git status --porcelain -- go.mod go.sum)"
+          if [ -n "$status" ]; then
+            echo "go.mod/go.sum are not tidy; run 'go mod tidy' and commit:"
+            echo "$status"
+            git diff -- go.mod go.sum
+            exit 1
+          fi
+
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.14.0
+
+      - name: Test (SQLite + Postgres)
+        run: go test -race ./...
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

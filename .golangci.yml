@@ -1,0 +1,34 @@
+version: "2"
+
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - errorlint
+    - forbidigo
+    - misspell
+    - noctx
+    - rowserrcheck
+    - sqlclosecheck
+    - unconvert
+  settings:
+    forbidigo:
+      analyze-types: true
+      forbid:
+        # Unscoped database access bypasses the household boundary. Only
+        # packages without a request (jobs, AI runner, live fan-out) and the
+        # auth layer (global users/sessions/invites) may use it.
+        - pattern: '^store\.DB\.(ScopeFor|System)$'
+          pkg: '^github\.com/raphi011/mise/internal/store$'
+          msg: "unscoped store access is restricted to internal/{jobs,ai,live,auth}; use DB.Scope(ctx)"
+  exclusions:
+    rules:
+      - path: '^internal/(jobs|ai|live|auth|store)/'
+        linters: [forbidigo]
+      - path: '_test\.go$'
+        linters: [forbidigo]
+
+formatters:
+  enable:
+    - gofmt
+    - goimports

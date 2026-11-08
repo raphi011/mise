@@ -1,0 +1,310 @@
+/* Design tokens from the style guide. Light is the default; dark applies
+   when the user picks Dark, or picks System and the OS prefers dark. */
+:root {
+  --ground: #F6F5F1;
+  --surface: #FFFFFF;
+  --surface-2: #F0EEE7;
+  --ink: #1B1F1A;
+  --ink-2: #3E4540;
+  --muted: #5E655C;
+  --line: #E4E2DA;
+  --line-soft: #ECEAE3;
+  --herb: #2E6A43;
+  --herb-strong: #1F4A2E;
+  --herb-soft: #E3EFE6;
+  --coral: #C4492C;
+  --coral-soft: #FBE9E2;
+  --amber: #E3B86E;
+  --amber-soft: #F6ECDA;
+  --amber-ink: #7A4E12;
+  --on-herb: #FFFFFF;
+
+  --font-body: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Bricolage Grotesque", Inter, system-ui, sans-serif;
+
+  --radius-tag: 10px;
+  --radius-field: 14px;
+  --radius-card: 18px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --gutter: 20px;
+  --target: 44px;
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #121411;
+    --surface: #1C1F1B;
+    --surface-2: #242823;
+    --ink: #ECEDE8;
+    --ink-2: #C9CDC6;
+    --muted: #A3AAA0;
+    --line: #2C302B;
+    --line-soft: #262A25;
+    --herb: #8FD1A5;
+    --herb-strong: #A9D3B5;
+    --herb-soft: #1F3326;
+    --coral: #F0B9A3;
+    --coral-soft: #3A2620;
+    --amber-soft: #33291A;
+    --amber-ink: #E3B86E;
+    --on-herb: #121411;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --ground: #121411;
+  --surface: #1C1F1B;
+  --surface-2: #242823;
+  --ink: #ECEDE8;
+  --ink-2: #C9CDC6;
+  --muted: #A3AAA0;
+  --line: #2C302B;
+  --line-soft: #262A25;
+  --herb: #8FD1A5;
+  --herb-strong: #A9D3B5;
+  --herb-soft: #1F3326;
+  --coral: #F0B9A3;
+  --coral-soft: #3A2620;
+  --amber-soft: #33291A;
+  --amber-ink: #E3B86E;
+  --on-herb: #121411;
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+a { color: var(--herb); }
+a:hover { color: var(--herb-strong); }
+button, input, select, textarea { font: inherit; color: inherit; }
+
+:focus-visible {
+  outline: 2px solid var(--herb);
+  outline-offset: 2px;
+}
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ---- Shell: bottom bar (phone), icon rail (tablet), sidebar (desktop) ---- */
+
+.shell {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.nav {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+}
+
+.nav__brand, .nav__footer { display: none; }
+
+.nav__brand { color: var(--ink); text-decoration: none; }
+.nav__brand:hover { color: var(--ink); }
+
+.nav__links { display: contents; }
+
+.nav__link {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-height: var(--target);
+  padding: 6px 0;
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 12px;
+}
+
+.nav__link:hover { color: var(--ink); }
+
+.nav__icon {
+  width: 56px;
+  height: 30px;
+  border-radius: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav__link[aria-current="page"] {
+  color: var(--herb);
+  font-weight: 600;
+}
+
+.nav__link[aria-current="page"] .nav__icon { background: var(--herb-soft); }
+
+.main {
+  padding: 20px var(--gutter) calc(96px + env(safe-area-inset-bottom));
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.page-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.avatar {
+  width: var(--target);
+  height: var(--target);
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--amber-soft);
+  color: var(--amber-ink);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.avatar:hover { color: var(--amber-ink); }
+
+@media (min-width: 768px) {
+  .nav {
+    inset: 0 auto 0 0;
+    width: 88px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+    padding: var(--space-5) var(--space-2);
+    border-top: none;
+    border-right: 1px solid var(--line);
+  }
+
+  .nav__brand { display: flex; justify-content: center; }
+  .nav__brand-name { display: none; }
+
+  .nav__links {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .main {
+    margin-left: 88px;
+    padding: 32px clamp(16px, 4vw, 48px) 48px;
+  }
+
+  .page-title { font-size: 40px; }
+}
+
+@media (min-width: 1200px) {
+  .nav {
+    width: 240px;
+    padding: var(--space-5) var(--space-4);
+  }
+
+  .nav__brand {
+    justify-content: flex-start;
+    align-items: center;
+    gap: 10px;
+    padding: 0 var(--space-2);
+  }
+
+  .nav__brand-name {
+    display: inline;
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 700;
+  }
+
+  .nav__link {
+    flex-direction: row;
+    gap: var(--space-3);
+    height: var(--target);
+    padding: 0 var(--space-3);
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--ink-2);
+  }
+
+  .nav__icon { width: 20px; height: 20px; background: none !important; }
+
+  .nav__link[aria-current="page"] { background: var(--herb-soft); }
+
+  .nav__footer {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: auto;
+    padding: var(--space-2);
+  }
+
+  .nav__footer a:not(.avatar) {
+    color: var(--ink);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .main { margin-left: 240px; }
+
+  .page-header .avatar { display: none; }
+
+  .content { max-width: 1200px; margin: 0 auto; }
+}
+
+/* ---- Empty state ---- */
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-6) var(--space-5);
+  border-radius: var(--radius-card);
+  border: 1.5px dashed var(--line);
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.empty h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.empty p { margin: 0; }

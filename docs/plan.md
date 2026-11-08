@@ -36,7 +36,7 @@ The binary is named `mise-server`, not `mise`, so `go install` does not shadow t
 | AI | `anthropic-sdk-go`, `openai-go` (OpenAI-compatible endpoints incl. Ollama) |
 | Logging | `log/slog` |
 | Lint | golangci-lint v2 |
-| Dev tooling | `mise.toml` in repo pins go, templ, golangci-lint, goose |
+| Dev tooling | `mise.toml` in repo pins go and golangci-lint; templ via `go tool` (go.mod `tool` directive). Migrations are embedded, so no goose CLI |
 
 ### Why templ + Datastar
 
@@ -106,8 +106,9 @@ Domain packages own their SQL and business rules; `web` handlers parse requests,
 - **Case-insensitive names:** a `name_key` column filled in Go with `cases.Fold` + whitespace normalisation; `UNIQUE (household_id, name_key)` on both engines. Handles umlauts identically everywhere.
 - **Soft-deleted rows and uniqueness:** unique indexes on soft-deletable tables are partial (`WHERE deleted_at IS NULL`).
 - Engine-specific code behind a small `Dialect` interface, limited to recipe search: FTS5 on SQLite, `tsvector` + `pg_trgm` on Postgres.
-- **SQLite pools:** two `*sql.DB` handles on the same file. Writer: `SetMaxOpenConns(1)`, `_txlock=immediate`. Reader: pool of N, read-only. Pragmas in the DSN so every connection gets them: `_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=synchronous(NORMAL)`. Postgres uses one pool for both.
+- **SQLite pools:** two `*sql.DB` handles on the same file. Writer: `SetMaxOpenConns(1)`, `_txlock=immediate`. Reader: pool of N, read-only. Pragmas in the DSN so every connection gets them: `_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=synchronous(NORMAL)`. Postgres also uses a writer pool and a reader pool whose connections set `default_transaction_read_only=on`, so writes through `Read()` fail on both engines. `Tx` refuses to nest (`ErrNestedTx`): on SQLite it would deadlock on the single writer.
 - **Tests:** store tests run against both engines: SQLite on a temp file per test (not `:memory:`, which gives each pooled connection its own database), Postgres via testcontainers-go.
+- **SQLite table rebuilds** (anything `ALTER TABLE` can't do) use `-- +goose NO TRANSACTION` with `PRAGMA foreign_keys=OFF` and their own `BEGIN`/`COMMIT`, since the pragma is a no-op inside goose's transaction and `DROP TABLE` would cascade; Postgres uses `ALTER TABLE`. See `internal/store/migrations/README.md`.
 - **Schema parity:** CI migrates both engines and compares tables, columns, nullability, unique keys and foreign keys from the catalogs; a mismatch fails the build.
 
 ### Schema

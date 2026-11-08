@@ -1,0 +1,29 @@
+[tools]
+go = "1.27.1"
+golangci-lint = "2.14.0"
+
+[env]
+MISE_DATA_DIR = "{{config_root}}/data"
+MISE_LOG_FORMAT = "text"
+
+[tasks.gen]
+description = "Generate templ components"
+run = "go tool templ generate"
+
+[tasks.lint]
+description = "Run golangci-lint"
+run = "golangci-lint run ./..."
+
+[tasks.test]
+description = "Run tests (Postgres via MISE_TEST_POSTGRES_URL or Docker, else skipped)"
+run = "go test ./..."
+
+[tasks.run]
+description = "Run the server against the local data dir"
+depends = ["gen"]
+run = "go run ./cmd/mise-server serve"
+
+[tasks.build]
+description = "Build the mise-server binary"
+depends = ["gen"]
+run = "CGO_ENABLED=0 go build -trimpath -o bin/mise-server ./cmd/mise-server"

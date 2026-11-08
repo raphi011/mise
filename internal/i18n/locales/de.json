@@ -1,0 +1,18 @@
+{
+  "app.name": "mise",
+  "nav.main": "Hauptmenü",
+  "nav.recipes": "Rezepte",
+  "nav.plan": "Plan",
+  "nav.groceries": "Einkauf",
+  "nav.settings": "Einstellungen",
+  "page.recipes.title": "Rezepte",
+  "page.plan.title": "Diese Woche",
+  "page.groceries.title": "Einkauf",
+  "page.settings.title": "Einstellungen",
+  "page.placeholder.body": "Hier gibt es noch nichts. Dieser Teil von mise wird gerade gebaut.",
+  "error.notFound.title": "Seite nicht gefunden",
+  "error.notFound.body": "Die gesuchte Seite gibt es nicht.",
+  "error.internal.title": "Etwas ist schiefgelaufen",
+  "error.internal.body": "Bitte versuch es gleich noch einmal.",
+  "error.home": "Zurück zu mise"
+}

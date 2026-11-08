@@ -1,0 +1,18 @@
+{
+  "app.name": "mise",
+  "nav.main": "Main",
+  "nav.recipes": "Recipes",
+  "nav.plan": "Plan",
+  "nav.groceries": "Groceries",
+  "nav.settings": "Settings",
+  "page.recipes.title": "Recipes",
+  "page.plan.title": "This week",
+  "page.groceries.title": "Groceries",
+  "page.settings.title": "Settings",
+  "page.placeholder.body": "Nothing here yet. This part of mise is still being built.",
+  "error.notFound.title": "Page not found",
+  "error.notFound.body": "The page you were looking for doesn't exist.",
+  "error.internal.title": "Something went wrong",
+  "error.internal.body": "Please try again in a moment.",
+  "error.home": "Back to mise"
+}
