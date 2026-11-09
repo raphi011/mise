@@ -1,0 +1,153 @@
+{{- if and .Values.smtp.host (not .Values.smtp.from) }}
+{{- fail "smtp.from is required with smtp.host" }}
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "mise.fullname" . }}
+  labels:
+    {{- include "mise.labels" . | nindent 4 }}
+spec:
+  # Single instance: live updates are in-process and the volume is RWO.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "mise.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "mise.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      automountServiceAccountToken: false
+      # A Service named "mise" would inject MISE_PORT=tcp://... into the env.
+      enableServiceLinks: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: mise
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: [serve]
+          env:
+            - name: MISE_DATA_DIR
+              value: /data
+            - name: MISE_LISTEN
+              value: ":8080"
+            - name: MISE_LOG_FORMAT
+              value: {{ .Values.log.format | quote }}
+            - name: MISE_LOG_LEVEL
+              value: {{ .Values.log.level | quote }}
+            {{- with .Values.baseURL }}
+            - name: MISE_BASE_URL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.trustedProxies }}
+            - name: MISE_TRUSTED_PROXIES
+              value: {{ join "," . | quote }}
+            {{- end }}
+            {{- if .Values.database.existingSecret.name }}
+            - name: MISE_DB
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret.name }}
+                  key: {{ .Values.database.existingSecret.key }}
+            {{- else if .Values.database.url }}
+            - name: MISE_DB
+              value: {{ .Values.database.url | quote }}
+            {{- end }}
+            {{- with .Values.smtp }}
+            {{- if .host }}
+            - name: MISE_SMTP_HOST
+              value: {{ .host | quote }}
+            - name: MISE_SMTP_PORT
+              value: {{ .port | quote }}
+            - name: MISE_SMTP_TLS
+              value: {{ .tls | quote }}
+            - name: MISE_SMTP_TLS_SKIP_VERIFY
+              value: {{ .tlsSkipVerify | quote }}
+            - name: MISE_SMTP_FROM
+              value: {{ .from | quote }}
+            {{- if .existingSecret.name }}
+            - name: MISE_SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .existingSecret.name }}
+                  key: {{ .existingSecret.usernameKey }}
+            - name: MISE_SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .existingSecret.name }}
+                  key: {{ .existingSecret.passwordKey }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.envFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          startupProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 5
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "mise.claimName" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

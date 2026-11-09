@@ -52,9 +52,12 @@ type SMTP struct {
 	Host string
 	Port int
 	// TLS is TLSStartTLS, TLSImplicit or TLSNone.
-	TLS      string
-	Username string
-	Password string
+	TLS string
+	// SkipVerify accepts any server certificate, for a relay on a trusted
+	// network that presents a self-signed one.
+	SkipVerify bool
+	Username   string
+	Password   string
 	// From is the sender, e.g. "mise <mise@example.com>".
 	From *mail.Address
 }
@@ -91,6 +94,7 @@ func load(args []string, getenv func(string) string, out io.Writer) (Config, err
 	smtpHost := str("smtp-host", "MISE_SMTP_HOST", "", "SMTP server for invite and password-reset emails; unset disables email")
 	smtpPort := str("smtp-port", "MISE_SMTP_PORT", "587", "SMTP port")
 	smtpTLS := str("smtp-tls", "MISE_SMTP_TLS", TLSStartTLS, "SMTP TLS mode: starttls, tls (implicit) or none")
+	smtpSkipVerify := str("smtp-tls-skip-verify", "MISE_SMTP_TLS_SKIP_VERIFY", "false", "accept any SMTP server certificate")
 	smtpUser := str("smtp-username", "MISE_SMTP_USERNAME", "", "SMTP username")
 	smtpPass := str("smtp-password", "MISE_SMTP_PASSWORD", "", "SMTP password")
 	secretKey := str("secret-key", "MISE_SECRET_KEY", "", "base64 32-byte key for stored API keys; default generated into the data directory")
@@ -159,7 +163,7 @@ func load(args []string, getenv func(string) string, out io.Writer) (Config, err
 		errs = append(errs, fmt.Errorf("log level: %w", err))
 	}
 	if *smtpHost != "" {
-		smtp, err := parseSMTP(*smtpHost, *smtpPort, *smtpTLS, *smtpUser, *smtpPass, *smtpFrom)
+		smtp, err := parseSMTP(*smtpHost, *smtpPort, *smtpTLS, *smtpSkipVerify, *smtpUser, *smtpPass, *smtpFrom)
 		errs = append(errs, err)
 		cfg.SMTP = smtp
 	}
@@ -167,9 +171,17 @@ func load(args []string, getenv func(string) string, out io.Writer) (Config, err
 }
 
 // parseSMTP validates the SMTP settings given a host.
-func parseSMTP(host, port, tls, user, pass, from string) (SMTP, error) {
+func parseSMTP(host, port, tls, skipVerify, user, pass, from string) (SMTP, error) {
 	s := SMTP{Host: host, TLS: tls, Username: user, Password: pass}
 	var errs []error
+	skip, err := strconv.ParseBool(skipVerify)
+	switch {
+	case err != nil:
+		errs = append(errs, fmt.Errorf("SMTP TLS skip verify %q: must be true or false", skipVerify))
+	case skip && tls == TLSNone:
+		errs = append(errs, errors.New("SMTP TLS skip verify: needs TLS mode starttls or tls"))
+	}
+	s.SkipVerify = skip
 	n, err := strconv.Atoi(port)
 	if err != nil || n < 1 || n > 65535 {
 		errs = append(errs, fmt.Errorf("SMTP port %q: must be 1 to 65535", port))

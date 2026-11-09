@@ -255,6 +255,12 @@ MISE_SMTP_FROM='mise <mise@example.com>'
 | `tls` | 465 | TLS from the first byte (implicit TLS, "SMTPS") |
 | `none` | 25 | no encryption; only for a relay on the same host or a trusted network |
 
+mise verifies the server's certificate in both TLS modes. A relay on the
+same trusted network that only has a self-signed certificate (a container
+relay that generates one on start) needs `MISE_SMTP_TLS_SKIP_VERIFY=true`;
+the connection is then encrypted but not authenticated, so use it only where
+nobody can sit between mise and the relay.
+
 Username and password are set together or not at all. `MISE_SMTP_FROM` is
 required and must be an address the server lets you send from. Email links
 are built from `MISE_BASE_URL` (or the URL stored at setup); without either,

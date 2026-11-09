@@ -1,0 +1,9 @@
+apiVersion: v2
+name: mise
+description: Self-hosted recipes, meal plan and shared shopping lists
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/raphi011/mise
+sources:
+  - https://github.com/raphi011/mise

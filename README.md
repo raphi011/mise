@@ -21,6 +21,19 @@ The container runs as uid 65532 (distroless `nonroot`). Use a named volume as
 above, or a host directory owned by that uid
 (`sudo chown 65532:65532 ./data`), for `/data`.
 
+### Kubernetes
+
+A Helm chart lives in [`charts/mise`](charts/mise). There is no published
+image yet: build one for your nodes' architecture, push it to your registry
+and set `image.repository` and `image.tag`. The chart runs one replica with
+`Recreate` (live updates are in-process); see its `values.yaml` for the
+database, SMTP and volume settings.
+
+```sh
+helm install mise ./charts/mise --set image.repository=registry.example.com/mise \
+  --set baseURL=https://mise.example.com
+```
+
 ## Configuration
 
 | Variable | Default | |
@@ -35,6 +48,7 @@ above, or a host directory owned by that uid
 | `MISE_SMTP_HOST` | | SMTP server; enables invite and password-reset emails |
 | `MISE_SMTP_PORT` | `587` | |
 | `MISE_SMTP_TLS` | `starttls` | `starttls`, `tls` (implicit, usually port 465) or `none` |
+| `MISE_SMTP_TLS_SKIP_VERIFY` | `false` | accept a self-signed server certificate (trusted-network relays only) |
 | `MISE_SMTP_USERNAME`, `MISE_SMTP_PASSWORD` | | when the server needs auth |
 | `MISE_SMTP_FROM` | | sender, e.g. `mise <mise@example.com>`; required with a host |
 

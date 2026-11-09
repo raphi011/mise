@@ -1,0 +1,91 @@
+image:
+  # No published image yet: build it (see the README) and push it to your registry.
+  repository: mise
+  # Defaults to the chart's appVersion.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# Public URL, e.g. https://mise.example.com. Used for email links, the
+# Secure cookie flag and as a trusted origin behind a proxy.
+baseURL: ""
+
+# Addresses or CIDRs of the reverse proxies whose X-Forwarded-For is trusted.
+trustedProxies: []
+
+log:
+  format: json
+  level: info
+
+database:
+  # Empty: SQLite in the data volume. Otherwise a postgres:// URL; prefer
+  # existingSecret, since the URL carries the password.
+  url: ""
+  existingSecret:
+    name: ""
+    key: url
+
+smtp:
+  # Empty disables email (invites become link-only, resets admin-only).
+  host: ""
+  port: 587
+  # starttls, tls or none
+  tls: starttls
+  # Accept a self-signed server certificate (trusted-network relays only).
+  tlsSkipVerify: false
+  # Required with a host, e.g. "mise <mise@example.com>".
+  from: ""
+  # Username and password come from this Secret when the server needs auth.
+  existingSecret:
+    name: ""
+    usernameKey: username
+    passwordKey: password
+
+# Holds images, the SQLite database and generated secrets. With more than
+# one replica live updates would split; mise is single-instance.
+persistence:
+  enabled: true
+  existingClaim: ""
+  storageClass: ""
+  accessModes: [ReadWriteOnce]
+  size: 5Gi
+  annotations: {}
+
+extraEnv: []
+envFrom: []
+
+service:
+  type: ClusterIP
+  port: 80
+  annotations: {}
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  fsGroupChangePolicy: OnRootMismatch
+  supplementalGroupsPolicy: Strict
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 256Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
