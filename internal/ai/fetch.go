@@ -57,8 +57,8 @@ const (
 	KindImage
 )
 
-// Response is a fetched body.
-type Response struct {
+// Fetched is a fetched body.
+type Fetched struct {
 	// URL is the final URL after redirects.
 	URL         *url.URL
 	ContentType string
@@ -114,16 +114,16 @@ func NewFetcher() *Fetcher {
 
 // Fetch gets rawURL, expecting a page (HTML, XHTML or plain text) or an
 // image.
-func (f *Fetcher) Fetch(ctx context.Context, rawURL string, kind Kind) (Response, error) {
+func (f *Fetcher) Fetch(ctx context.Context, rawURL string, kind Kind) (Fetched, error) {
 	u, err := ParseURL(rawURL)
 	if err != nil {
-		return Response{}, err
+		return Fetched{}, err
 	}
 	ctx, cancel := context.WithTimeout(ctx, f.timeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
-		return Response{}, ErrBadURL
+		return Fetched{}, ErrBadURL
 	}
 	req.Header.Set("User-Agent", userAgent)
 	limit := int64(MaxPageBytes)
@@ -135,27 +135,27 @@ func (f *Fetcher) Fetch(ctx context.Context, rawURL string, kind Kind) (Response
 	}
 	res, err := f.client.Do(req)
 	if err != nil {
-		return Response{}, unwrapFetchErr(err)
+		return Fetched{}, unwrapFetchErr(err)
 	}
 	defer func() { _ = res.Body.Close() }()
 	if res.StatusCode != http.StatusOK {
-		return Response{}, &StatusError{Code: res.StatusCode}
+		return Fetched{}, &StatusError{Code: res.StatusCode}
 	}
 	ct := res.Header.Get("Content-Type")
 	if !acceptable(ct, kind) {
-		return Response{}, fmt.Errorf("%w: %q", ErrContentType, ct)
+		return Fetched{}, fmt.Errorf("%w: %q", ErrContentType, ct)
 	}
 	if res.ContentLength > limit {
-		return Response{}, ErrTooLarge
+		return Fetched{}, ErrTooLarge
 	}
 	body, err := io.ReadAll(io.LimitReader(res.Body, limit+1))
 	if err != nil {
-		return Response{}, unwrapFetchErr(err)
+		return Fetched{}, unwrapFetchErr(err)
 	}
 	if int64(len(body)) > limit {
-		return Response{}, ErrTooLarge
+		return Fetched{}, ErrTooLarge
 	}
-	return Response{URL: res.Request.URL, ContentType: ct, Body: body}, nil
+	return Fetched{URL: res.Request.URL, ContentType: ct, Body: body}, nil
 }
 
 // unwrapFetchErr surfaces our sentinel errors from inside url.Error and

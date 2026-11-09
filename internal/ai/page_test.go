@@ -14,7 +14,7 @@ import (
 func parse(t *testing.T, contentType, body string) ai.Page {
 	t.Helper()
 	u, _ := url.Parse("https://food.example/recipes/dal")
-	return ai.ParsePage(ai.Response{URL: u, ContentType: contentType, Body: []byte(body)})
+	return ai.ParsePage(ai.Fetched{URL: u, ContentType: contentType, Body: []byte(body)})
 }
 
 const dalPage = `<!doctype html><html lang="en-GB"><head><title>Red lentil dal | Food</title>

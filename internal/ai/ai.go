@@ -1,7 +1,6 @@
 package ai
 
 import (
-	"context"
 	"errors"
 	"time"
 
@@ -9,18 +8,11 @@ import (
 	"github.com/raphi011/mise/internal/recipes"
 )
 
-// Model is a chat model behind a provider API. The provider clients come
-// with the tool loop; until then only the connection test uses it.
-type Model interface {
-	// Test sends one tiny request and reports whether the model answered.
-	Test(ctx context.Context) error
-}
-
 // ProviderFunc builds a Model for a connection.
 type ProviderFunc func(Connection) (Model, error)
 
-// errNoProvider is returned when no provider clients are configured.
-var errNoProvider = errors.New("ai: no provider clients")
+// errNoProvider is returned for a provider without a client.
+var errNoProvider = errors.New("ai: no client for the provider")
 
 // Service implements recipe import on top of the store.
 type Service struct {
@@ -43,7 +35,8 @@ type Config struct {
 	Fetcher *Fetcher
 	// Now defaults to time.Now.
 	Now func() time.Time
-	// Provider builds model clients; tests pass fakes.
+	// Provider builds model clients; nil means Clients{}.New. Tests pass
+	// fakes.
 	Provider ProviderFunc
 }
 
@@ -57,7 +50,7 @@ func New(cfg Config) *Service {
 		s.now = time.Now
 	}
 	if s.newProvider == nil {
-		s.newProvider = func(Connection) (Model, error) { return nil, errNoProvider }
+		s.newProvider = Clients{}.New
 	}
 	return s
 }

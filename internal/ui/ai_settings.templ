@@ -17,6 +17,11 @@ type AISettingsView struct {
 	HasKey        bool
 	KeyUnreadable bool
 	Notice        string
+	// Status labels the connection (off, not tested, connected, failed);
+	// StatusClass styles it. TestError is a failed test's message.
+	Status      i18n.Key
+	StatusClass string
+	TestError   string
 }
 
 templ AISettings(p Page, v AISettingsView) {
@@ -34,7 +39,10 @@ templ AISettings(p Page, v AISettingsView) {
 				</label>
 			</div>
 			<section class="stack" aria-labelledby="ai-connection-title">
-				<h2 class="section-title" id="ai-connection-title">{ i18n.T(ctx, "ai.settings.connection") }</h2>
+				<div class="settings-section__head">
+					<h2 class="section-title" id="ai-connection-title">{ i18n.T(ctx, "ai.settings.connection") }</h2>
+					<span class={ "conn-status", v.StatusClass }>{ i18n.T(ctx, v.Status) }</span>
+				</div>
 				<div class="card stack">
 					<div class="field">
 						<label class="field__label" for="ai-provider">{ i18n.T(ctx, "ai.settings.provider") }</label>
@@ -62,6 +70,14 @@ templ AISettings(p Page, v AISettingsView) {
 					}
 					@textField(Field{ID: "ai-key", Name: "api_key", Label: i18n.T(ctx, "ai.settings.key"), Type: "password",
 						Autocomplete: "off", Hint: keyHint(ctx, v), LabelNote: keyNote(ctx, v)}, v.Form)
+					if v.TestError != "" {
+						<div class="alert" role="alert">
+							<p class="alert__title">{ i18n.T(ctx, "ai.settings.testFailed") }</p>
+							<p class="alert__detail">{ v.TestError }</p>
+						</div>
+					}
+					<button class="btn btn--secondary" type="submit" formaction="/settings/ai/test">{ i18n.T(ctx, "ai.settings.test") }</button>
+					<span class="muted field__hint">{ i18n.T(ctx, "ai.settings.testNote") }</span>
 				</div>
 			</section>
 			<section class="stack" aria-labelledby="ai-tools-title">

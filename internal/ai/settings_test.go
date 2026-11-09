@@ -17,6 +17,10 @@ type fakeModel struct{ err error }
 
 func (m fakeModel) Test(context.Context) error { return m.err }
 
+func (m fakeModel) Chat(context.Context, ai.Request) (ai.Response, error) {
+	return ai.Response{}, errors.New("fakeModel: no chat")
+}
+
 type settingsEnv struct {
 	s     *ai.Service
 	sc    store.Scoped

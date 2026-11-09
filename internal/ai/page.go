@@ -34,7 +34,7 @@ type Page struct {
 }
 
 // ParsePage reads a fetched page. Plain-text responses become Text only.
-func ParsePage(res Response) Page {
+func ParsePage(res Fetched) Page {
 	p := Page{URL: res.URL}
 	r, err := charset.NewReader(bytes.NewReader(res.Body), res.ContentType)
 	if err != nil {

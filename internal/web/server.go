@@ -380,6 +380,7 @@ func (s *Server) routes(r *router) {
 	r.write(http.MethodPost, "/settings/tags/{id}/delete", s.user(s.deleteTag))
 	r.read("/settings/ai", s.admin(s.aiSettingsPage))
 	r.write(http.MethodPost, "/settings/ai", s.admin(s.saveAISettings))
+	r.write(http.MethodPost, "/settings/ai/test", s.admin(s.testAISettings))
 	r.read("/settings/invite", s.admin(s.invitePage))
 	r.write(http.MethodPost, "/settings/invites", s.admin(s.createInvite))
 	r.write(http.MethodPost, "/settings/invites/{id}/revoke", s.admin(s.revokeInvite))

@@ -1,7 +1,10 @@
 package web
 
 import (
+	"context"
+	"errors"
 	"net/http"
+	"time"
 
 	"github.com/raphi011/mise/internal/ai"
 	"github.com/raphi011/mise/internal/i18n"
@@ -11,12 +14,12 @@ import (
 // ---- AI import (Settings › AI import, admins) ----
 
 func (s *Server) aiSettingsPage(w http.ResponseWriter, r *http.Request) {
-	s.renderAISettings(w, r, http.StatusOK, ui.Form{})
+	s.renderAISettings(w, r, http.StatusOK, ui.Form{}, "")
 }
 
 // renderAISettings renders the page with form, or with the stored settings
-// when form is empty.
-func (s *Server) renderAISettings(w http.ResponseWriter, r *http.Request, status int, form ui.Form) {
+// when form is empty. testErr is the failed connection test's message.
+func (s *Server) renderAISettings(w http.ResponseWriter, r *http.Request, status int, form ui.Form, testErr string) {
 	ctx := r.Context()
 	sc, err := s.db.Scope(ctx)
 	if err != nil {
@@ -44,9 +47,15 @@ func (s *Server) renderAISettings(w http.ResponseWriter, r *http.Request, status
 		set("allow_search_items", st.Permissions.SearchItems)
 		set("allow_create_item", st.Permissions.CreateItem)
 	}
-	v := ui.AISettingsView{Form: form, HasKey: st.HasKey, KeyUnreadable: st.KeyUnreadable}
-	if r.URL.Query().Get("done") == "saved" && status == http.StatusOK {
-		v.Notice = i18n.T(ctx, "notice.saved")
+	v := ui.AISettingsView{Form: form, HasKey: st.HasKey, KeyUnreadable: st.KeyUnreadable, TestError: testErr}
+	v.Status, v.StatusClass = connectionStatus(st)
+	if status == http.StatusOK && testErr == "" {
+		switch r.URL.Query().Get("done") {
+		case "saved":
+			v.Notice = i18n.T(ctx, "notice.saved")
+		case "tested":
+			v.Notice = i18n.T(ctx, "ai.settings.testOK")
+		}
 	}
 	for _, p := range ai.Providers {
 		v.Providers = append(v.Providers, ui.Option{Value: string(p), Label: i18n.T(ctx, providerLabel(p))})
@@ -57,11 +66,58 @@ func (s *Server) renderAISettings(w http.ResponseWriter, r *http.Request, status
 }
 
 func (s *Server) saveAISettings(w http.ResponseWriter, r *http.Request) {
+	if s.storeAISettings(w, r) {
+		seeOther(w, r, "/settings/ai?done=saved")
+	}
+}
+
+// testAISettings saves the form, so the test uses what the admin sees,
+// then sends one short request with it.
+func (s *Server) testAISettings(w http.ResponseWriter, r *http.Request) {
+	if !s.storeAISettings(w, r) {
+		return
+	}
 	ctx := r.Context()
 	sc, err := s.db.Scope(ctx)
 	if err != nil {
 		s.serverError(w, r, err)
 		return
+	}
+	tctx, cancel := context.WithTimeout(ctx, aiTestTimeout)
+	defer cancel()
+	err = s.ai.TestConnection(tctx, sc)
+	if err == nil {
+		seeOther(w, r, "/settings/ai?done=tested")
+		return
+	}
+	if ctx.Err() != nil {
+		return
+	}
+	var pe *ai.ProviderError
+	switch {
+	case errors.As(err, &pe):
+		s.renderAISettings(w, r, http.StatusOK, ui.Form{}, pe.Message)
+	case errors.Is(err, context.DeadlineExceeded):
+		s.renderAISettings(w, r, http.StatusOK, ui.Form{}, i18n.T(ctx, "ai.settings.testTimeout"))
+	case errors.Is(err, ai.ErrUnreadable):
+		s.renderAISettings(w, r, http.StatusOK, ui.Form{}, i18n.T(ctx, "ai.settings.keyUnreadable"))
+	default:
+		s.serverError(w, r, err)
+	}
+}
+
+// aiTestTimeout bounds a connection test; a cold local model can take a
+// while to load.
+const aiTestTimeout = 60 * time.Second
+
+// storeAISettings saves the submitted settings. It reports false when it
+// has answered the request itself (invalid form, error).
+func (s *Server) storeAISettings(w http.ResponseWriter, r *http.Request) bool {
+	ctx := r.Context()
+	sc, err := s.db.Scope(ctx)
+	if err != nil {
+		s.serverError(w, r, err)
+		return false
 	}
 	f := formOf(r, "enabled", "provider", "endpoint", "model", "allow_fetch_page", "allow_search_items", "allow_create_item")
 	on := func(name string) bool { return f.Value(name) != "" }
@@ -78,14 +134,27 @@ func (s *Server) saveAISettings(w http.ResponseWriter, r *http.Request) {
 		},
 	})
 	if f, ok := withErrors(ctx, f, err); ok {
-		s.renderAISettings(w, r, http.StatusUnprocessableEntity, f)
-		return
+		s.renderAISettings(w, r, http.StatusUnprocessableEntity, f, "")
+		return false
 	}
 	if err != nil {
 		s.serverError(w, r, err)
-		return
+		return false
 	}
-	seeOther(w, r, "/settings/ai?done=saved")
+	return true
+}
+
+// connectionStatus is the label beside "Model connection".
+func connectionStatus(st ai.Settings) (i18n.Key, string) {
+	switch {
+	case !st.Enabled:
+		return "ai.status.off", "conn-status--off"
+	case st.TestOK == nil:
+		return "ai.status.untested", "conn-status--untested"
+	case *st.TestOK:
+		return "ai.status.connected", "conn-status--ok"
+	}
+	return "ai.status.failed", "conn-status--failed"
 }
 
 // providerLabel is the settings page's name for a provider.
