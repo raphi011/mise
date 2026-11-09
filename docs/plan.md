@@ -125,8 +125,8 @@ All tables also have `household_id` (except `households`, `users`) and `created_
 | password_resets | token_hash, user_id, expires_at (1 hour), used_at |
 | categories | id, name, name_key, color, position; "Uncategorised" is implicit (NULL) and sorts last |
 | items | id, name, name_key, category_id, purchase_count, last_purchased_at |
-| shopping_lists | id, name, position (first = default) |
-| list_entries | id, list_id, item_id, quantity, unit, amount_text, note, added_by, recipe_id, checked_at, deleted_at |
+| shopping_lists | id, name, position (first = default), deleted_at (Undo for list delete) |
+| list_entries | id, list_id, item_id, quantity, unit, amount_text, note, added_by, recipe_id (added in P2 with its FK), checked_at, deleted_at |
 | recipes | id, name, description, photo, prep_min, cook_min, servings, source_url, notes, notes_by, draft, created_by, updated_by, deleted_at |
 | recipe_ingredients | id, recipe_id, item_id, quantity, unit, amount_text, optional, position |
 | steps | id, recipe_id, position, text, timer_seconds |

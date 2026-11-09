@@ -21,6 +21,7 @@ import (
 	_ "time/tzdata" // household time zones must resolve in minimal containers
 
 	"github.com/raphi011/mise/internal/config"
+	"github.com/raphi011/mise/internal/jobs"
 	"github.com/raphi011/mise/internal/store"
 	"github.com/raphi011/mise/internal/web"
 )
@@ -94,6 +95,9 @@ func serve(ctx context.Context, cfg config.Config, db *store.DB, log *slog.Logge
 		IdleTimeout:  2 * time.Minute,
 		ErrorLog:     slog.NewLogLogger(log.Handler(), slog.LevelWarn),
 	}
+
+	// Periodic maintenance stops with ctx.
+	go jobs.NewSweeper(db, log, nil, 0).Run(ctx)
 
 	errc := make(chan error, 1)
 	go func() {
