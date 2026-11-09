@@ -34,12 +34,29 @@ templ Tags(p Page, v TagsView) {
 		<div class="narrow stack">
 			@notice(v.Notice)
 			<p class="lead">{ i18n.T(ctx, "tags.lead") }</p>
-			<form class="card stack" method="post" action="/settings/tags" novalidate>
-				@formAlert(v.New)
-				@textField(Field{ID: "new-tag-name", Name: "name", Label: i18n.T(ctx, "tags.new"), Required: true, Attrs: templ.Attributes{"placeholder": i18n.T(ctx, "tags.newPlaceholder"), "autocomplete": "off"}}, v.New)
-				<div>
-					<button class="btn btn--secondary btn--small" type="submit">{ i18n.T(ctx, "tags.add") }</button>
+			<form class="stack" method="post" action="/settings/tags" novalidate>
+				if v.New.Alert != "" {
+					@formAlert(v.New)
+				}
+				<div class="inline-add">
+					<label class="visually-hidden" for="new-tag-name">{ i18n.T(ctx, "tags.new") }</label>
+					<input
+						class="input input--pill"
+						id="new-tag-name"
+						name="name"
+						type="text"
+						required
+						autocomplete="off"
+						value={ v.New.Value("name") }
+						placeholder={ i18n.T(ctx, "tags.newPlaceholder") }
+						if v.New.Error("name") != "" {
+							aria-invalid="true"
+							aria-describedby="new-tag-name-error"
+						}
+					/>
+					<button class="btn btn--strong inline-add__submit" type="submit">{ i18n.T(ctx, "tags.add") }</button>
 				</div>
+				@fieldError("new-tag-name-error", v.New.Error("name"))
 			</form>
 			<section class="stack" aria-labelledby="tags-title">
 				<div class="list-group__head">

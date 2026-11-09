@@ -455,7 +455,7 @@
   "tags.title": "Recipe tags",
   "tags.lead": "Tags power the filters on Recipes. Renaming a tag updates every recipe that has it.",
   "tags.new": "New tag",
-  "tags.newPlaceholder": "e.g. Soup",
+  "tags.newPlaceholder": "New tag, e.g. “Soup”",
   "tags.add": "Add",
   "tags.count": "%d tags",
   "tags.countOne": "1 tag",
