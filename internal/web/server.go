@@ -19,6 +19,7 @@ import (
 	"github.com/raphi011/mise/internal/i18n"
 	"github.com/raphi011/mise/internal/images"
 	"github.com/raphi011/mise/internal/live"
+	"github.com/raphi011/mise/internal/plan"
 	"github.com/raphi011/mise/internal/recipes"
 	"github.com/raphi011/mise/internal/store"
 	"github.com/raphi011/mise/internal/ui"
@@ -57,7 +58,10 @@ type Server struct {
 	live      *live.Hub
 	groceries *groceries.Service
 	recipes   *recipes.Service
+	plan      *plan.Service
 	images    *images.Store
+	// clock is the current time, for tests; nil means time.Now.
+	clock func() time.Time
 	// heartbeat overrides live.DefaultHeartbeat, for tests.
 	heartbeat time.Duration
 
@@ -87,6 +91,7 @@ func New(cfg config.Config, db *store.DB, log *slog.Logger) (*Server, error) {
 	s.live = live.NewHub()
 	s.groceries = groceries.New(s.live, nil)
 	s.recipes = recipes.New(s.live, s.groceries, nil)
+	s.plan = plan.New(s.live, s.recipes, s.now)
 	s.images = images.New(cfg.DataDir)
 	s.auth = auth.New(db, auth.Config{Log: log, SecureCookie: s.secureCookie, OnSetup: s.seedHousehold})
 	if cfg.BaseURL != nil {
@@ -95,6 +100,14 @@ func New(cfg config.Config, db *store.DB, log *slog.Logger) (*Server, error) {
 		}
 	}
 	return s, nil
+}
+
+// now returns the current time.
+func (s *Server) now() time.Time {
+	if s.clock != nil {
+		return s.clock()
+	}
+	return time.Now()
 }
 
 // Images returns the image store, for the sweep of unreferenced images.
@@ -250,8 +263,24 @@ func (s *Server) routes(r *router) {
 	r.read("/recipes/{id}/delete", s.user(s.deleteRecipePage))
 	r.write(http.MethodPost, "/recipes/{id}/delete", s.user(s.deleteRecipe))
 	r.write(http.MethodPost, "/recipes/{id}/restore", s.user(s.restoreRecipe))
+	r.write(http.MethodPost, "/recipes/{id}/cooked", s.user(s.markCooked))
+	r.write(http.MethodPost, "/recipes/{id}/cooked/{event}/undo", s.user(s.undoCooked))
 	r.read("/images/{hash}/{size}", s.user(s.image))
-	r.read("/plan", s.user(s.placeholder(ui.NavPlan, "page.plan.title")))
+	r.read("/plan", s.user(s.planPage))
+	r.read("/plan/month", s.user(s.planMonthPage))
+	r.write(http.MethodPost, "/plan", s.user(s.addMeal))
+	r.read("/plan/add", s.user(s.addPlanPage))
+	r.read("/plan/add/days", s.user(s.addPlanDays))
+	r.read("/plan/pick", s.user(s.pickPage))
+	r.read("/plan/pick/results", s.user(s.pickResults))
+	r.write(http.MethodPost, "/plan/place", s.user(s.placeMeals))
+	r.read("/plan/meals/{id}", s.user(s.mealMenu))
+	r.write(http.MethodPost, "/plan/meals/{id}/move", s.user(s.moveMeal))
+	r.write(http.MethodPost, "/plan/meals/{id}/servings", s.user(s.setMealServings))
+	r.write(http.MethodPost, "/plan/meals/{id}/replace", s.user(s.replaceMeal))
+	r.write(http.MethodPost, "/plan/meals/{id}/remove", s.user(s.removeMeal))
+	r.write(http.MethodPost, "/plan/meals/{id}/restore", s.user(s.restoreMeal))
+	r.write(http.MethodPost, "/plan/meals/{id}/unplan", s.user(s.unplanMeal))
 	r.read("/groceries", s.user(s.groceriesHome))
 	r.read("/groceries/lists/{id}", s.user(s.listPage))
 	r.read("/groceries/lists/{id}/suggest", s.user(s.suggest))
@@ -338,12 +367,6 @@ func (s *Server) page(r *http.Request, title string, nav ui.NavItem) ui.Page {
 		}
 	}
 	return p
-}
-
-func (s *Server) placeholder(nav ui.NavItem, titleKey i18n.Key) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		s.render(w, r, http.StatusOK, ui.Placeholder(s.page(r, i18n.T(r.Context(), titleKey), nav)))
-	}
 }
 
 func (s *Server) notFound(w http.ResponseWriter, r *http.Request) {

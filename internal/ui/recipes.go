@@ -49,6 +49,8 @@ type LibraryView struct {
 	Sort string
 	// Filtered is set when any filter applies.
 	Filtered bool
+	// Tonight is "Suggested for tonight", or nil.
+	Tonight *TonightCard
 }
 
 // RecipeCard is one recipe in the library grid.

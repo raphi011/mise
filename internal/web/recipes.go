@@ -169,6 +169,11 @@ func (s *Server) libraryView(ctx context.Context, sc store.Scoped, id *auth.Iden
 		return ui.LibraryView{}, err
 	}
 	v := ui.LibraryView{Query: encodeFilter(f), Total: total, Filtered: !f.IsZero(), Sort: i18n.T(ctx, sortKeys[f.Sort])}
+	if !v.Filtered {
+		if v.Tonight, err = s.tonightCard(ctx, sc); err != nil {
+			return ui.LibraryView{}, err
+		}
+	}
 	for _, c := range cards {
 		v.Cards = append(v.Cards, s.cardOf(ctx, c, id.UserID))
 	}
@@ -434,7 +439,7 @@ func (s *Server) image(w http.ResponseWriter, r *http.Request) {
 // ---- Live ----
 
 // libraryLive re-renders the Recipes page for the viewer's filter when
-// recipes or tags change.
+// recipes, tags or the plan change.
 func (s *Server) libraryLive(w http.ResponseWriter, r *http.Request, sc store.Scoped, id *auth.Identity) {
 	f := parseFilter(r.URL.Query())
 	s.serveLive(w, r, id, live.Stream{
@@ -448,6 +453,7 @@ func (s *Server) libraryLive(w http.ResponseWriter, r *http.Request, sc store.Sc
 			}
 			return sse.PatchElementTempl(ui.NavTags(v))
 		},
-		Relevant: func(e live.Event) bool { return e.Kind == live.RecipesChanged },
+		// The plan changes the "tonight" card.
+		Relevant: func(e live.Event) bool { return e.Kind == live.RecipesChanged || e.Kind == live.PlanChanged },
 	})
 }

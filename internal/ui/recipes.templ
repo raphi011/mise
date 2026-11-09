@@ -59,6 +59,9 @@ templ NavTags(v LibraryView) {
 // LibraryRegion is the live part of the Recipes page.
 templ LibraryRegion(v LibraryView) {
 	<div id="recipes-live" class="recipes__live">
+		if v.Tonight != nil && !v.Filtered {
+			@tonightCard(*v.Tonight)
+		}
 		<nav class="filter-chips" aria-label={ i18n.T(ctx, "recipes.quickFilters") }>
 			<a
 				class="chip chip--on"

@@ -9,6 +9,9 @@ templ RecipePage(p Page, v RecipeView) {
 	@Layout(p) {
 		<div class="recipe" data-signals={ "{servings: " + itoa(v.Servings) + "}" } data-effect={ recipeLive(v.ID) }>
 			@RecipeRegion(v)
+			<div class="recipe-cta only-phone">
+				@AddToPlanButton(v.ID, "btn--block")
+			</div>
 			@EmptyToast()
 			@EmptySheet()
 		</div>
@@ -17,6 +20,7 @@ templ RecipePage(p Page, v RecipeView) {
 
 // RecipeActions are the detail page's header buttons.
 templ RecipeActions(v RecipeView) {
+	@AddToPlanButton(v.ID, "btn--small only-wide")
 	@RecipeFavourite(v)
 	<a class="btn btn--secondary btn--small only-wide" href={ templ.SafeURL("/recipes/" + v.ID + "/edit") }>
 		@iconEdit()
@@ -271,6 +275,19 @@ templ recipeMenu(v RecipeMenuView, modal bool) {
 				</span>
 				<span class="list__text">{ i18n.T(ctx, "recipes.menu.edit") }</span>
 			</a>
+		</li>
+		<li>
+			<form method="post" action={ templ.SafeURL("/recipes/" + v.ID + "/cooked") } data-on:submit={ postForm("/recipes/" + v.ID + "/cooked") }>
+				<button type="submit" class="menu__item">
+					<span class="menu__icon">
+						@iconCheck(20)
+					</span>
+					<span class="list__text">
+						<span>{ i18n.T(ctx, "plan.menu.cooked") }</span>
+						<span class="muted">{ i18n.T(ctx, "recipes.menu.cookedNote") }</span>
+					</span>
+				</button>
+			</form>
 		</li>
 		<li class="menu__share">
 			<div class="menu__item menu__item--static">

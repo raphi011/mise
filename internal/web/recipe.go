@@ -34,7 +34,13 @@ var shortMonthKeys = [12]i18n.Key{
 // monthYear formats t as "March 2026" in the household's zone.
 func monthYear(ctx context.Context, t time.Time, loc *time.Location) string {
 	t = t.In(loc)
-	return i18n.T(ctx, "date.monthYear", i18n.T(ctx, monthKeys[t.Month()-1]), t.Year())
+	return monthName(ctx, t.Year(), t.Month())
+}
+
+// monthName is "March 2026". The year is passed as text: the locale's
+// number format would group its digits ("2,026").
+func monthName(ctx context.Context, year int, month time.Month) string {
+	return i18n.T(ctx, "date.monthYear", i18n.T(ctx, monthKeys[month-1]), strconv.Itoa(year))
 }
 
 // dayMonth formats t as "24 Oct" in the household's zone.
@@ -374,6 +380,14 @@ func (s *Server) deleteRecipePage(w http.ResponseWriter, r *http.Request) {
 	default:
 		body = append(body, i18n.T(ctx, "recipes.delete.cooked", info.TimesCooked))
 	}
+	planned, err := s.plan.PlannedFor(ctx, sc, recipeID)
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	if line := plannedLine(ctx, planned); line != "" {
+		body = append([]string{line}, body...)
+	}
 	if len(info.Others) > 0 {
 		names := make([]string, len(info.Others))
 		for i, p := range info.Others {
@@ -390,6 +404,24 @@ func (s *Server) deleteRecipePage(w http.ResponseWriter, r *http.Request) {
 	p := s.page(r, i18n.T(ctx, "recipes.delete.pageTitle"), ui.NavRecipes)
 	p.BackHref, p.BackLabel = ui.RecipeHref(v.ID), i18n.T(ctx, "recipes.backToRecipe")
 	s.render(w, r, http.StatusOK, ui.DeleteRecipePage(p, v))
+}
+
+// plannedLine is the delete confirmation's "It's on the plan for …", or
+// "" when the recipe is not planned from today on.
+func plannedLine(ctx context.Context, dates []store.Date) string {
+	const shown = 3
+	if len(dates) == 0 {
+		return ""
+	}
+	var days []string
+	for i, d := range dates {
+		if i == shown {
+			days = append(days, i18n.T(ctx, "recipes.delete.plannedMore", len(dates)-shown))
+			break
+		}
+		days = append(days, shortDate(ctx, d))
+	}
+	return i18n.T(ctx, "recipes.delete.planned", joinNames(ctx, days))
 }
 
 // redirect sends the browser to target: Datastar by script, a form post by

@@ -2,15 +2,6 @@ package ui
 
 import "github.com/raphi011/mise/internal/i18n"
 
-// Placeholder renders an area that has not been built yet.
-templ Placeholder(p Page) {
-	@Layout(p) {
-		<section class="empty">
-			<p>{ i18n.T(ctx, "page.placeholder.body") }</p>
-		</section>
-	}
-}
-
 // ErrorPage renders a full-page error with an already-translated body.
 templ ErrorPage(p Page, body string) {
 	@Layout(p) {

@@ -1,0 +1,917 @@
+package ui
+
+import (
+	"context"
+
+	"github.com/raphi011/mise/internal/i18n"
+)
+
+// PlanWeek is the week page. Its region re-renders over the live stream;
+// meals and suggestions drag onto days ($_drag holds "m:<meal>" or
+// "r:<recipe>", $_over the day under the pointer).
+templ PlanWeek(p Page, v PlanWeekView) {
+	@Layout(p) {
+		<div class="plan" data-signals="{_drag: '', _over: ''}" data-init={ planLive("week=" + v.Week) }>
+			@PlanWeekRegion(v)
+			@EmptyToast()
+			@EmptySheet()
+		</div>
+	}
+}
+
+// PlanWeekRegion is the live part of the week page.
+templ PlanWeekRegion(v PlanWeekView) {
+	<div id="plan-live" class="plan__live">
+		<p class="list-meta">{ v.Summary }</p>
+		@planToolbar(false, "/plan?week="+v.Week, v.MonthHref, v.PrevHref, v.TodayHref, v.NextHref, v.Current,
+			i18n.T(ctx, "plan.prevWeek"), i18n.T(ctx, "plan.nextWeek"))
+		<p class="muted plan__hint">
+			<span class="only-phone">{ i18n.T(ctx, "plan.hint.phone") }</span>
+			<span class="only-wide">{ i18n.T(ctx, "plan.hint.web") }</span>
+		</p>
+		<ol class="plan-week" role="list">
+			for _, d := range v.Days {
+				@weekDay(d)
+			}
+		</ol>
+		<div class="plan-aside">
+			if len(v.Suggestions) > 0 {
+				<section class="plan-suggest" aria-labelledby="suggest-title">
+					<div class="plan-suggest__head">
+						<h2 class="plan-suggest__title" id="suggest-title">{ i18n.T(ctx, "plan.stale.title") }</h2>
+						<span class="plan-suggest__note only-wide">{ i18n.T(ctx, "plan.stale.dragWeb") }</span>
+					</div>
+					<ul class="plan-suggest__list" role="list">
+						for _, s := range v.Suggestions {
+							<li>
+								<a
+									class="plan-suggest__item"
+									href={ templ.SafeURL(s.AddHref) }
+									data-on:click__prevent={ getAction(s.AddHref) }
+									draggable="true"
+									data-on:dragstart={ dragStart("r:" + s.RecipeID) }
+									data-on:dragend="$_drag = ''; $_over = ''"
+									aria-label={ i18n.T(ctx, "plan.stale.add", s.Name) }
+								>
+									<span class="plan-suggest__name">{ s.Name }</span>
+									<span class="plan-suggest__last only-wide">{ s.Last }</span>
+								</a>
+							</li>
+						}
+					</ul>
+					<p class="plan-suggest__note only-phone">{ i18n.T(ctx, "plan.stale.dragPhone") }</p>
+				</section>
+			}
+			if v.ListName != "" {
+				<section class="plan-shop only-wide" aria-labelledby="shop-title">
+					<h2 class="plan-suggest__title" id="shop-title">{ i18n.T(ctx, "plan.shop.title") }</h2>
+					<p class="muted">{ i18n.T(ctx, "plan.shop.body", v.ListName) }</p>
+					<a class="btn btn--secondary btn--small" href={ templ.SafeURL(v.ListHref) }>{ i18n.T(ctx, "plan.shop.open", v.ListName) }</a>
+				</section>
+			}
+		</div>
+	</div>
+}
+
+// planToolbar switches between week and month and moves through them.
+templ planToolbar(month bool, weekHref, monthHref, prev, today, next string, current bool, prevLabel, nextLabel string) {
+	<div class="plan-toolbar">
+		<nav class="view-switch" aria-label={ i18n.T(ctx, "plan.view") }>
+			<a
+				class="view-switch__option"
+				href={ templ.SafeURL(weekHref) }
+				if !month {
+					aria-current="page"
+				}
+			>{ i18n.T(ctx, "plan.week") }</a>
+			<a
+				class="view-switch__option"
+				href={ templ.SafeURL(monthHref) }
+				if month {
+					aria-current="page"
+				}
+			>{ i18n.T(ctx, "plan.month") }</a>
+		</nav>
+		<div class="plan-toolbar__nav">
+			<a class="icon-btn icon-btn--outline" href={ templ.SafeURL(prev) } aria-label={ prevLabel }>
+				@iconChevron(true)
+			</a>
+			if !current {
+				<a class="btn btn--secondary btn--small" href={ templ.SafeURL(today) }>{ i18n.T(ctx, "plan.today") }</a>
+			}
+			<a class="icon-btn icon-btn--outline" href={ templ.SafeURL(next) } aria-label={ nextLabel }>
+				@iconChevron(false)
+			</a>
+		</div>
+	</div>
+}
+
+templ weekDay(d PlanDay) {
+	<li
+		class={ "plan-day", templ.KV("plan-day--today", d.Today), templ.KV("plan-day--past", d.Past) }
+		data-on:dragover__prevent={ dragOver(d.Date) }
+		data-on:dragleave={ dragLeave(d.Date) }
+		data-on:drop__prevent={ dropOn(d.Date) }
+		data-class:plan-day--over={ "$_over === '" + d.Date + "'" }
+	>
+		<div class="plan-day__date">
+			<span class="plan-day__dow">{ d.Dow }</span>
+			<span class="plan-day__num">{ itoa(d.Num) }</span>
+			if d.Today {
+				<span class="visually-hidden">{ i18n.T(ctx, "plan.todayMark") }</span>
+			}
+		</div>
+		if len(d.Meals) > 0 {
+			<div class="plan-day__meals">
+				@mealCard(d.Meals[0])
+				if d.More() > 0 {
+					<a class="plan-day__more" href={ templ.SafeURL(d.MoreHref) } aria-label={ i18n.T(ctx, "plan.more", d.More(), d.Label) }>{ "+" + itoa(d.More()) }</a>
+				}
+			</div>
+		} else {
+			<a class="plan-day__add" href={ templ.SafeURL(d.AddHref) } data-on:click__prevent={ getAction(d.AddHref) } aria-label={ i18n.T(ctx, "plan.addOn", d.Label) }>
+				@iconPlus(16)
+				<span data-text={ "$_over === '" + d.Date + "' ? " + jsString(i18n.T(ctx, "plan.dropHere")) + " : " + jsString(i18n.T(ctx, "plan.add")) }>{ i18n.T(ctx, "plan.add") }</span>
+			</a>
+		}
+	</li>
+}
+
+// mealCard is a planned meal: a link to its menu that drags to other days.
+templ mealCard(m PlanMeal) {
+	<a
+		class="meal-card"
+		href={ templ.SafeURL(m.MenuHref()) }
+		data-on:click__prevent={ getAction(m.MenuHref()) }
+		draggable="true"
+		data-on:dragstart={ dragStart("m:" + m.ID) }
+		data-on:dragend="$_drag = ''; $_over = ''"
+		data-class:meal-card--dragging={ "$_drag === 'm:" + m.ID + "'" }
+		aria-label={ m.Label }
+	>
+		<span class={ "meal-card__media avatar--" + Tint(m.RecipeID) }>
+			if m.Photo != "" {
+				<img src={ ImageURL(m.Photo, "thumb") } alt=""/>
+			} else {
+				<span class="meal-card__initial" aria-hidden="true">{ Initial(m.Name) }</span>
+			}
+		</span>
+		<span class="meal-card__text">
+			<span class="meal-card__name">{ m.Name }</span>
+			<span class="meal-card__meta">
+				if m.Time != "" {
+					<span class="meal-card__time">{ m.Time }</span>
+				}
+				<span class="meal-card__serves">{ m.Serves }</span>
+			</span>
+		</span>
+		<span class="meal-card__grip" aria-hidden="true">
+			@iconGrip()
+		</span>
+	</a>
+}
+
+// PlanMonth is the month page: a calendar with a selected day on phones,
+// a grid of meals on wider screens.
+templ PlanMonth(p Page, v PlanMonthView) {
+	@Layout(p) {
+		<div class="plan" data-signals="{_drag: '', _over: ''}" data-init={ planLive("month=" + v.Month + "&date=" + v.Selected.Date) }>
+			@PlanMonthRegion(v)
+			@EmptyToast()
+			@EmptySheet()
+		</div>
+	}
+}
+
+// PlanMonthRegion is the live part of the month page.
+templ PlanMonthRegion(v PlanMonthView) {
+	<div id="plan-live" class="plan__live">
+		<p class="list-meta">{ v.Summary }</p>
+		@planToolbar(true, v.WeekHref, "/plan/month?month="+v.Month, v.PrevHref, v.TodayHref, v.NextHref, v.Current,
+			i18n.T(ctx, "plan.prevMonth"), i18n.T(ctx, "plan.nextMonth"))
+		<div class="month-cal only-phone">
+			<div class="month-cal__head" aria-hidden="true">
+				for _, w := range v.Initials {
+					<span>{ w }</span>
+				}
+			</div>
+			<ol class="month-cal__days" role="list">
+				for _, week := range v.Weeks {
+					for _, d := range week {
+						<li>
+							<a
+								class={ "month-cal__day", templ.KV("month-cal__day--out", !d.InMonth), templ.KV("month-cal__day--past", d.Past), templ.KV("month-cal__day--today", d.Today) }
+								href={ templ.SafeURL(d.SelectHref) }
+								if d.Selected {
+									aria-current="date"
+								}
+								aria-label={ dayCellLabel(ctx, d) }
+							>
+								{ itoa(d.Num) }
+								<span class={ "month-cal__dot", templ.KV("month-cal__dot--on", len(d.Meals) > 0) } aria-hidden="true"></span>
+							</a>
+						</li>
+					}
+				}
+			</ol>
+		</div>
+		<section class="month-day only-phone" aria-labelledby="month-day-title">
+			<h2 class="month-day__title" id="month-day-title">
+				{ v.Selected.Label }
+				if v.Selected.Today {
+					{ " · " + i18n.T(ctx, "plan.todayMark") }
+				}
+			</h2>
+			for _, m := range v.Selected.Meals {
+				@mealCard(m)
+			}
+			<a class="plan-day__add" href={ templ.SafeURL(v.Selected.AddHref) } data-on:click__prevent={ getAction(v.Selected.AddHref) }>
+				@iconPlus(16)
+				{ i18n.T(ctx, "plan.add") }
+			</a>
+		</section>
+		<div class="month-grid only-wide">
+			<div class="month-grid__inner">
+				for _, w := range v.Weekdays {
+					<span class="month-grid__head">{ w }</span>
+				}
+				for _, week := range v.Weeks {
+					for _, d := range week {
+						<div
+							class={ "month-grid__day", templ.KV("month-grid__day--out", !d.InMonth), templ.KV("month-grid__day--past", d.Past) }
+							data-on:dragover__prevent={ dragOver(d.Date) }
+							data-on:dragleave={ dragLeave(d.Date) }
+							data-on:drop__prevent={ dropOn(d.Date) }
+							data-class:month-grid__day--over={ "$_over === '" + d.Date + "'" }
+						>
+							<a
+								class={ "month-grid__num", templ.KV("month-grid__num--today", d.Today) }
+								href={ templ.SafeURL(d.AddHref) }
+								data-on:click__prevent={ getAction(d.AddHref) }
+								aria-label={ i18n.T(ctx, "plan.addOn", d.Label) }
+							>{ itoa(d.Num) }</a>
+							for _, m := range d.Meals {
+								<a
+									class={ "meal-chip avatar--" + Tint(m.RecipeID) }
+									href={ templ.SafeURL(m.MenuHref()) }
+									data-on:click__prevent={ getAction(m.MenuHref()) }
+									draggable="true"
+									data-on:dragstart={ dragStart("m:" + m.ID) }
+									data-on:dragend="$_drag = ''; $_over = ''"
+									data-class:meal-chip--dragging={ "$_drag === 'm:" + m.ID + "'" }
+									aria-label={ m.Label }
+								>{ m.Name }</a>
+							}
+						</div>
+					}
+				}
+			</div>
+		</div>
+		<p class="muted plan__hint only-wide">{ i18n.T(ctx, "plan.month.legend") }</p>
+	</div>
+}
+
+// ---- Add to plan ----
+
+// AddPlanSheet is the add-to-plan sheet as a modal dialog.
+templ AddPlanSheet(v AddPlanView) {
+	<div id="sheet">
+		<dialog
+			id="plan-add"
+			class="sheet-dialog"
+			aria-labelledby="plan-add-title"
+			data-signals={ "{plandate: " + jsString(v.Days.Date) + ", planservings: " + itoa(v.Servings) + "}" }
+			data-init="el.open || el.showModal()"
+			data-on:close="el.remove()"
+		>
+			@addPlanForm(v, true)
+		</dialog>
+	</div>
+}
+
+// AddPlanPage is the add-to-plan sheet as a page, without JavaScript.
+templ AddPlanPage(p Page, v AddPlanView) {
+	@Layout(p) {
+		<div class="narrow sheet">
+			@addPlanForm(v, false)
+		</div>
+	}
+}
+
+templ addPlanForm(v AddPlanView, modal bool) {
+	<form class="plan-form" method="post" action="/plan" data-on:submit={ postForm("/plan") }>
+		<input type="hidden" name="recipe" value={ v.RecipeID }/>
+		<input type="hidden" name="form" value="1"/>
+		if v.Back != "" {
+			<input type="hidden" name="back" value={ v.Back }/>
+		}
+		<div class="sheet__head">
+			<span class="list__text">
+				<h2 class="sheet__title" id="plan-add-title">{ i18n.T(ctx, "plan.addTo.title") }</h2>
+				<span class="muted">{ joinNonEmpty(" · ", v.Name, v.Meta) }</span>
+			</span>
+			if modal {
+				<button type="button" class="icon-btn" aria-label={ i18n.T(ctx, "groceries.edit.close") } data-on:click="el.closest('dialog').close()">
+					@iconClose()
+				</button>
+			}
+		</div>
+		@formAlert(v.Form)
+		@AddPlanDays(v)
+		<div class="plan-form__row">
+			<span class="plan-form__label" id="plan-servings-label">{ i18n.T(ctx, "recipes.servingsLabel") }</span>
+			@planStepper("planservings", "/plan/add", v.Servings, "plan-servings-label")
+			<input type="hidden" name="servings" value={ itoa(v.Servings) } data-attr:value="$planservings"/>
+		</div>
+		if len(v.Shop) > 0 || v.Already != "" {
+			<fieldset class="plan-form__group">
+				<legend class="plan-form__label">{ i18n.T(ctx, "plan.addTo.list", v.ListName) }</legend>
+				if len(v.Shop) > 0 {
+					<div class="chips">
+						for _, c := range v.Shop {
+							<label class="chip chip--check">
+								<input type="checkbox" name="ingredient" value={ c.ID } checked?={ c.Checked }/>
+								<span class="chip--check__off" aria-hidden="true">
+									@iconPlus(14)
+								</span>
+								<span class="chip--check__on" aria-hidden="true">
+									@iconCheck(14)
+								</span>
+								{ c.Name }
+							</label>
+						}
+					</div>
+				}
+				if v.Already != "" {
+					<p class="muted plan-form__note">{ v.Already }</p>
+				}
+			</fieldset>
+		}
+		<div class="sheet__actions">
+			if !modal {
+				<a class="btn btn--secondary btn--tall" href={ templ.SafeURL(v.Back) }>{ i18n.T(ctx, "recipes.menu.cancel") }</a>
+			}
+			@AddPlanSubmit(v)
+		</div>
+	</form>
+}
+
+// AddPlanDays is the add sheet's day picker, patched when the week
+// changes.
+templ AddPlanDays(v AddPlanView) {
+	<fieldset id="plan-add-days" class="day-picker">
+		<legend class="visually-hidden">{ i18n.T(ctx, "plan.day") }</legend>
+		<div class="day-picker__head">
+			<span class="plan-form__label" aria-hidden="true">{ i18n.T(ctx, "plan.day") }</span>
+			<span class="day-picker__nav">
+				<button
+					type="submit"
+					class="icon-btn"
+					formmethod="get"
+					formaction="/plan/add"
+					formnovalidate
+					name="week"
+					value={ v.Days.Prev }
+					aria-label={ i18n.T(ctx, "plan.prevWeek") }
+					data-on:click__prevent={ addDaysAction(v.RecipeID, v.Days.Prev) }
+				>
+					@iconChevron(true)
+				</button>
+				<span class="day-picker__range">{ v.Days.Range }</span>
+				<button
+					type="submit"
+					class="icon-btn"
+					formmethod="get"
+					formaction="/plan/add"
+					formnovalidate
+					name="week"
+					value={ v.Days.Next }
+					aria-label={ i18n.T(ctx, "plan.nextWeek") }
+					data-on:click__prevent={ addDaysAction(v.RecipeID, v.Days.Next) }
+				>
+					@iconChevron(false)
+				</button>
+			</span>
+		</div>
+		<div class="day-picker__days">
+			for _, d := range v.Days.Days {
+				@pickDay(d, v.Days.Date, "plandate", false)
+			}
+		</div>
+		<p class="muted plan-form__note" aria-live="polite" data-text={ v.Days.lookup(v.Days.Notes, "plandate") }>{ v.Days.note() }</p>
+	</fieldset>
+}
+
+// AddPlanSubmit is the add sheet's button, named after the chosen day.
+templ AddPlanSubmit(v AddPlanView) {
+	<button id="plan-add-submit" type="submit" class="btn btn--primary sheet__save" data-text={ v.Days.lookup(v.Days.CTAs, "plandate") }>{ v.Days.cta() }</button>
+}
+
+// pickDay is one day of a day picker: a radio in a tile.
+templ pickDay(d PickDay, chosen, signal string, disabled bool) {
+	<label class="day-pick">
+		<input
+			type="radio"
+			name="date"
+			value={ d.Date }
+			required
+			checked?={ d.Date == chosen }
+			disabled?={ disabled }
+			{ templ.Attributes{"data-bind:" + signal: true}... }
+		/>
+		<span class="day-pick__dow" aria-hidden="true">{ d.Initial }</span>
+		<span class="day-pick__num" aria-hidden="true">{ itoa(d.Num) }</span>
+		if d.Tag != "" {
+			<span class="day-pick__tag" aria-hidden="true">{ d.Tag }</span>
+		} else {
+			<span class={ "day-pick__dot", templ.KV("day-pick__dot--on", d.Planned) } aria-hidden="true"></span>
+		}
+		<span class="visually-hidden">{ d.Label }</span>
+	</label>
+}
+
+// planStepper changes servings held in signal. Without JavaScript its
+// buttons reload the sheet at the other value.
+templ planStepper(signal, reload string, n int, labelledBy string) {
+	<div class="stepper" role="group" aria-labelledby={ labelledBy }>
+		<button
+			type="submit"
+			class="stepper__btn"
+			formmethod="get"
+			formaction={ templ.SafeURL(reload) }
+			formnovalidate
+			name="set_servings"
+			value={ itoa(max(n-1, 1)) }
+			aria-label={ i18n.T(ctx, "recipes.servingsLess") }
+			data-on:click__prevent={ "$" + signal + " = Math.max(1, $" + signal + " - 1)" }
+			disabled?={ n <= 1 }
+			data-attr:disabled={ "$" + signal + " <= 1" }
+		>−</button>
+		<span class="stepper__value stepper__value--short" aria-live="polite" data-text={ "$" + signal }>{ itoa(n) }</span>
+		<button
+			type="submit"
+			class="stepper__btn"
+			formmethod="get"
+			formaction={ templ.SafeURL(reload) }
+			formnovalidate
+			name="set_servings"
+			value={ itoa(min(n+1, MaxServings)) }
+			aria-label={ i18n.T(ctx, "recipes.servingsMore") }
+			data-on:click__prevent={ "$" + signal + " = Math.min(" + itoa(MaxServings) + ", $" + signal + " + 1)" }
+			disabled?={ n >= MaxServings }
+			data-attr:disabled={ "$" + signal + " >= " + itoa(MaxServings) }
+		>+</button>
+	</div>
+}
+
+// ---- Recipe picker ----
+
+// PlanPickSheet picks a recipe to plan on a day.
+templ PlanPickSheet(v PlanPickView) {
+	<div id="sheet">
+		<dialog
+			id="plan-pick"
+			class="sheet-dialog"
+			aria-labelledby="plan-pick-title"
+			data-signals={ "{pickq: " + jsString(v.Query) + "}" }
+			data-init="el.open || el.showModal()"
+			data-on:close="el.remove()"
+		>
+			@planPick(v, true)
+		</dialog>
+	</div>
+}
+
+// PlanPickPage picks a recipe as a page, without JavaScript.
+templ PlanPickPage(p Page, v PlanPickView) {
+	@Layout(p) {
+		<div class="narrow sheet">
+			@planPick(v, false)
+		</div>
+	}
+}
+
+templ planPick(v PlanPickView, modal bool) {
+	<div class="sheet__head">
+		<span class="list__text">
+			<h2 class="sheet__title" id="plan-pick-title">{ i18n.T(ctx, "plan.pick.title") }</h2>
+			<span class="muted">{ v.DayLabel }</span>
+		</span>
+		if modal {
+			<button type="button" class="icon-btn" aria-label={ i18n.T(ctx, "groceries.edit.close") } data-on:click="el.closest('dialog').close()">
+				@iconClose()
+			</button>
+		}
+	</div>
+	<form class="search-link search-link--field" method="get" action="/plan/pick" role="search" data-on:submit__prevent={ pickResultsAction(v.Date) }>
+		@iconSearch(20)
+		<input type="hidden" name="date" value={ v.Date }/>
+		if v.Back != "" {
+			<input type="hidden" name="back" value={ v.Back }/>
+		}
+		<label class="visually-hidden" for="plan-pick-q">{ i18n.T(ctx, "plan.pick.search") }</label>
+		<input
+			class="search-link__input"
+			id="plan-pick-q"
+			type="search"
+			name="q"
+			value={ v.Query }
+			placeholder={ i18n.T(ctx, "plan.pick.search") }
+			autocomplete="off"
+			data-bind:pickq
+			data-on:input__debounce.200ms={ pickResultsAction(v.Date) }
+		/>
+	</form>
+	@PlanPickResults(v)
+	if !modal {
+		<a class="btn btn--secondary btn--block" href={ templ.SafeURL(v.Back) }>{ i18n.T(ctx, "recipes.menu.cancel") }</a>
+	}
+}
+
+// PlanPickResults is the picker's list, patched as the search changes.
+templ PlanPickResults(v PlanPickView) {
+	<div id="plan-pick-results" class="plan-pick">
+		<p class="visually-hidden" role="status">{ v.Status }</p>
+		if len(v.Suggested) > 0 {
+			<h3 class="section-title">{ i18n.T(ctx, "plan.stale.title") }</h3>
+			@pickList(v.Suggested)
+		}
+		if len(v.Recipes) > 0 {
+			<h3 class="section-title">
+				if v.Query != "" {
+					{ i18n.T(ctx, "plan.pick.results") }
+				} else {
+					{ i18n.T(ctx, "plan.pick.all") }
+				}
+			</h3>
+			@pickList(v.Recipes)
+		} else if v.Query != "" {
+			<p class="muted">{ i18n.T(ctx, "plan.pick.none", v.Query) }</p>
+		}
+	</div>
+}
+
+templ pickList(rs []PickRecipe) {
+	<ul class="list pick-list" role="list">
+		for _, r := range rs {
+			<li>
+				<a class="list__link pick-row" href={ templ.SafeURL(r.Href) } data-on:click__prevent={ getAction(r.Href) }>
+					@pickTile(r)
+					<span class="list__text">
+						<span class="pick-row__name">{ r.Name }</span>
+						if r.Meta != "" {
+							<span class="muted pick-row__meta">{ r.Meta }</span>
+						}
+					</span>
+					@chevron()
+				</a>
+			</li>
+		}
+	</ul>
+}
+
+templ pickTile(r PickRecipe) {
+	<span class={ "tile tile--lg pick-row__tile avatar--" + Tint(r.ID) } aria-hidden="true">
+		if r.Photo != "" {
+			<img src={ ImageURL(r.Photo, "thumb") } alt=""/>
+		} else {
+			{ Initial(r.Name) }
+		}
+	</span>
+}
+
+// ---- Meal menu ----
+
+// MealMenuSheet is a planned meal's menu as a modal dialog.
+templ MealMenuSheet(v MealMenuView) {
+	<div id="sheet">
+		<dialog
+			id="meal-menu"
+			class="sheet-dialog"
+			aria-labelledby="meal-title"
+			data-signals={ "{movedate: '', mealservings: " + itoa(v.Servings) + ", swapq: ''}" }
+			data-init="el.open || el.showModal()"
+			data-on:close="el.remove()"
+		>
+			@mealMenuHead(v, true)
+			@MealMenuBody(v, true)
+		</dialog>
+	</div>
+}
+
+// MealMenuPage is the menu as a page, without JavaScript.
+templ MealMenuPage(p Page, v MealMenuView) {
+	@Layout(p) {
+		<div class="narrow sheet">
+			@mealMenuHead(v, false)
+			@MealMenuBody(v, false)
+		</div>
+	}
+}
+
+templ mealMenuHead(v MealMenuView, modal bool) {
+	<div class="sheet__head">
+		<span class={ "tile tile--lg avatar--" + Tint(v.RecipeID) } aria-hidden="true">
+			if v.Photo != "" {
+				<img src={ ImageURL(v.Photo, "thumb") } alt=""/>
+			} else {
+				{ Initial(v.Name) }
+			}
+		</span>
+		<span class="list__text">
+			<h2 class="sheet__title" id="meal-title">{ v.Name }</h2>
+			<span class="muted">{ v.DayLabel + " · " + plural(ctx, v.Servings, "recipes.servingsOne", "recipes.servings") }</span>
+		</span>
+		if modal {
+			<button type="button" class="icon-btn" aria-label={ i18n.T(ctx, "groceries.edit.close") } data-on:click="el.closest('dialog').close()">
+				@iconClose()
+			</button>
+		}
+	</div>
+}
+
+// MealMenuBody is the menu or one of its views, replaced as they change.
+templ MealMenuBody(v MealMenuView, modal bool) {
+	<div id="meal-menu-body" class="meal-menu">
+		switch v.View {
+			case "move":
+				@mealMove(v, modal)
+			case "servings":
+				@mealServings(v, modal)
+			case "swap":
+				@mealSwap(v, modal)
+			default:
+				@mealMenu(v, modal)
+		}
+	</div>
+}
+
+templ mealSubhead(v MealMenuView, modal bool, title, note string) {
+	<div class="meal-menu__subhead">
+		<a
+			class="icon-btn"
+			href={ templ.SafeURL(v.MenuHref("")) }
+			if modal {
+				data-on:click__prevent={ getAction(v.bodyHref("")) }
+			}
+			aria-label={ i18n.T(ctx, "plan.menu.back") }
+		>
+			@iconChevron(true)
+		</a>
+		<h3 class="meal-menu__title">{ title }</h3>
+		if note != "" {
+			<span class="muted">{ note }</span>
+		}
+	</div>
+}
+
+templ backField(back string) {
+	if back != "" {
+		<input type="hidden" name="back" value={ back }/>
+	}
+}
+
+templ mealMenu(v MealMenuView, modal bool) {
+	<ul class="menu" role="list">
+		<li>
+			<a class="menu__item" href={ templ.SafeURL(RecipeHref(v.RecipeID)) }>
+				<span class="menu__icon">
+					@iconRecipes()
+				</span>
+				<span class="list__text">{ i18n.T(ctx, "plan.menu.open") }</span>
+			</a>
+		</li>
+		@menuLink(v, modal, "move", i18n.T(ctx, "plan.menu.move"), v.Day, iconPlan())
+		@menuLink(v, modal, "servings", i18n.T(ctx, "plan.menu.servings"), itoa(v.Servings), iconServings())
+		@menuLink(v, modal, "swap", i18n.T(ctx, "plan.menu.swap"), "", iconSwap())
+		if v.Cooked {
+			<li>
+				<form method="post" action={ templ.SafeURL("/recipes/" + v.RecipeID + "/cooked") } data-on:submit={ postForm("/recipes/" + v.RecipeID + "/cooked") }>
+					@backField(v.Back)
+					<button type="submit" class="menu__item">
+						<span class="menu__icon">
+							@iconCheck(20)
+						</span>
+						<span class="list__text">{ i18n.T(ctx, "plan.menu.cooked") }</span>
+					</button>
+				</form>
+			</li>
+		}
+	</ul>
+	<form method="post" action={ templ.SafeURL("/plan/meals/" + v.ID + "/remove") } data-on:submit={ postForm("/plan/meals/" + v.ID + "/remove") }>
+		@backField(v.Back)
+		<button type="submit" class="btn btn--destructive btn--block meal-menu__remove">
+			@iconTrash()
+			<span class="list__text">
+				<span>{ i18n.T(ctx, "plan.menu.remove") }</span>
+				<span class="meal-menu__remove-note">{ i18n.T(ctx, "plan.menu.removeNote") }</span>
+			</span>
+		</button>
+	</form>
+	if !modal {
+		<a class="btn btn--secondary btn--block" href={ templ.SafeURL(v.Back) }>{ i18n.T(ctx, "recipes.menu.cancel") }</a>
+	}
+}
+
+templ menuLink(v MealMenuView, modal bool, view, label, value string, icon templ.Component) {
+	<li>
+		<a
+			class="menu__item"
+			href={ templ.SafeURL(v.MenuHref(view)) }
+			if modal {
+				data-on:click__prevent={ getAction(v.bodyHref(view)) }
+			}
+		>
+			<span class="menu__icon">
+				@icon
+			</span>
+			<span class="list__text">{ label }</span>
+			if value != "" {
+				<span class="muted">{ value }</span>
+			}
+			@chevron()
+		</a>
+	</li>
+}
+
+templ mealMove(v MealMenuView, modal bool) {
+	<form class="plan-form" method="post" action={ templ.SafeURL("/plan/meals/" + v.ID + "/move") } data-on:submit={ postForm("/plan/meals/" + v.ID + "/move") }>
+		@backField(v.Back)
+		<input type="hidden" name="view" value="move"/>
+		@mealSubhead(v, modal, i18n.T(ctx, "plan.menu.move"), "")
+		<fieldset class="day-picker">
+			<legend class="visually-hidden">{ i18n.T(ctx, "plan.day") }</legend>
+			<div class="day-picker__head">
+				<span class="plan-form__label" aria-hidden="true">{ i18n.T(ctx, "plan.day") }</span>
+				<span class="day-picker__nav">
+					<button
+						type="submit"
+						class="icon-btn"
+						formmethod="get"
+						formaction={ templ.SafeURL("/plan/meals/" + v.ID) }
+						formnovalidate
+						name="week"
+						value={ v.Move.Prev }
+						aria-label={ i18n.T(ctx, "plan.prevWeek") }
+						if modal {
+							data-on:click__prevent={ v.moveDaysAction(v.Move.Prev) }
+						}
+					>
+						@iconChevron(true)
+					</button>
+					<span class="day-picker__range">{ v.Move.Range }</span>
+					<button
+						type="submit"
+						class="icon-btn"
+						formmethod="get"
+						formaction={ templ.SafeURL("/plan/meals/" + v.ID) }
+						formnovalidate
+						name="week"
+						value={ v.Move.Next }
+						aria-label={ i18n.T(ctx, "plan.nextWeek") }
+						if modal {
+							data-on:click__prevent={ v.moveDaysAction(v.Move.Next) }
+						}
+					>
+						@iconChevron(false)
+					</button>
+				</span>
+			</div>
+			<div class="day-picker__days">
+				for _, d := range v.Move.Days {
+					@pickDay(d, v.Move.Date, "movedate", d.Current)
+				}
+			</div>
+			<p class="muted plan-form__note" aria-live="polite" data-text={ v.Move.lookup(v.Move.Notes, "movedate") }>{ v.Move.note() }</p>
+		</fieldset>
+		<div class="sheet__actions sheet__actions--stack">
+			<button type="submit" name="mode" value="swap" class="btn btn--primary btn--block" data-text={ v.Move.lookup(v.Move.CTAs, "movedate") } data-attr:disabled="!$movedate">{ v.Move.cta() }</button>
+			<button type="submit" name="mode" value="move" class="btn btn--secondary btn--block" data-show={ v.Move.plannedExpr("movedate") }>{ i18n.T(ctx, "plan.move.both") }</button>
+		</div>
+	</form>
+}
+
+templ mealServings(v MealMenuView, modal bool) {
+	<form class="plan-form" method="post" action={ templ.SafeURL("/plan/meals/" + v.ID + "/servings") } data-on:submit={ postForm("/plan/meals/" + v.ID + "/servings") }>
+		@backField(v.Back)
+		<input type="hidden" name="view" value="servings"/>
+		@mealSubhead(v, modal, i18n.T(ctx, "plan.menu.servings"), "")
+		<div class="plan-form__row plan-form__row--center">
+			<span class="visually-hidden" id="meal-servings-label">{ i18n.T(ctx, "recipes.servingsLabel") }</span>
+			@planStepper("mealservings", "/plan/meals/"+v.ID, v.Servings, "meal-servings-label")
+			<input type="hidden" name="servings" value={ itoa(v.Servings) } data-attr:value="$mealservings"/>
+		</div>
+		<p class="muted plan-form__note">{ i18n.T(ctx, "plan.servings.note", v.Day, plural(ctx, v.Base, "recipes.servingsOne", "recipes.servings")) }</p>
+		<button type="submit" class="btn btn--primary btn--block">{ i18n.T(ctx, "form.save") }</button>
+	</form>
+}
+
+templ mealSwap(v MealMenuView, modal bool) {
+	@mealSubhead(v, modal, i18n.T(ctx, "plan.menu.swap"), i18n.T(ctx, "plan.swap.keeps", v.Day))
+	<form class="search-link search-link--field" method="get" action={ templ.SafeURL("/plan/meals/" + v.ID) } role="search" data-on:submit__prevent={ v.swapResultsAction() }>
+		@iconSearch(20)
+		<input type="hidden" name="view" value="swap"/>
+		@backField(v.Back)
+		<label class="visually-hidden" for="meal-swap-q">{ i18n.T(ctx, "plan.pick.search") }</label>
+		<input
+			class="search-link__input"
+			id="meal-swap-q"
+			type="search"
+			name="q"
+			value={ v.Query }
+			placeholder={ i18n.T(ctx, "plan.pick.search") }
+			autocomplete="off"
+			data-bind:swapq
+			data-on:input__debounce.200ms={ v.swapResultsAction() }
+		/>
+	</form>
+	@MealSwapResults(v)
+}
+
+// MealSwapResults lists recipes to swap in; each swaps when chosen.
+templ MealSwapResults(v MealMenuView) {
+	<form id="meal-swap-results" method="post" action={ templ.SafeURL("/plan/meals/" + v.ID + "/replace") }>
+		@backField(v.Back)
+		if len(v.Swap) == 0 {
+			<p class="muted">{ i18n.T(ctx, "plan.pick.none", v.Query) }</p>
+		} else {
+			<ul class="list pick-list" role="list">
+				for _, r := range v.Swap {
+					<li>
+						<button type="submit" name="recipe" value={ r.ID } class="list__link pick-row" data-on:click__prevent={ v.replaceAction(r.ID) }>
+							@pickTile(r)
+							<span class="list__text">
+								<span class="pick-row__name">{ r.Name }</span>
+								if r.Meta != "" {
+									<span class="muted pick-row__meta">{ r.Meta }</span>
+								}
+							</span>
+							<span class="pick-row__action">{ i18n.T(ctx, "plan.swap.pick") }</span>
+						</button>
+					</li>
+				}
+			</ul>
+		}
+	</form>
+}
+
+// ---- Recipe page and library ----
+
+// AddToPlanButton opens the add-to-plan sheet from a recipe.
+templ AddToPlanButton(recipeID, class string) {
+	<a
+		class={ "btn btn--primary", class }
+		href={ templ.SafeURL("/plan/add?recipe=" + recipeID) }
+		data-on:click__prevent={ getAction("/plan/add?recipe=" + recipeID) }
+	>
+		@iconPlan()
+		{ i18n.T(ctx, "plan.addTo.title") }
+	</a>
+}
+
+// tonightCard is the library's "Suggested for tonight".
+templ tonightCard(t TonightCard) {
+	<a class="tonight" href={ templ.SafeURL(RecipeHref(t.RecipeID)) }>
+		<span class="tonight__label">{ i18n.T(ctx, "plan.tonight") }</span>
+		<span class="tonight__body">
+			<span class={ "tonight__media avatar--" + Tint(t.RecipeID) }>
+				if t.Photo != "" {
+					<img src={ ImageURL(t.Photo, "thumb") } alt=""/>
+				} else {
+					<span aria-hidden="true">{ Initial(t.Name) }</span>
+				}
+			</span>
+			<span class="tonight__text">
+				<span class="tonight__name">{ t.Name }</span>
+				<span class="tonight__meta">{ t.Meta }</span>
+			</span>
+		</span>
+	</a>
+}
+
+templ iconChevron(left bool) {
+	if left {
+		<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>
+	} else {
+		<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>
+	}
+}
+
+templ iconServings() {
+	<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3"></circle><path d="M3.5 19a5.5 5.5 0 0 1 11 0"></path><circle cx="17" cy="9" r="2.5"></circle><path d="M15.5 14.2A4.5 4.5 0 0 1 21 18.5"></path></svg>
+}
+
+templ iconSwap() {
+	<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h13l-3-3M20 16H7l3 3"></path></svg>
+}
+
+// dayCellLabel names a month calendar day and what is planned on it.
+func dayCellLabel(ctx context.Context, d PlanDay) string {
+	switch len(d.Meals) {
+	case 0:
+		return i18n.T(ctx, "plan.cell.free", d.Label)
+	case 1:
+		return i18n.T(ctx, "plan.cell.one", d.Label, d.Meals[0].Name)
+	}
+	return i18n.T(ctx, "plan.cell.many", d.Label, len(d.Meals))
+}
