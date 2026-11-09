@@ -75,8 +75,9 @@ func recordRoute(h http.Handler) http.Handler {
 	})
 }
 
-// logRequests writes one structured log line per request.
-func logRequests(log *slog.Logger, trusted []netip.Prefix, next http.Handler) http.Handler {
+// logRequests writes one structured log line per request. routeOf, if not
+// nil, names the route of requests that middleware answered before routing.
+func logRequests(log *slog.Logger, trusted []netip.Prefix, routeOf func(*http.Request) string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		rec := &statusRecorder{ResponseWriter: w}
@@ -84,6 +85,12 @@ func logRequests(log *slog.Logger, trusted []netip.Prefix, next http.Handler) ht
 		r = r.WithContext(context.WithValue(r.Context(), reqInfoKey{}, ri))
 		next.ServeHTTP(rec, r)
 
+		if ri.route == "" && routeOf != nil {
+			// Answered before routing (e.g. a rejected cross-origin write).
+			// Paths can carry secrets such as invite tokens, so log the route
+			// they would have matched instead.
+			ri.route = routeOf(r)
+		}
 		status := rec.status
 		if status == 0 {
 			// Nothing written: net/http sends an implicit 200.
@@ -98,7 +105,7 @@ func logRequests(log *slog.Logger, trusted []netip.Prefix, next http.Handler) ht
 			slog.String("client", clientIP(r, trusted).String()),
 		}
 		if ri.route == "" || ri.route == "/" {
-			// Unmatched or rejected before routing: the path is the only clue.
+			// Unmatched: the path is the only clue.
 			attrs = append(attrs, slog.String("path", r.URL.Path))
 		}
 		if ri.household != uuid.Nil {

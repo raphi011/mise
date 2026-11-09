@@ -57,6 +57,9 @@ var (
 	// account page is the right place (password) or it is not allowed
 	// (removal).
 	ErrSelf = errors.New("auth: not allowed on your own account")
+	// ErrSharedAccount means the account also belongs to another household.
+	// Its password is account-wide, so one household's admin may not set it.
+	ErrSharedAccount = errors.New("auth: account belongs to another household too")
 	// ErrNotFound means the member or invite does not exist in this
 	// household.
 	ErrNotFound = errors.New("auth: not found")
@@ -142,6 +145,10 @@ func New(db *store.DB, cfg Config) *Service {
 	}
 	return s
 }
+
+// Now returns the service's current time, so callers showing expiry use the
+// same clock as the checks.
+func (s *Service) Now() time.Time { return s.now() }
 
 func (s *Service) clock() store.Time { return store.T(s.now()) }
 

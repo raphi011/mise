@@ -181,7 +181,7 @@ Derived, not stored: "on a list" per ingredient, times cooked (count of `cook_ev
 - Username + password sign-in; argon2id; session cookie (`HttpOnly`, `Secure` when base URL is https, `SameSite=Lax`), 30-day sliding expiry; session list on the Account page with revoke. `last_seen_at` and expiry are written at most once per 5 minutes per session to spare the SQLite writer.
 - CSRF: `http.CrossOriginProtection` (uses `Sec-Fetch-Site`, falls back to Origin vs Host) plus `AddTrustedOrigin(MISE_BASE_URL)`. It always allows GET/HEAD/OPTIONS, so **every state-changing route is POST/PUT/PATCH/DELETE**, and Datastar actions use `@post`/`@put`/`@patch`/`@delete`, never `@get`, for writes. A router test asserts no GET route is registered in the mutating handler set.
 - Client IP from `X-Forwarded-For` only when `RemoteAddr` is in `MISE_TRUSTED_PROXIES`.
-- Rate limit sign-in and reset per client IP and per username (in-memory token bucket).
+- Rate limit sign-in and reset per client IP, per client IP and username, and per username (in-memory token buckets). The per-username bucket refills faster than one IP may spend, so a lockout needs several addresses; successful sign-ins give their attempts back. The account page's current-password check has its own per-user bucket.
 - Invites: copyable link (always), email if SMTP is configured; token stored hashed; role chosen at invite time.
 - Reset: admin reset under Settings › People (P1a); email link valid 1 h once SMTP lands.
 - Roles enforced in middleware for admin routes (people, AI settings).

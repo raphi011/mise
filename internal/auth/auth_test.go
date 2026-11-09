@@ -152,6 +152,30 @@ func TestLimiter(t *testing.T) {
 		t.Fatal("more than one token refilled")
 	}
 
+	// A refund gives back one attempt, never more than the burst.
+	l.Refund("a")
+	if !l.Allow("a") {
+		t.Fatal("refunded attempt not available")
+	}
+	if l.Allow("a") {
+		t.Fatal("refund gave back more than one attempt")
+	}
+	for range 10 {
+		l.Refund("b")
+	}
+	for i := range 3 {
+		if !l.Allow("b") {
+			t.Fatalf("attempt %d refused after refunds", i+1)
+		}
+	}
+	if l.Allow("b") {
+		t.Fatal("refunds raised the bucket above the burst")
+	}
+	l.Refund("unknown")
+	if n := l.Len(); n != 2 {
+		t.Errorf("refunding an unknown key added it: %d keys", n)
+	}
+
 	// Idle buckets are swept once they are full again.
 	clock.Add(time.Minute)
 	l.Allow("c")
@@ -270,6 +294,12 @@ func TestSignIn(t *testing.T) {
 		}
 		if _, err := s.SignIn(ctx, "nobody", testPassword, "ua"); !errors.Is(err, ErrInvalidCredentials) {
 			t.Errorf("unknown user: %v", err)
+		}
+		if _, err := s.SignIn(ctx, "anna", strings.Repeat("x", MaxPasswordLen+1), "ua"); !errors.Is(err, ErrInvalidCredentials) {
+			t.Errorf("over-long password: %v", err)
+		}
+		if _, err := s.SignIn(ctx, strings.Repeat("a", 10_000), testPassword, "ua"); !errors.Is(err, ErrInvalidCredentials) {
+			t.Errorf("over-long username: %v", err)
 		}
 		id, _, err := s.Authenticate(ctx, tok)
 		if err != nil {
@@ -579,6 +609,65 @@ func TestRemoveAndReset(t *testing.T) {
 		}
 		if err := s.RemoveMember(ctx, f.sc, f.admin, f.member); !errors.Is(err, ErrNotFound) {
 			t.Errorf("removing twice: %v", err)
+		}
+	})
+}
+
+func TestPlausibleCredentials(t *testing.T) {
+	for _, tc := range []struct {
+		username, password string
+		want               bool
+	}{
+		{"anna", testPassword, true},
+		{strings.Repeat("ä", maxUsernameLen), strings.Repeat("x", MaxPasswordLen), true},
+		{strings.Repeat("a", maxSignInUsername+1), testPassword, false},
+		{"anna", strings.Repeat("x", MaxPasswordLen+1), false},
+	} {
+		if got := PlausibleCredentials(tc.username, tc.password); got != tc.want {
+			t.Errorf("PlausibleCredentials(%d bytes, %d bytes) = %v", len(tc.username), len(tc.password), got)
+		}
+	}
+}
+
+// TestResetPasswordSharedAccount checks that an admin cannot set the
+// account-wide password of someone who also belongs to another household.
+func TestResetPasswordSharedAccount(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		ctx := t.Context()
+		s, _ := newService(t, db)
+		a := addHousehold(t, db, "a")
+		b := addHousehold(t, db, "b")
+		err := db.System().Tx(ctx, func(ctx context.Context, q store.Querier) error {
+			return insertMembership(ctx, q, b.household, a.member, RoleMember, store.Now())
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		tok, err := s.SignIn(ctx, "a-member", testPassword, "ua")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := s.ResetPassword(ctx, b.sc, b.admin, a.member, "taken over account"); !errors.Is(err, ErrSharedAccount) {
+			t.Fatalf("reset of a shared account: %v", err)
+		}
+		if _, err := s.SignIn(ctx, "a-member", testPassword, "ua"); err != nil {
+			t.Errorf("password changed despite refusal: %v", err)
+		}
+		if _, _, err := s.Authenticate(ctx, tok); err != nil {
+			t.Errorf("session ended despite refusal: %v", err)
+		}
+
+		// Once removed from the other household, the reset works and ends
+		// every session of the account.
+		if err := s.RemoveMember(ctx, b.sc, b.admin, a.member); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.ResetPassword(ctx, a.sc, a.admin, a.member, "a brand new secret"); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := s.Authenticate(ctx, tok); !errors.Is(err, ErrNoSession) {
+			t.Errorf("session survived reset: %v", err)
 		}
 	})
 }

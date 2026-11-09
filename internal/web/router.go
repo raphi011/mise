@@ -37,4 +37,11 @@ func (r *router) fallback(h http.Handler) {
 	r.mux.Handle("/", recordRoute(h))
 }
 
+// pattern returns the registered pattern that would serve req, so requests
+// rejected before routing are logged by route rather than by path.
+func (r *router) pattern(req *http.Request) string {
+	_, p := r.mux.Handler(req)
+	return p
+}
+
 func (r *router) ServeHTTP(w http.ResponseWriter, req *http.Request) { r.mux.ServeHTTP(w, req) }

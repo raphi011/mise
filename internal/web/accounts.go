@@ -6,7 +6,6 @@ import (
 	"math"
 	"net/http"
 	"net/netip"
-	"time"
 
 	"github.com/raphi011/mise/internal/auth"
 	"github.com/raphi011/mise/internal/i18n"
@@ -137,29 +136,64 @@ func (s *Server) renderSignIn(w http.ResponseWriter, r *http.Request, status int
 
 func (s *Server) signInSubmit(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	username := r.PostFormValue("username")
+	username, password := r.PostFormValue("username"), r.PostFormValue("password")
 	v := ui.SignInView{Form: formOf(r, "username"), Next: r.PostFormValue("next")}
+	invalid := func() {
+		v.Form.Alert = i18n.T(ctx, "signin.error.invalid")
+		s.renderSignIn(w, r, http.StatusUnauthorized, v)
+	}
+	// Input no account can match needs no attempt and no limiter key.
+	if !auth.PlausibleCredentials(username, password) {
+		invalid()
+		return
+	}
 
-	ip := clientIP(r, s.cfg.TrustedProxies).String()
-	if !s.ipLimit.Allow(ip) || !s.userLimit.Allow(auth.UsernameKey(username)) {
+	ip, key := clientIP(r, s.cfg.TrustedProxies).String(), auth.UsernameKey(username)
+	attempts := []attempt{{s.ipLimit, ip}, {s.pairLimit, ip + "\x00" + key}, {s.userLimit, key}}
+	if !allowAll(attempts) {
 		v.Form.Alert = i18n.T(ctx, "signin.error.tooMany")
 		s.renderSignIn(w, r, http.StatusTooManyRequests, v)
 		return
 	}
 
-	token, err := s.auth.SignIn(ctx, username, r.PostFormValue("password"), r.UserAgent())
+	token, err := s.auth.SignIn(ctx, username, password, r.UserAgent())
 	if errors.Is(err, auth.ErrInvalidCredentials) {
-		v.Form.Alert = i18n.T(ctx, "signin.error.invalid")
-		s.renderSignIn(w, r, http.StatusUnauthorized, v)
+		invalid()
 		return
 	}
 	if err != nil {
 		s.serverError(w, r, err)
 		return
 	}
+	refundAll(attempts)
 	s.endCurrentSession(r)
 	s.auth.SetSessionCookie(w, r, token)
 	seeOther(w, r, auth.SafeNext(v.Next))
+}
+
+// attempt is one rate-limiter bucket an action spends from.
+type attempt struct {
+	limiter *auth.Limiter
+	key     string
+}
+
+// allowAll spends one attempt from every bucket, or from none: when a bucket
+// is empty, the attempts already spent are given back.
+func allowAll(attempts []attempt) bool {
+	for i, a := range attempts {
+		if !a.limiter.Allow(a.key) {
+			refundAll(attempts[:i])
+			return false
+		}
+	}
+	return true
+}
+
+// refundAll gives back one attempt to every bucket.
+func refundAll(attempts []attempt) {
+	for _, a := range attempts {
+		a.limiter.Refund(a.key)
+	}
 }
 
 // endCurrentSession deletes the session the request came with, if any, when
@@ -194,7 +228,7 @@ func (s *Server) inviteView(ctx context.Context, token string) (ui.InviteView, a
 	if err != nil {
 		return ui.InviteView{}, info, err
 	}
-	days := int(math.Ceil(time.Until(info.ExpiresAt).Hours() / 24))
+	days := int(math.Ceil(info.ExpiresAt.Sub(s.auth.Now()).Hours() / 24))
 	expires := i18n.T(ctx, "accept.expiresDays", days)
 	if days <= 1 {
 		expires = i18n.T(ctx, "accept.expiresSoon")

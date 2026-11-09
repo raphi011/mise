@@ -1,12 +1,15 @@
 package web
 
 import (
+	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"regexp"
 	"strings"
 	"testing"
 
+	"github.com/raphi011/mise/internal/config"
 	"github.com/raphi011/mise/internal/store"
 	"github.com/raphi011/mise/internal/store/storetest"
 )
@@ -150,29 +153,103 @@ func TestLastAdminOverHTTP(t *testing.T) {
 	admin.get("/settings/invite").expect(t, "still admin", http.StatusOK)
 }
 
-func TestSignInRateLimit(t *testing.T) {
-	_, srv := startServer(t, storetest.SQLite(t))
-	b := newBrowser(t, srv.URL)
-	b.post("/setup", setupForm(srv.URL)).expect(t, "setup", http.StatusSeeOther)
-	b.post("/signout", nil).expect(t, "sign out", http.StatusSeeOther)
+// signInFrom posts the sign-in form from the client address ip.
+func signInFrom(t *testing.T, h http.Handler, ip, username, password string) (int, string) {
+	t.Helper()
+	r := postForm(t, "/signin", url.Values{"username": {username}, "password": {password}})
+	r.RemoteAddr = ip + ":40000"
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, r)
+	return rec.Code, rec.Body.String()
+}
 
-	// The per-username bucket runs out first.
-	var last page
-	for range userBurst + 1 {
-		last = b.post("/signin", url.Values{"username": {"anna"}, "password": {"wrong password"}})
+func TestSignInRateLimit(t *testing.T) {
+	h := newTestServer(t, config.Config{})
+	doSetup(t, h)
+	expect := func(what string, got, want int) {
+		t.Helper()
+		if got != want {
+			t.Fatalf("%s: status %d, want %d", what, got, want)
+		}
 	}
-	last.expect(t, "attempt beyond the username burst", http.StatusTooManyRequests)
-	if !strings.Contains(last.body, "Too many attempts") {
+
+	// One address runs out of attempts for one username...
+	for range pairBurst {
+		code, _ := signInFrom(t, h, "192.0.2.1", "anna", "wrong password")
+		expect("failed attempt within the pair burst", code, http.StatusUnauthorized)
+	}
+	code, body := signInFrom(t, h, "192.0.2.1", "anna", adminPassword)
+	expect("right password beyond the pair burst", code, http.StatusTooManyRequests)
+	if !strings.Contains(body, "Too many attempts") {
 		t.Error("429 page has no friendly message")
 	}
-	// Even the right password is refused while limited.
-	b.post("/signin", url.Values{"username": {"anna"}, "password": {adminPassword}}).expect(t, "limited sign-in", http.StatusTooManyRequests)
+	// ...without locking the user out from elsewhere.
+	code, _ = signInFrom(t, h, "192.0.2.2", "anna", adminPassword)
+	expect("sign-in from another address", code, http.StatusSeeOther)
 
-	// The per-IP bucket catches attempts spread over usernames.
-	for i := range ipBurst {
-		last = b.post("/signin", url.Values{"username": {"user" + string(rune('a'+i))}, "password": {"x"}})
+	// Successful sign-ins give their attempts back.
+	for range userBurst + 1 {
+		code, _ := signInFrom(t, h, "192.0.2.3", "anna", adminPassword)
+		expect("repeated successful sign-in", code, http.StatusSeeOther)
 	}
-	last.expect(t, "attempt beyond the IP burst", http.StatusTooManyRequests)
+
+	// Failures spread over addresses drain the username bucket.
+	locked := false
+	for i := 10; i < 20 && !locked; i++ {
+		for range pairBurst {
+			if code, _ := signInFrom(t, h, fmt.Sprintf("192.0.2.%d", i), "anna", "wrong password"); code == http.StatusTooManyRequests {
+				locked = true
+				break
+			}
+		}
+	}
+	if !locked {
+		t.Fatal("username bucket never ran out")
+	}
+	code, _ = signInFrom(t, h, "198.51.100.1", "anna", adminPassword)
+	expect("fresh address while the username is limited", code, http.StatusTooManyRequests)
+
+	// The IP bucket catches attempts spread over usernames.
+	for i := range ipBurst {
+		code, _ := signInFrom(t, h, "203.0.113.1", fmt.Sprintf("user%d", i), "x")
+		expect("attempt within the IP burst", code, http.StatusUnauthorized)
+	}
+	code, _ = signInFrom(t, h, "203.0.113.1", "someone", "x")
+	expect("attempt beyond the IP burst", code, http.StatusTooManyRequests)
+
+	// Input no account can match is refused without spending attempts.
+	long := strings.Repeat("a", 1000)
+	for range ipBurst + 1 {
+		code, _ := signInFrom(t, h, "203.0.113.2", long, "x")
+		expect("over-long username", code, http.StatusUnauthorized)
+	}
+	code, _ = signInFrom(t, h, "203.0.113.2", "nobody", "x")
+	expect("attempt after over-long input", code, http.StatusUnauthorized)
+}
+
+// TestChangePasswordRateLimit checks that the current-password check is
+// limited per user and apart from the sign-in buckets.
+func TestChangePasswordRateLimit(t *testing.T) {
+	h := newTestServer(t, config.Config{})
+	cookie := doSetup(t, h)
+	change := func(current string) int {
+		r := postForm(t, "/settings/account/password", url.Values{"current_password": {current}, "new_password": {"brand new password"}})
+		r.AddCookie(cookie)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, r)
+		return rec.Code
+	}
+	for range passwordBurst {
+		if code := change("wrong"); code != http.StatusUnprocessableEntity {
+			t.Fatalf("wrong current password: status %d, want 422", code)
+		}
+	}
+	if code := change(adminPassword); code != http.StatusTooManyRequests {
+		t.Fatalf("beyond the burst: status %d, want 429", code)
+	}
+	if code, _ := signInFrom(t, h, "192.0.2.1", "anna", adminPassword); code != http.StatusSeeOther {
+		t.Errorf("sign-in blocked by the password-change limit: status %d", code)
+	}
 }
 
 func TestAccountPages(t *testing.T) {
@@ -186,6 +263,10 @@ func TestAccountPages(t *testing.T) {
 	p := b.get("/settings").expect(t, "settings", http.StatusOK)
 	if !strings.Contains(p.body, `<html lang="de" data-theme="dark"`) {
 		t.Errorf("theme or language not applied:\n%.300s", p.body)
+	}
+	// Each language is named in its own language, whatever the UI language.
+	if !strings.Contains(p.body, ">English<") || !strings.Contains(p.body, ">Deutsch<") {
+		t.Error("language options not named in their own language")
 	}
 	b.post("/settings/preferences", url.Values{"theme": {"system"}, "language": {""}}).expect(t, "reset preferences", http.StatusSeeOther)
 

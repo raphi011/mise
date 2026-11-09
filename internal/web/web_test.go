@@ -250,6 +250,23 @@ func TestRequestLogIncludesRoute(t *testing.T) {
 	}
 }
 
+func TestRequestLogRouteForRejectedWrite(t *testing.T) {
+	var buf strings.Builder
+	h := newServer(t, config.Config{}, storetest.SQLite(t), slog.New(slog.NewTextHandler(&buf, nil))).Handler()
+	r := newReq(t, "POST", "/invite/secret-invite-token", nil)
+	r.Header.Set("Sec-Fetch-Site", "cross-site")
+	if res, _ := do(t, h, r); res.StatusCode != http.StatusForbidden {
+		t.Fatalf("cross-site POST: status %d, want 403", res.StatusCode)
+	}
+	out := buf.String()
+	if !strings.Contains(out, `route="POST /invite/{token}"`) {
+		t.Errorf("route of rejected write not logged:\n%s", out)
+	}
+	if strings.Contains(out, "secret-invite-token") {
+		t.Errorf("invite token logged:\n%s", out)
+	}
+}
+
 func TestReadyzRequiresMigrations(t *testing.T) {
 	db, err := store.Open(t.Context(), "sqlite://"+t.TempDir()+"/mise.db")
 	if err != nil {
@@ -329,7 +346,7 @@ func TestRecoverPanicsLogsStack(t *testing.T) {
 
 func TestRequestLogImplicitStatus(t *testing.T) {
 	var buf strings.Builder
-	h := logRequests(slog.New(slog.NewTextHandler(&buf, nil)), nil, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	h := logRequests(slog.New(slog.NewTextHandler(&buf, nil)), nil, nil, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	do(t, h, newReq(t, "GET", "/", nil))
 	if !strings.Contains(buf.String(), "status=200") {
 		t.Errorf("implicit status not logged as 200:\n%s", buf.String())

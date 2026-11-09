@@ -95,11 +95,7 @@ func (s *Server) renderSettings(w http.ResponseWriter, r *http.Request, status i
 			{Value: "light", Label: i18n.T(ctx, "theme.light")},
 			{Value: "dark", Label: i18n.T(ctx, "theme.dark")},
 		},
-		Languages: []ui.Option{
-			{Value: "", Label: i18n.T(ctx, "language.householdDefault")},
-			{Value: "en", Label: "English"},
-			{Value: "de", Label: "Deutsch"},
-		},
+		Languages: languageOptions(r),
 	}
 	if v.Prefs.Values == nil {
 		v.Prefs.Values = map[string]string{"theme": id.Theme, "language": id.Language}
@@ -125,16 +121,27 @@ func (s *Server) renderSettings(w http.ResponseWriter, r *http.Request, status i
 			v.Invites = append(v.Invites, ui.InviteRow{
 				ID:    inv.ID.String(),
 				Label: label,
-				Note:  i18n.T(ctx, "settings.inviteNote", roleLabel(r, inv.Role), daysLeft(r, inv.ExpiresAt)),
+				Note:  i18n.T(ctx, "settings.inviteNote", roleLabel(r, inv.Role), daysLeft(r, inv.ExpiresAt.Sub(s.auth.Now()))),
 			})
 		}
 	}
 	s.render(w, r, status, ui.Settings(s.page(r, i18n.T(ctx, "page.settings.title"), ui.NavSettings), v))
 }
 
-// daysLeft describes how long an invite stays valid.
-func daysLeft(r *http.Request, at time.Time) string {
-	days := int(time.Until(at).Hours() / 24)
+// languageOptions lists the household default and every supported UI
+// language, each named in its own language.
+func languageOptions(r *http.Request) []ui.Option {
+	opts := []ui.Option{{Value: "", Label: i18n.T(r.Context(), "language.householdDefault")}}
+	for _, tag := range i18n.Supported {
+		opts = append(opts, ui.Option{Value: tag.String(), Label: i18n.T(i18n.WithLocale(r.Context(), tag), "language.self")})
+	}
+	return opts
+}
+
+// daysLeft describes how long an invite with the given validity left stays
+// valid.
+func daysLeft(r *http.Request, left time.Duration) string {
+	days := int(left.Hours() / 24)
 	if days < 1 {
 		return i18n.T(r.Context(), "settings.expiresToday")
 	}
@@ -230,9 +237,10 @@ func (s *Server) changePassword(w http.ResponseWriter, r *http.Request) {
 	id := identity(r)
 	profile := ui.Form{Values: map[string]string{"name": id.Name, "email": id.Email, "avatar_color": id.AvatarColor}}
 	pw := ui.Form{Values: map[string]string{}, Errors: map[string]string{}}
-	// The current-password check is a password oracle; limit it like
-	// sign-in.
-	if !s.userLimit.Allow(auth.UsernameKey(id.Username)) {
+	// The current-password check is a password oracle for whoever holds the
+	// session; limit it per user, apart from the sign-in buckets.
+	attempts := []attempt{{s.passwordLimit, id.UserID.String()}}
+	if !allowAll(attempts) {
 		pw.Alert = i18n.T(ctx, "signin.error.tooMany")
 		s.renderAccount(w, r, http.StatusTooManyRequests, profile, pw, "")
 		return
@@ -246,6 +254,7 @@ func (s *Server) changePassword(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
+	refundAll(attempts)
 	seeOther(w, r, "/settings/account?done=password")
 }
 
@@ -470,6 +479,8 @@ func (s *Server) memberFormError(w http.ResponseWriter, r *http.Request, err err
 		alert = "member.error.lastAdmin"
 	case errors.Is(err, auth.ErrSelf):
 		alert = "member.error.self"
+	case errors.Is(err, auth.ErrSharedAccount):
+		alert = "member.error.sharedAccount"
 	default:
 		return false
 	}

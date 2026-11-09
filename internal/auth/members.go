@@ -144,8 +144,10 @@ func (s *Service) SetRole(ctx context.Context, sc store.Scoped, actor, userID uu
 	})
 }
 
-// ResetPassword lets an admin set a new password for another member. The
-// member's sessions in this household end.
+// ResetPassword lets an admin set a new password for another member, and
+// ends all of the member's sessions. The password is account-wide, so it
+// returns ErrSharedAccount when the member also belongs to another household:
+// otherwise one household's admin could take over the account in the other.
 func (s *Service) ResetPassword(ctx context.Context, sc store.Scoped, actor, userID uuid.UUID, password string) error {
 	if actor == userID {
 		return ErrSelf
@@ -166,13 +168,21 @@ func (s *Service) ResetPassword(ctx context.Context, sc store.Scoped, actor, use
 		if _, err := activeRole(ctx, q, sc, userID); err != nil {
 			return err
 		}
+		var elsewhere int
+		if err := q.QueryRow(ctx, `SELECT count(*) FROM memberships
+			WHERE user_id = ? AND household_id <> ? AND removed_at IS NULL`, userID, sc.HouseholdID()).Scan(&elsewhere); err != nil {
+			return err
+		}
+		if elsewhere > 0 {
+			return ErrSharedAccount
+		}
 		now := s.clock()
-		// users is global; the membership check above limits this to
-		// members of the scoped household.
+		// users and sessions are account-wide; the checks above limit this
+		// to accounts that belong to the scoped household only.
 		if _, err := q.Exec(ctx, `UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?`, hash, now, userID); err != nil {
 			return err
 		}
-		_, err := q.Exec(ctx, `DELETE FROM sessions WHERE household_id = ? AND user_id = ?`, sc.HouseholdID(), userID)
+		_, err := q.Exec(ctx, `DELETE FROM sessions WHERE user_id = ?`, userID)
 		return err
 	})
 }

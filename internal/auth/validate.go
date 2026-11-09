@@ -46,7 +46,19 @@ const (
 	maxNameLen     = 80
 	maxEmailLen    = 254
 	maxUserAgent   = 255
+	// maxSignInUsername bounds the username typed at sign-in, in bytes. It
+	// leaves room above maxUsernameLen runes so a differently cased spelling
+	// of a stored username still fits.
+	maxSignInUsername = 8 * maxUsernameLen
 )
+
+// PlausibleCredentials reports whether sign-in input is short enough to
+// belong to an account: stored usernames and passwords are bounded, so longer
+// input cannot match. Callers reject it before rate limiting or hashing, which
+// bounds the work and memory one request can cause.
+func PlausibleCredentials(username, password string) bool {
+	return len(username) <= maxSignInUsername && len(password) <= MaxPasswordLen
+}
 
 func checkUsername(errs FieldErrors, field, username string) {
 	n := utf8.RuneCountInString(username)

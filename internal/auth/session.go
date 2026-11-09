@@ -26,6 +26,9 @@ func (s *Service) createSession(ctx context.Context, q store.Querier, userID, ho
 // user's household. It returns ErrInvalidCredentials for an unknown user, a
 // wrong password, or an account without an active membership.
 func (s *Service) SignIn(ctx context.Context, username, password, userAgent string) (string, error) {
+	if !PlausibleCredentials(username, password) {
+		return "", ErrInvalidCredentials
+	}
 	var u struct {
 		ID           uuid.UUID
 		PasswordHash string
@@ -163,8 +166,9 @@ type SessionInfo struct {
 	Current    bool
 }
 
-// Sessions lists the user's live sessions in the active household, the
-// current one first, then by last use.
+// Sessions lists the user's live sessions, the current one first, then by
+// last use. Like the password they belong to, they are account-wide, so the
+// list matches what RevokeSession and RevokeOtherSessions act on.
 func (s *Service) Sessions(ctx context.Context, id *Identity) ([]SessionInfo, error) {
 	var rows []struct {
 		ID         string
@@ -173,8 +177,8 @@ func (s *Service) Sessions(ctx context.Context, id *Identity) ([]SessionInfo, er
 		LastSeenAt store.Time
 	}
 	err := s.db.System().Read().Select(ctx, &rows, `SELECT id, user_agent, created_at, last_seen_at FROM sessions
-		WHERE user_id = ? AND household_id = ? AND expires_at > ? ORDER BY last_seen_at DESC`,
-		id.UserID, id.HouseholdID, s.clock())
+		WHERE user_id = ? AND expires_at > ? ORDER BY last_seen_at DESC`,
+		id.UserID, s.clock())
 	if err != nil {
 		return nil, err
 	}

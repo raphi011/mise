@@ -20,14 +20,26 @@ import (
 	"github.com/raphi011/mise/internal/ui"
 )
 
-// Sign-in rate limits: per client IP a burst of 10 attempts, then one every
-// 6 s; per username a burst of 5, then one every 30 s.
+// Sign-in rate limits. Every attempt spends from three buckets:
+//   - per client IP: a burst of 10, then one every 6 s;
+//   - per client IP and username: a burst of 5, then one a minute;
+//   - per username, from any IP: a burst of 20, then one every 15 s. One IP
+//     is held to the slower pair rate, so it cannot keep this bucket empty;
+//     locking someone out takes attempts from several addresses.
+//
+// A successful sign-in gives its attempts back. The current-password check
+// on the account page has its own bucket per signed-in user, so failed
+// sign-ins by others cannot block a password change.
 const (
-	ipBurst        = 10
-	ipInterval     = 6 * time.Second
-	userBurst      = 5
-	userInterval   = 30 * time.Second
-	limiterMaxKeys = 10_000
+	ipBurst          = 10
+	ipInterval       = 6 * time.Second
+	pairBurst        = 5
+	pairInterval     = time.Minute
+	userBurst        = 20
+	userInterval     = 15 * time.Second
+	passwordBurst    = 5
+	passwordInterval = 30 * time.Second
+	limiterMaxKeys   = 10_000
 )
 
 // Server holds the dependencies of the HTTP handlers.
@@ -38,8 +50,10 @@ type Server struct {
 	csrf *http.CrossOriginProtection
 	auth *auth.Service
 
-	ipLimit   *auth.Limiter
-	userLimit *auth.Limiter
+	ipLimit       *auth.Limiter
+	pairLimit     *auth.Limiter
+	userLimit     *auth.Limiter
+	passwordLimit *auth.Limiter
 
 	// baseURL is the public URL: MISE_BASE_URL, or the one stored by setup.
 	baseURL atomic.Pointer[url.URL]
@@ -50,12 +64,14 @@ type Server struct {
 // base URL stored by first-run setup is known.
 func New(cfg config.Config, db *store.DB, log *slog.Logger) (*Server, error) {
 	s := &Server{
-		cfg:       cfg,
-		db:        db,
-		log:       log,
-		csrf:      http.NewCrossOriginProtection(),
-		ipLimit:   auth.NewLimiter(ipBurst, ipInterval, limiterMaxKeys, nil),
-		userLimit: auth.NewLimiter(userBurst, userInterval, limiterMaxKeys, nil),
+		cfg:           cfg,
+		db:            db,
+		log:           log,
+		csrf:          http.NewCrossOriginProtection(),
+		ipLimit:       auth.NewLimiter(ipBurst, ipInterval, limiterMaxKeys, nil),
+		pairLimit:     auth.NewLimiter(pairBurst, pairInterval, limiterMaxKeys, nil),
+		userLimit:     auth.NewLimiter(userBurst, userInterval, limiterMaxKeys, nil),
+		passwordLimit: auth.NewLimiter(passwordBurst, passwordInterval, limiterMaxKeys, nil),
 	}
 	s.auth = auth.New(db, auth.Config{Log: log, SecureCookie: s.secureCookie})
 	if cfg.BaseURL != nil {
@@ -124,7 +140,7 @@ func (s *Server) Handler() http.Handler {
 	h = s.csrf.Handler(h)
 	h = securityHeaders(h)
 	h = recoverPanics(s.log, h)
-	h = logRequests(s.log, s.cfg.TrustedProxies, h)
+	h = logRequests(s.log, s.cfg.TrustedProxies, r.pattern, h)
 	return h
 }
 

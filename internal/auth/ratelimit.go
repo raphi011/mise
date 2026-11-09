@@ -66,6 +66,21 @@ func (l *Limiter) Allow(key string) bool {
 	return true
 }
 
+// Refund gives back one attempt spent for key, for example after a
+// successful sign-in, so legitimate use does not drain the bucket. The bucket
+// never holds more than the burst.
+func (l *Limiter) Refund(key string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	b, ok := l.buckets[key]
+	if !ok {
+		return
+	}
+	now := l.now()
+	b.tokens = min(l.burst, l.refill(b, now)+1)
+	b.at = now
+}
+
 func (l *Limiter) refill(b *bucket, now time.Time) float64 {
 	return min(l.burst, b.tokens+float64(now.Sub(b.at))/float64(l.interval))
 }
