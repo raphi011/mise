@@ -817,7 +817,7 @@ func (s *Server) addMeal(w http.ResponseWriter, r *http.Request) {
 }
 
 // unplanMeal is the Undo of planning a meal: it removes the meal and the
-// entries planning it put on the list.
+// entries planning it put on the list, unless they changed since.
 func (s *Server) unplanMeal(w http.ResponseWriter, r *http.Request) {
 	mealID, sc, ok := s.mealTarget(w, r)
 	if !ok {
@@ -835,16 +835,9 @@ func (s *Server) unplanMeal(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	ctx := r.Context()
-	m, err := s.plan.Remove(ctx, sc, mealID)
+	m, err := s.plan.Unplan(ctx, sc, mealID, entries)
 	if s.planError(w, r, err) {
 		return
-	}
-	for _, entryID := range entries {
-		// An entry already checked off or removed stays as it is.
-		if _, err := s.groceries.Remove(ctx, sc, entryID); err != nil && !errors.Is(err, groceries.ErrNotFound) {
-			s.serverError(w, r, err)
-			return
-		}
 	}
 	s.planUndone(w, r, localPath(r.PostFormValue("back"), s.weekBack(ctx, sc, m.Date)))
 }

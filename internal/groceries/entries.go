@@ -3,6 +3,7 @@ package groceries
 import (
 	"context"
 	"database/sql"
+	"slices"
 	"time"
 	"unicode/utf8"
 
@@ -493,6 +494,45 @@ func (s *Service) Restore(ctx context.Context, sc store.Scoped, id uuid.UUID) (E
 	}
 	s.publish(sc, listChanged(e.ListID))
 	return e, nil
+}
+
+// TakeBackTx removes entries a recipe put on a list, inside the caller's
+// transaction: the Undo of planning a meal with its shopping. An entry
+// that changed since it was added (merged into, edited, checked off,
+// removed, restored) stays as it is, since part of it may be someone
+// else's; so does one that is not the recipe's. It returns the lists it
+// changed; the caller publishes live.ListChanged for each after commit.
+//
+// The check and the removal are one conditional UPDATE, so a concurrent
+// change to an entry either commits first and keeps it, or waits and
+// finds it removed.
+func (s *Service) TakeBackTx(ctx context.Context, q store.Querier, sc store.Scoped, recipeID uuid.UUID, ids []uuid.UUID) ([]uuid.UUID, error) {
+	hh, now := sc.HouseholdID(), s.clock()
+	var lists []uuid.UUID
+	for _, id := range ids {
+		res, err := q.Exec(ctx, `UPDATE list_entries SET deleted_at = ?, updated_at = ?
+			WHERE household_id = ? AND id = ? AND recipe_id = ?
+			AND deleted_at IS NULL AND checked_at IS NULL AND updated_at = created_at`,
+			now, now, hh, id, recipeID)
+		if err != nil {
+			return nil, err
+		}
+		ok, err := affected(res)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			continue
+		}
+		var listID uuid.UUID
+		if err := q.Get(ctx, &listID, `SELECT list_id FROM list_entries WHERE household_id = ? AND id = ?`, hh, id); err != nil {
+			return nil, err
+		}
+		if !slices.Contains(lists, listID) {
+			lists = append(lists, listID)
+		}
+	}
+	return lists, nil
 }
 
 // Cleared describes a cleared cart, for Undo.

@@ -177,6 +177,16 @@ func (s *Service) PutOnListTx(ctx context.Context, q store.Querier, sc store.Sco
 	return out, nil
 }
 
+// TakeOffListTx undoes PutOnListTx inside the caller's transaction: it
+// removes the given entries of the recipe that have not changed since
+// (groceries TakeBackTx). It does not publish: the caller publishes
+// live.ListChanged for each list returned after commit.
+func (s *Service) TakeOffListTx(ctx context.Context, q store.Querier, sc store.Scoped, recipeID uuid.UUID,
+	entryIDs []uuid.UUID,
+) ([]uuid.UUID, error) {
+	return s.groceries.TakeBackTx(ctx, q, sc, recipeID, entryIDs)
+}
+
 // Scale returns the amount for servings when the recipe makes base
 // servings. Free-text amounts ("1 thumb") stay as they are.
 func Scale(a groceries.Amount, base, servings int, lang language.Tag) groceries.Amount {

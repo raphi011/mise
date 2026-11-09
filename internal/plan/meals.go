@@ -474,12 +474,7 @@ func (s *Service) Remove(ctx context.Context, sc store.Scoped, id uuid.UUID) (Me
 	var m Meal
 	err := sc.Tx(ctx, func(ctx context.Context, q store.Querier) error {
 		var err error
-		if m, err = getMeal(ctx, q.Reader, sc, id); err != nil {
-			return err
-		}
-		now := s.clock()
-		_, err = q.Exec(ctx, `UPDATE planned_meals SET deleted_at = ?, updated_at = ? WHERE household_id = ? AND id = ?`,
-			now, now, sc.HouseholdID(), id)
+		m, err = s.removeTx(ctx, q, sc, id)
 		return err
 	})
 	if err != nil {
@@ -487,6 +482,44 @@ func (s *Service) Remove(ctx context.Context, sc store.Scoped, id uuid.UUID) (Me
 	}
 	s.publish(sc, planChanged)
 	return m, nil
+}
+
+// Unplan is the Undo of Add: it removes the meal and takes back the
+// entries planning it put on the list, in one transaction. Entries changed
+// since stay on the list (groceries TakeBackTx).
+func (s *Service) Unplan(ctx context.Context, sc store.Scoped, id uuid.UUID, entries []uuid.UUID) (Meal, error) {
+	var (
+		m     Meal
+		lists []uuid.UUID
+	)
+	err := sc.Tx(ctx, func(ctx context.Context, q store.Querier) error {
+		var err error
+		if m, err = s.removeTx(ctx, q, sc, id); err != nil {
+			return err
+		}
+		lists, err = s.recipes.TakeOffListTx(ctx, q, sc, m.Recipe.ID, entries)
+		return err
+	})
+	if err != nil {
+		return Meal{}, err
+	}
+	events := []live.Event{planChanged}
+	for _, l := range lists {
+		events = append(events, live.Event{Kind: live.ListChanged, ListID: l})
+	}
+	s.publish(sc, events...)
+	return m, nil
+}
+
+func (s *Service) removeTx(ctx context.Context, q store.Querier, sc store.Scoped, id uuid.UUID) (Meal, error) {
+	m, err := getMeal(ctx, q.Reader, sc, id)
+	if err != nil {
+		return Meal{}, err
+	}
+	now := s.clock()
+	_, err = q.Exec(ctx, `UPDATE planned_meals SET deleted_at = ?, updated_at = ? WHERE household_id = ? AND id = ?`,
+		now, now, sc.HouseholdID(), id)
+	return m, err
 }
 
 // Restore undoes Remove within UndoWindow, or returns ErrNotFound.

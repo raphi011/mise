@@ -292,6 +292,95 @@ func TestAdd(t *testing.T) {
 	})
 }
 
+// TestUnplan covers the Undo of planning: the meal and its untouched
+// entries go in one transaction; entries changed since stay.
+func TestUnplan(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		ctx := t.Context()
+		e := newEnv(t, db, "home")
+		tofu := e.recipe(t, "Sticky tofu", "400 g firm tofu", "3 tbsp soy sauce", "1 thumb ginger")
+		dal := e.recipe(t, "Dal", "250 g red lentils")
+		ings := func(r recipes.Recipe) []uuid.UUID {
+			ids := make([]uuid.UUID, len(r.Ingredients))
+			for i, ing := range r.Ingredients {
+				ids[i] = ing.ID
+			}
+			return ids
+		}
+		a, err := e.s.Add(ctx, e.sc, AddInput{RecipeID: tofu.ID, Date: date("2026-11-10"), By: e.hh.Admin, Ingredients: ings(tofu), Lang: language.English})
+		if err != nil {
+			t.Fatal(err)
+		}
+		d, err := e.s.Add(ctx, e.sc, AddInput{RecipeID: dal.ID, Date: date("2026-11-10"), By: e.hh.Admin, Ingredients: ings(dal), Lang: language.English})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(a.Shopping.Added) != 3 || len(d.Shopping.Added) != 1 {
+			t.Fatalf("added %d and %d entries", len(a.Shopping.Added), len(d.Shopping.Added))
+		}
+		tofuEntry, soy, ginger, lentils := a.Shopping.Added[0].ID, a.Shopping.Added[1].ID, a.Shopping.Added[2].ID, d.Shopping.Added[0].ID
+
+		// Later, someone adds more tofu (merged into the planned entry)
+		// and checks off the soy sauce.
+		e.clk.Add(time.Minute)
+		more, err := e.g.Add(ctx, e.sc, groceries.AddInput{ListID: e.list.ID, Name: "Firm tofu",
+			Amount: groceries.ParseAmount("200 g", language.English), AddedBy: e.hh.Member, Lang: language.English})
+		if err != nil || !more.Merged || more.Entry.ID != tofuEntry {
+			t.Fatalf("merge %+v, %v", more, err)
+		}
+		if _, err := e.g.Check(ctx, e.sc, soy); err != nil {
+			t.Fatal(err)
+		}
+		e.rec.take()
+
+		// A meal that is gone rolls back: the entries stay.
+		if _, err := e.s.Unplan(ctx, e.sc, uuid.New(), []uuid.UUID{ginger}); !errors.Is(err, ErrNotFound) {
+			t.Errorf("unknown meal: %v", err)
+		}
+		if _, err := e.g.Entry(ctx, e.sc, ginger); err != nil {
+			t.Errorf("rolled back unplan removed ginger: %v", err)
+		}
+
+		// The dal's lentils and an unknown ID are not the tofu's: they are
+		// left alone.
+		m, err := e.s.Unplan(ctx, e.sc, a.Meal.ID, []uuid.UUID{tofuEntry, soy, ginger, lentils, uuid.New()})
+		if err != nil || m.ID != a.Meal.ID {
+			t.Fatalf("unplan %+v, %v", m, err)
+		}
+		if got := e.dayNames(t, "2026-11-10")[1]; !slices.Equal(got, []string{"Dal"}) {
+			t.Errorf("Tuesday %v", got)
+		}
+		if _, err := e.g.Entry(ctx, e.sc, ginger); !errors.Is(err, groceries.ErrNotFound) {
+			t.Errorf("untouched ginger stayed: %v", err)
+		}
+		if en, err := e.g.Entry(ctx, e.sc, tofuEntry); err != nil || en.Amount.Quantity == nil || *en.Amount.Quantity != 600 {
+			t.Errorf("merged tofu %+v, %v", en, err)
+		}
+		if en, err := e.g.Entry(ctx, e.sc, soy); err != nil || !en.Checked() {
+			t.Errorf("checked soy sauce %+v, %v", en, err)
+		}
+		if _, err := e.g.Entry(ctx, e.sc, lentils); err != nil {
+			t.Errorf("dal's lentils: %v", err)
+		}
+		if ev := e.rec.take(); !hasKind(ev, live.PlanChanged) || !slices.Contains(ev, live.Event{Kind: live.ListChanged, ListID: e.list.ID}) {
+			t.Errorf("events %+v", ev)
+		}
+
+		// A second Undo finds the meal gone.
+		if _, err := e.s.Unplan(ctx, e.sc, a.Meal.ID, nil); !errors.Is(err, ErrNotFound) {
+			t.Errorf("second unplan: %v", err)
+		}
+
+		// Without entries taken back, no list event.
+		if _, err := e.s.Unplan(ctx, e.sc, d.Meal.ID, nil); err != nil {
+			t.Fatal(err)
+		}
+		if ev := e.rec.take(); hasKind(ev, live.ListChanged) {
+			t.Errorf("list event without entries: %+v", ev)
+		}
+	})
+}
+
 func TestMoveAndSwap(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db *store.DB) {
 		ctx := t.Context()

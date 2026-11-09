@@ -24,21 +24,27 @@ func TestHouseholdIsolation(t *testing.T) {
 			recipe  recipes.Recipe
 			meal    Meal
 			removed Meal
-			cooked  uuid.UUID
+			// entry is on the list from planning meal.
+			entry  uuid.UUID
+			cooked uuid.UUID
 			// cookedRecipe is the recipe of cooked.
 			cookedRecipe uuid.UUID
 		}
 		setup := func(name string) fixture {
 			e := newEnv(t, db, name)
 			f := fixture{env: e, recipe: e.recipe(t, "Dal", "250 g red lentils")}
-			f.meal = e.add(t, f.recipe, "2026-11-10")
+			added, err := e.s.Add(ctx, e.sc, AddInput{RecipeID: f.recipe.ID, Date: date("2026-11-10"), By: e.hh.Admin,
+				Ingredients: []uuid.UUID{f.recipe.Ingredients[0].ID}, Lang: language.English})
+			if err != nil {
+				t.Fatal(err)
+			}
+			f.meal, f.entry = added.Meal, added.Shopping.Added[0].ID
 			f.removed = e.add(t, f.recipe, "2026-11-11")
 			if _, err := e.s.Remove(ctx, e.sc, f.removed.ID); err != nil {
 				t.Fatal(err)
 			}
 			// Dal was cooked long ago, so it is suggested; soup just now.
 			e.cooked(t, f.recipe.ID, start.Add(-30*24*time.Hour))
-			var err error
 			f.cookedRecipe = e.recipe(t, "Soup").ID
 			if f.cooked, err = e.s.MarkCooked(ctx, e.sc, f.cookedRecipe, e.hh.Admin); err != nil {
 				t.Fatal(err)
@@ -101,6 +107,16 @@ func TestHouseholdIsolation(t *testing.T) {
 			_, err = s.Remove(ctx, sc, other.meal.ID)
 			notFound("remove", err)
 			notFound("restore", s.Restore(ctx, sc, other.removed.ID))
+			_, err = s.Unplan(ctx, sc, other.meal.ID, nil)
+			notFound("unplan other's meal", err)
+			// Undo of planning an own meal leaves the other's entry alone.
+			mine := own.add(t, own.recipe, "2026-11-13")
+			if _, err := s.Unplan(ctx, sc, mine.ID, []uuid.UUID{other.entry}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := other.g.Entry(ctx, other.sc, other.entry); err != nil {
+				t.Errorf("unplan took the other's entry: %v", err)
+			}
 			_, err = s.MarkCooked(ctx, sc, other.recipe.ID, me)
 			notFound("cook other's recipe", err)
 			notFound("undo other's cook event", s.UndoCooked(ctx, sc, other.cookedRecipe, other.cooked))
