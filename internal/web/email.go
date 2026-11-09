@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	netmail "net/mail"
 	"strings"
+	"time"
 
 	"github.com/raphi011/mise/internal/auth"
 	"github.com/raphi011/mise/internal/i18n"
@@ -88,31 +89,44 @@ func (s *Server) sendInvite(ctx context.Context, id *auth.Identity, to, token st
 	return s.mailer.Send(ctx, msg)
 }
 
+// resetLookupTimeout bounds creating the reset links; the sends that follow
+// get mail.Timeout each.
+const resetLookupTimeout = 10 * time.Second
+
 // sendResets creates and emails reset links for the accounts with email,
 // after the response: the answer must not depend on whether one exists,
-// and neither may its timing.
+// and neither may its timing. Each send has its own deadline, so a slow
+// SMTP server delays later recipients but does not drop their mail.
 func (s *Server) sendResets(email string) {
 	s.bg.Add(1)
 	go func() {
 		defer s.bg.Done()
-		ctx, cancel := context.WithTimeout(context.Background(), 2*mail.Timeout)
-		defer cancel()
+		ctx, cancel := context.WithTimeout(context.Background(), resetLookupTimeout)
 		tickets, err := s.auth.RequestPasswordReset(ctx, email)
+		cancel()
 		if err != nil {
-			s.log.ErrorContext(ctx, "password reset", slog.Any("err", err))
+			s.log.Error("password reset", slog.Any("err", err))
 			return
 		}
 		for _, t := range tickets {
-			link, err := s.absoluteURL("/reset/" + t.Token)
-			if err == nil {
-				var msg mail.Message
-				if msg, err = resetEmail(ctx, t, link); err == nil {
-					err = s.mailer.Send(ctx, msg)
-				}
-			}
-			if err != nil {
-				s.log.ErrorContext(ctx, "send password reset", slog.String("user", t.UserID.String()), slog.Any("err", err))
+			if err := s.sendReset(t); err != nil {
+				s.log.Error("send password reset", slog.String("user", t.UserID.String()), slog.Any("err", err))
 			}
 		}
 	}()
+}
+
+// sendReset emails one reset link, within mail.Timeout.
+func (s *Server) sendReset(t auth.ResetTicket) error {
+	ctx, cancel := context.WithTimeout(context.Background(), mail.Timeout)
+	defer cancel()
+	link, err := s.absoluteURL("/reset/" + t.Token)
+	if err != nil {
+		return err
+	}
+	msg, err := resetEmail(ctx, t, link)
+	if err != nil {
+		return err
+	}
+	return s.mailer.Send(ctx, msg)
 }

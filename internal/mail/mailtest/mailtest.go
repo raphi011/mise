@@ -13,6 +13,9 @@ type Recorder struct {
 	mu   sync.Mutex
 	sent []mail.Message
 	Err  error
+	// Before, when set, runs at the start of every send, outside the lock;
+	// tests use it to inspect the context or slow a send down.
+	Before func(ctx context.Context, m mail.Message)
 	// notify receives a value per send, for tests waiting on background
 	// sends.
 	notify chan struct{}
@@ -22,7 +25,10 @@ type Recorder struct {
 func New() *Recorder { return &Recorder{notify: make(chan struct{}, 100)} }
 
 // Send records m, or fails with r.Err.
-func (r *Recorder) Send(_ context.Context, m mail.Message) error {
+func (r *Recorder) Send(ctx context.Context, m mail.Message) error {
+	if r.Before != nil {
+		r.Before(ctx, m)
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.Err != nil {

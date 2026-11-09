@@ -7,10 +7,12 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/raphi011/mise/internal/auth"
+	"github.com/raphi011/mise/internal/mail"
 	"github.com/raphi011/mise/internal/store"
 	"github.com/raphi011/mise/internal/store/storetest"
 )
@@ -171,5 +173,48 @@ func TestResetEmailLanguage(t *testing.T) {
 	if msg.Subject != "Dein mise-Passwort zurücksetzen" || !strings.Contains(msg.Text, "Hallo Ben,") ||
 		!strings.Contains(msg.HTML, `lang="de"`) || msg.To != `"Ben" <ben@example.com>` {
 		t.Errorf("German reset email %+v", msg)
+	}
+}
+
+// TestResetEmailsHaveOwnDeadlines: with several accounts on one address,
+// a slow first send must not eat into the time the next one gets.
+func TestResetEmailsHaveOwnDeadlines(t *testing.T) {
+	_, srv, rec := startMailServer(t, storetest.SQLite(t))
+	_, ben := household(t, srv)
+	ben.post("/settings/account/profile", url.Values{"name": {"Ben"}, "email": {"anna@example.com"}, "avatar_color": {"sky"}}).
+		expect(t, "share anna's address", http.StatusSeeOther)
+
+	const slow = 300 * time.Millisecond
+	var (
+		mu        sync.Mutex
+		deadlines []time.Time
+	)
+	rec.Before = func(ctx context.Context, _ mail.Message) {
+		d, ok := ctx.Deadline()
+		if !ok {
+			t.Error("send without a deadline")
+		}
+		mu.Lock()
+		deadlines = append(deadlines, d)
+		first := len(deadlines) == 1
+		mu.Unlock()
+		if first {
+			time.Sleep(slow)
+		}
+	}
+	newBrowser(t, srv.URL).post("/forgot-password", url.Values{"email": {"anna@example.com"}}).
+		expect(t, "request reset", http.StatusSeeOther)
+	waitMail(t, rec.Wait, 2)
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(deadlines) != 2 {
+		t.Fatalf("%d sends, want 2", len(deadlines))
+	}
+	if gap := deadlines[1].Sub(deadlines[0]); gap < slow {
+		t.Errorf("second send's deadline only %v after the first's: they share a budget", gap)
+	}
+	if left := time.Until(deadlines[1]); left < mail.Timeout-time.Second {
+		t.Errorf("second send gets %v, want about %v", left, mail.Timeout)
 	}
 }
