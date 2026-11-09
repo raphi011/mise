@@ -102,10 +102,11 @@ writes `/var/backups/mise/mise-backup-<UTC time>.tar.gz`, e.g.
 `mise-backup-20261109T120000Z.tar.gz`, readable by its owner only (it holds
 password hashes). It reads the same configuration as `serve` (`MISE_DB`,
 `MISE_DATA_DIR`, flags after the directory) and is safe to run while the
-server is up. It does not run migrations and does not delete older archives.
-It fails, rather than writing an empty archive, when the SQLite database
-does not exist or was never migrated, so a wrong `MISE_DB` or
-`MISE_DATA_DIR` shows up as a failed cron job.
+server is up: photos uploaded or removed meanwhile are left out or skipped.
+It does not run migrations and does not delete older archives. It fails,
+rather than writing an empty archive, when the SQLite database does not
+exist or was never migrated, so a wrong `MISE_DB` or `MISE_DATA_DIR` shows
+up as a failed cron job.
 
 The archive mirrors the data directory:
 

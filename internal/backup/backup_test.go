@@ -186,3 +186,37 @@ func TestWriteRefusesUnmigratedDatabase(t *testing.T) {
 		t.Errorf("files left in %s: %v", outDir, left)
 	}
 }
+
+// The server may be uploading or sweeping images during a backup.
+func TestWriteSkipsTempAndVanishedImages(t *testing.T) {
+	db := storetest.SQLite(t)
+	dataDir := t.TempDir()
+	rel, _ := writeImage(t, dataDir)
+	dir := filepath.Dir(filepath.Join(dataDir, rel))
+	for _, name := range []string{".upload-123", "gone-full.jpg"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("x"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	gone := filepath.Join(dir, "gone-full.jpg")
+	backup.SetBeforeOpen(t, func(path string) {
+		if path == gone {
+			if err := os.Remove(path); err != nil {
+				t.Error(err)
+			}
+		}
+	})
+
+	res, err := backup.Write(context.Background(), db, dataDir, t.TempDir(), at)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Images != 1 {
+		t.Errorf("Images = %d, want 1", res.Images)
+	}
+	files := extract(t, res.Path, t.TempDir())
+	want := []string{backup.DatabaseName, filepath.ToSlash(rel)}
+	if strings.Join(files, ",") != strings.Join(want, ",") {
+		t.Errorf("archive files %v, want %v", files, want)
+	}
+}

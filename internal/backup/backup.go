@@ -16,6 +16,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/raphi011/mise/internal/store"
@@ -122,6 +123,10 @@ func addDatabase(ctx context.Context, tw *tar.Writer, db *store.DB, outDir strin
 
 // addImages adds the regular files and directories under root as
 // images/..., skipping anything else. A missing root adds nothing.
+//
+// The server may be writing or sweeping images meanwhile: dot-prefixed
+// entries (images.Store's .upload-* temp files) are skipped, and so is an
+// entry that disappears between listing and reading it.
 func addImages(ctx context.Context, tw *tar.Writer, root string) (int, error) {
 	if _, err := os.Stat(root); errors.Is(err, fs.ErrNotExist) {
 		return 0, nil
@@ -129,10 +134,19 @@ func addImages(ctx context.Context, tw *tar.Writer, root string) (int, error) {
 	n := 0
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
+			if path != root && errors.Is(err, fs.ErrNotExist) {
+				return nil // removed after its parent was listed
+			}
 			return err
 		}
 		if err := ctx.Err(); err != nil {
 			return err
+		}
+		if path != root && strings.HasPrefix(d.Name(), ".") {
+			if d.IsDir() {
+				return fs.SkipDir
+			}
+			return nil
 		}
 		if !d.IsDir() && !d.Type().IsRegular() {
 			return nil
@@ -142,6 +156,9 @@ func addImages(ctx context.Context, tw *tar.Writer, root string) (int, error) {
 			return err
 		}
 		info, err := d.Info()
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
 		if err != nil {
 			return err
 		}
@@ -157,8 +174,14 @@ func addImages(ctx context.Context, tw *tar.Writer, root string) (int, error) {
 			hdr.Name += "/"
 			return tw.WriteHeader(hdr)
 		}
+		switch err := addFile(tw, hdr, path); {
+		case errors.Is(err, fs.ErrNotExist):
+			return nil
+		case err != nil:
+			return err
+		}
 		n++
-		return addFile(tw, hdr, path)
+		return nil
 	})
 	if err != nil {
 		return 0, fmt.Errorf("backup: images: %w", err)
@@ -166,7 +189,15 @@ func addImages(ctx context.Context, tw *tar.Writer, root string) (int, error) {
 	return n, nil
 }
 
+// beforeOpen runs before addFile opens a file; tests use it to remove the
+// file in between.
+var beforeOpen = func(string) {}
+
+// addFile adds the file at path under hdr. It opens the file before writing
+// the header, so a file removed since it was listed fails with
+// fs.ErrNotExist and leaves the archive unchanged.
 func addFile(tw *tar.Writer, hdr *tar.Header, path string) error {
+	beforeOpen(path)
 	f, err := os.Open(path)
 	if err != nil {
 		return err
