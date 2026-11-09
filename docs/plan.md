@@ -145,7 +145,8 @@ Derived, not stored: "on a list" per ingredient, times cooked (count of `cook_ev
 - Recipe ingredients go to the first list. Planning a meal puts the ingredients picked in the add-to-plan sheet on it, scaled to the meal's servings, in the same transaction; items already on the list stay as they are.
 - Changing servings on a planned meal does not touch amounts already on a list.
 - Times cooked: `cook_events` written by cook mode's last step ("Done") or a manual "I made this" (recipe menu, and the meal menu of today's and past meals; it records now and can be undone for 24 h); past planned meals are not counted automatically.
-- "Haven't cooked in a while": recipes last cooked more than 3 weeks ago, or never, not planned in the week shown. Recipes cooked before come first, longest ago first, because they are known to be liked; never-cooked ones follow, oldest first. The plan shows three.
+- "Haven't cooked in a while": recipes last cooked more than 3 weeks ago, or never, not planned in the week shown. Recipes cooked before come first, longest ago first, because they are known to be liked; never-cooked ones follow, oldest first. The plan shows three; wide screens add "Last: 5 weeks ago". Tapping one opens the add-to-plan sheet; dragging it onto a day plans it at the recipe's servings without shopping.
+- "Plan a meal" on an empty day opens a recipe picker (search, "haven't cooked in a while", all recipes), then the add-to-plan sheet with that day chosen. The sheet's ingredient chips start unpicked and only list ingredients not on the first list.
 - "Suggested for tonight" on Recipes: today's first planned meal, else the first "haven't cooked in a while" pick not planned this week.
 - A meal whose recipe is deleted is hidden while the recipe is in the bin and comes back if it is restored; it is deleted with the recipe.
 - Editing categories, items, tags, lists: everyone.
@@ -265,6 +266,8 @@ Each phase ends with something usable and is merged before the next starts.
 
 ### P3 — Meal plan
 - Week and month views in household timezone and week start, add to plan (day, servings, optional ingredient picks), meal menu (open, move, change servings, swap, remove), drag to move/swap with Undo, "haven't cooked in a while", cook events.
+- Routes: `/plan?week=`, `/plan/month?month=&date=`, `/plan/add`, `/plan/pick`, `/plan/meals/{id}` (menu; `?view=move|servings|swap`), writes under `/plan` and `/plan/meals/{id}/…`, "I made this" at `/recipes/{id}/cooked`. Sheets are Datastar dialogs and plain pages without JavaScript; drops post a JSON payload to the same write routes.
+- `GET /live?page=plan` re-renders the shown week or month on `plan.changed`, recipe and list events; `page=recipes` also follows `plan.changed` for "Suggested for tonight".
 - Done when: a week can be planned on desktop by drag and on phone by tap.
 
 ### P4 — Installable, cook mode, operations
