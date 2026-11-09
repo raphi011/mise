@@ -66,6 +66,19 @@ var Units = []unitDef{
 	{"lb", []string{"lb", "lbs"}, [2]string{"lb", "lb"}, [2]string{"lb", "lb"}},
 }
 
+// measures are words for amounts that are not units: they don't convert,
+// add up or scale, so "1 thumb ginger" is the free-text amount "1 thumb"
+// of ginger, not one "thumb ginger" (docs/plan.md, Amounts).
+var measures = map[string]bool{
+	"thumb": true, "thumbs": true, "daumen": true,
+	"handful": true, "handfuls": true, "handvoll": true,
+	"sprig": true, "sprigs": true, "zweig": true, "zweige": true,
+	"stalk": true, "stalks": true, "stange": true, "stangen": true, //nolint:misspell // German
+	"head": true, "heads": true, "kopf": true, "köpfe": true,
+	"knob": true, "knobs": true, "cm": true,
+	"msp": true, "messerspitze": true, "messerspitzen": true,
+}
+
 var (
 	unitByAlias = map[string]*unitDef{}
 	unitByKey   = map[string]*unitDef{}
@@ -184,7 +197,8 @@ func firstWord(s string) (word, rest string) {
 }
 
 // leadingAmount parses an amount at the start of s, which has single spaces.
-// It returns the amount and the remaining text.
+// It returns the amount and the remaining text. A number followed by a
+// measure word ("1 thumb") is a free-text amount without a quantity.
 func leadingAmount(s string, lang language.Tag) (Amount, string, bool) {
 	v, n, fraction, ok := numberPrefix(s, lang)
 	if !ok {
@@ -211,6 +225,9 @@ func leadingAmount(s string, lang language.Tag) (Amount, string, bool) {
 	case ok:
 		unit = u.key
 		end = len(s) - len(trimmed) + len(word)
+	case spaced && measures[strings.ToLower(strings.TrimSuffix(word, "."))]:
+		end = len(s) - len(trimmed) + len(word)
+		return Amount{Text: s[:end]}, strings.TrimSpace(rest), true
 	case word == "x" || word == "×":
 		// "2x milk", "2 x milk": a count.
 		end = len(s) - len(trimmed) + len(word)

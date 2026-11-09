@@ -18,8 +18,9 @@ import (
 const DefaultInterval = time.Hour
 
 // Sweeper hard-deletes rows whose Undo window has passed: list entries
-// removed or cleared, and deleted shopping lists (with their entries)
-// (docs/plan.md, Undo).
+// removed or cleared, deleted shopping lists (with their entries) and
+// deleted recipes (with their ingredients, steps, tags, favourites and cook
+// history) (docs/plan.md, Undo).
 type Sweeper struct {
 	db       *store.DB
 	log      *slog.Logger
@@ -43,6 +44,7 @@ func NewSweeper(db *store.DB, log *slog.Logger, now func() time.Time, interval t
 type Swept struct {
 	Entries int64
 	Lists   int64
+	Recipes int64
 }
 
 // Sweep deletes soft-deleted rows older than groceries.UndoWindow.
@@ -62,7 +64,20 @@ func (s *Sweeper) Sweep(ctx context.Context) (Swept, error) {
 		if err != nil {
 			return err
 		}
-		out.Lists, err = res.RowsAffected()
+		if out.Lists, err = res.RowsAffected(); err != nil {
+			return err
+		}
+		// List entries keep their item but lose the recipe tag; the foreign
+		// key is RESTRICT, see docs/plan.md on composite foreign keys.
+		if _, err := q.Exec(ctx, `UPDATE list_entries SET recipe_id = NULL
+			WHERE recipe_id IN (SELECT id FROM recipes WHERE deleted_at < ?)`, cutoff); err != nil {
+			return err
+		}
+		res, err = q.Exec(ctx, `DELETE FROM recipes WHERE deleted_at < ?`, cutoff)
+		if err != nil {
+			return err
+		}
+		out.Recipes, err = res.RowsAffected()
 		return err
 	})
 	return out, err
@@ -78,9 +93,10 @@ func (s *Sweeper) Run(ctx context.Context) {
 		switch {
 		case err != nil && ctx.Err() == nil:
 			s.log.ErrorContext(ctx, "sweep soft-deleted rows", slog.Any("err", err))
-		case swept.Entries > 0 || swept.Lists > 0:
+		case swept != (Swept{}):
 			s.log.InfoContext(ctx, "swept soft-deleted rows",
-				slog.Int64("entries", swept.Entries), slog.Int64("lists", swept.Lists))
+				slog.Int64("entries", swept.Entries), slog.Int64("lists", swept.Lists),
+				slog.Int64("recipes", swept.Recipes))
 		}
 		select {
 		case <-ctx.Done():

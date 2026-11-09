@@ -1,0 +1,529 @@
+package recipes
+
+import (
+	"context"
+	"errors"
+	"net/url"
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
+	"unicode/utf8"
+
+	"github.com/google/uuid"
+	"golang.org/x/text/language"
+
+	"github.com/raphi011/mise/internal/groceries"
+	"github.com/raphi011/mise/internal/live"
+	"github.com/raphi011/mise/internal/store"
+)
+
+// Recipe is a recipe with everything its detail page shows.
+type Recipe struct {
+	ID          uuid.UUID
+	Name        string
+	Description string
+	// Photo is the image's content hash (see internal/images), or empty.
+	Photo     string
+	PrepMin   *int
+	CookMin   *int
+	Servings  int
+	SourceURL string
+	Notes     string
+	// NotesBy and NotesAt say who last changed the notes and when.
+	NotesBy     *Person
+	NotesAt     *time.Time
+	CreatedBy   Person
+	UpdatedBy   Person
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	Tags        []Tag
+	Ingredients []Ingredient
+	Steps       []Step
+	// Favourite is true when the viewer marked the recipe.
+	Favourite    bool
+	TimesCooked  int
+	LastCookedAt *time.Time
+}
+
+// TotalMin is prep plus cook time, or nil when neither is known.
+func (r Recipe) TotalMin() *int { return totalMin(r.PrepMin, r.CookMin) }
+
+func totalMin(prep, cook *int) *int {
+	if prep == nil && cook == nil {
+		return nil
+	}
+	t := 0
+	if prep != nil {
+		t += *prep
+	}
+	if cook != nil {
+		t += *cook
+	}
+	return &t
+}
+
+// Ingredient is one ingredient row of a recipe.
+type Ingredient struct {
+	ID       uuid.UUID
+	ItemID   uuid.UUID
+	ItemName string
+	Amount   groceries.Amount
+	Optional bool
+}
+
+// Step is one step of the method.
+type Step struct {
+	ID   uuid.UUID
+	Text string
+	// TimerSeconds is the step's timer for cook mode, if any.
+	TimerSeconds *int
+}
+
+// Input is a recipe as the editor submits it. Ingredients, steps and tags
+// replace the recipe's current ones.
+type Input struct {
+	Name        string
+	Description string
+	PrepMin     *int
+	CookMin     *int
+	Servings    int
+	SourceURL   string
+	Notes       string
+	// Photo is an image content hash from internal/images, or empty.
+	Photo       string
+	Tags        []string
+	Ingredients []IngredientInput
+	// Steps are the method's steps in order; blank ones are dropped.
+	Steps []string
+}
+
+// IngredientInput is one ingredient row. ItemID picks a catalogue item;
+// when nil, Name names the item: an existing one with the same
+// groceries.NameKey, or a new one.
+type IngredientInput struct {
+	ItemID   *uuid.UUID
+	Name     string
+	Amount   groceries.Amount
+	Optional bool
+}
+
+// ParseIngredient reads an ingredient typed as one line, such as
+// "2 tbsp soy sauce" or "2 EL Sojasoße", with the amount parser of the add
+// field.
+func ParseIngredient(line string, lang language.Tag) IngredientInput {
+	a, name := groceries.ParseEntry(line, lang)
+	return IngredientInput{Name: name, Amount: a}
+}
+
+// Field limits.
+const (
+	maxNameLen        = 120
+	maxDescriptionLen = 500
+	maxNotesLen       = 5000
+	maxURLLen         = 2000
+	maxStepLen        = 2000
+	maxSteps          = 60
+	maxIngredients    = 80
+	maxTags           = 20
+	maxTagLen         = 40
+	maxItemNameLen    = 80
+	maxAmountLen      = 40
+	maxMinutes        = 24 * 60
+	maxServings       = 100
+)
+
+var photoHash = regexp.MustCompile(`^[0-9a-f]{64}$`)
+
+func checkLen(errs FieldErrors, field, s string, limit int) {
+	if utf8.RuneCountInString(s) > limit {
+		errs[field] = "form.error.tooLong"
+	}
+}
+
+// clean normalises the input in place and returns what is wrong with it.
+func (in *Input) clean() error {
+	errs := FieldErrors{}
+	in.Name = strings.Join(strings.Fields(in.Name), " ")
+	in.Description = strings.TrimSpace(in.Description)
+	in.SourceURL = strings.TrimSpace(in.SourceURL)
+	in.Notes = strings.TrimSpace(in.Notes)
+
+	if in.Name == "" {
+		errs["name"] = "form.error.required"
+	}
+	checkLen(errs, "name", in.Name, maxNameLen)
+	checkLen(errs, "description", in.Description, maxDescriptionLen)
+	checkLen(errs, "notes", in.Notes, maxNotesLen)
+	for field, m := range map[string]*int{"prep_min": in.PrepMin, "cook_min": in.CookMin} {
+		if m != nil && (*m < 0 || *m > maxMinutes) {
+			errs[field] = "form.error.range"
+		}
+	}
+	if in.Servings < 1 || in.Servings > maxServings {
+		errs["servings"] = "form.error.range"
+	}
+	if in.SourceURL != "" {
+		u, err := url.Parse(in.SourceURL)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || len(in.SourceURL) > maxURLLen {
+			errs["source_url"] = "form.error.url"
+		}
+	}
+	if in.Photo != "" && !photoHash.MatchString(in.Photo) {
+		errs["photo"] = "form.error.choice"
+	}
+
+	tags := in.Tags[:0:0]
+	seen := map[string]bool{}
+	for _, t := range in.Tags {
+		t = groceries.CleanName(t)
+		key := groceries.NameKey(t)
+		if t == "" || seen[key] {
+			continue
+		}
+		seen[key] = true
+		checkLen(errs, "tags", t, maxTagLen)
+		tags = append(tags, t)
+	}
+	in.Tags = tags
+	if len(in.Tags) > maxTags {
+		errs["tags"] = "form.error.tooMany"
+	}
+
+	if len(in.Ingredients) > maxIngredients {
+		errs["ingredients"] = "form.error.tooMany"
+	}
+	for i := range in.Ingredients {
+		ing := &in.Ingredients[i]
+		field := "ingredients." + strconv.Itoa(i)
+		if ing.ItemID == nil {
+			ing.Name = groceries.CleanName(ing.Name)
+			if ing.Name == "" {
+				errs[field] = "form.error.required"
+			}
+			checkLen(errs, field, ing.Name, maxItemNameLen)
+		}
+		checkLen(errs, field, ing.Amount.Text, maxAmountLen)
+	}
+
+	steps := in.Steps[:0:0]
+	for _, st := range in.Steps {
+		if st = strings.TrimSpace(st); st != "" {
+			steps = append(steps, st)
+		}
+	}
+	in.Steps = steps
+	if len(in.Steps) > maxSteps {
+		errs["steps"] = "form.error.tooMany"
+	}
+	for i, st := range in.Steps {
+		checkLen(errs, "steps."+strconv.Itoa(i), st, maxStepLen)
+	}
+	return errs.orNil()
+}
+
+// Create adds a recipe written by the member by and returns its ID.
+func (s *Service) Create(ctx context.Context, sc store.Scoped, by uuid.UUID, in Input) (uuid.UUID, error) {
+	if err := in.clean(); err != nil {
+		return uuid.Nil, err
+	}
+	id := store.NewID()
+	var newItems bool
+	err := sc.Tx(ctx, func(ctx context.Context, q store.Querier) error {
+		now := s.clock()
+		var notesBy *uuid.UUID
+		var notesAt *store.Time
+		if in.Notes != "" {
+			notesBy, notesAt = &by, &now
+		}
+		if _, err := q.Exec(ctx, `INSERT INTO recipes (id, household_id, name, name_key, description, photo, prep_min, cook_min,
+				servings, source_url, notes, notes_by, notes_at, created_by, updated_by, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			id, sc.HouseholdID(), in.Name, groceries.NameKey(in.Name), in.Description, nullable(in.Photo), in.PrepMin, in.CookMin,
+			in.Servings, nullable(in.SourceURL), in.Notes, notesBy, notesAt, by, by, now, now); err != nil {
+			return err
+		}
+		var err error
+		newItems, err = s.writeChildren(ctx, q, sc, id, in, now)
+		return err
+	})
+	if err != nil {
+		return uuid.Nil, err
+	}
+	events := []live.Event{recipesChanged}
+	if newItems {
+		events = append(events, catalogChanged)
+	}
+	s.publish(sc, events...)
+	return id, nil
+}
+
+// Update replaces a recipe's fields, ingredients, steps and tags. The notes
+// keep their author unless their text changed.
+func (s *Service) Update(ctx context.Context, sc store.Scoped, id, by uuid.UUID, in Input) error {
+	if err := in.clean(); err != nil {
+		return err
+	}
+	var newItems bool
+	err := sc.Tx(ctx, func(ctx context.Context, q store.Querier) error {
+		if err := lockRecipe(ctx, q, sc, id); err != nil {
+			return err
+		}
+		hh := sc.HouseholdID()
+		now := s.clock()
+		if _, err := q.Exec(ctx, `UPDATE recipes SET name = ?, name_key = ?, description = ?, photo = ?, prep_min = ?,
+				cook_min = ?, servings = ?, source_url = ?,
+				notes_by = CASE WHEN notes = ? THEN notes_by ELSE ? END,
+				notes_at = CASE WHEN notes = ? THEN notes_at ELSE ? END,
+				notes = ?, updated_by = ?, updated_at = ?
+			WHERE household_id = ? AND id = ?`,
+			in.Name, groceries.NameKey(in.Name), in.Description, nullable(in.Photo), in.PrepMin,
+			in.CookMin, in.Servings, nullable(in.SourceURL),
+			in.Notes, by, in.Notes, now,
+			in.Notes, by, now, hh, id); err != nil {
+			return err
+		}
+		for _, table := range []string{"recipe_ingredients", "steps", "recipe_tags"} {
+			if _, err := q.Exec(ctx, `DELETE FROM `+table+` WHERE household_id = ? AND recipe_id = ?`, hh, id); err != nil {
+				return err
+			}
+		}
+		var err error
+		newItems, err = s.writeChildren(ctx, q, sc, id, in, now)
+		return err
+	})
+	if err != nil {
+		return err
+	}
+	events := []live.Event{recipeChanged(id), recipesChanged}
+	if newItems {
+		events = append(events, catalogChanged)
+	}
+	s.publish(sc, events...)
+	return nil
+}
+
+// writeChildren inserts the ingredients, steps and tags of a recipe whose
+// old ones are gone. newItems reports grocery items it created.
+func (s *Service) writeChildren(ctx context.Context, q store.Querier, sc store.Scoped, id uuid.UUID, in Input, now store.Time) (newItems bool, err error) {
+	hh := sc.HouseholdID()
+	for i, ing := range in.Ingredients {
+		var itemID uuid.UUID
+		if ing.ItemID != nil {
+			if err := q.Get(ctx, &itemID, `SELECT id FROM items WHERE household_id = ? AND id = ?`, hh, *ing.ItemID); err != nil {
+				if err = notFound(err); errors.Is(err, ErrNotFound) {
+					return false, FieldErrors{"ingredients." + strconv.Itoa(i): "form.error.choice"}
+				}
+				return false, err
+			}
+		} else {
+			var created bool
+			if itemID, created, err = groceries.EnsureItem(ctx, q, sc, ing.Name, now); err != nil {
+				return false, err
+			}
+			newItems = newItems || created
+		}
+		if _, err := q.Exec(ctx, `INSERT INTO recipe_ingredients (id, household_id, recipe_id, item_id, quantity, unit,
+				amount_text, optional, position, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			store.NewID(), hh, id, itemID, ing.Amount.Quantity, nullable(ing.Amount.Unit),
+			ing.Amount.Text, ing.Optional, i, now, now); err != nil {
+			return false, err
+		}
+	}
+	for i, text := range in.Steps {
+		if _, err := q.Exec(ctx, `INSERT INTO steps (id, household_id, recipe_id, position, text, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?)`, store.NewID(), hh, id, i, text, now, now); err != nil {
+			return false, err
+		}
+	}
+	for _, name := range in.Tags {
+		tagID, err := ensureTag(ctx, q, sc, name, now)
+		if err != nil {
+			return false, err
+		}
+		if _, err := q.Exec(ctx, `INSERT INTO recipe_tags (household_id, recipe_id, tag_id, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?)`, hh, id, tagID, now, now); err != nil {
+			return false, err
+		}
+	}
+	return newItems, nil
+}
+
+type recipeRow struct {
+	ID           uuid.UUID
+	Name         string
+	Description  string
+	Photo        *string
+	PrepMin      *int
+	CookMin      *int
+	Servings     int
+	SourceURL    *string
+	Notes        string
+	NotesBy      *uuid.UUID
+	NotesByName  *string
+	NotesByColor *string
+	NotesAt      *store.Time
+	CreatedBy    uuid.UUID
+	CreatedName  string
+	CreatedColor string
+	UpdatedBy    uuid.UUID
+	UpdatedName  string
+	UpdatedColor string
+	CreatedAt    store.Time
+	UpdatedAt    store.Time
+	Favourite    bool
+	TimesCooked  int
+	LastCookedAt *store.Time
+}
+
+// Get returns a recipe as the member viewer sees it, or ErrNotFound.
+func (s *Service) Get(ctx context.Context, sc store.Scoped, id, viewer uuid.UUID) (Recipe, error) {
+	q := sc.Read()
+	hh := sc.HouseholdID()
+	var r recipeRow
+	err := q.Get(ctx, &r, `SELECT r.id, r.name, r.description, r.photo, r.prep_min, r.cook_min, r.servings, r.source_url,
+			r.notes, r.notes_by, nu.name AS notes_by_name, nu.avatar_color AS notes_by_color, r.notes_at,
+			r.created_by, cu.name AS created_name, cu.avatar_color AS created_color,
+			r.updated_by, uu.name AS updated_name, uu.avatar_color AS updated_color,
+			r.created_at, r.updated_at,
+			EXISTS (SELECT 1 FROM favourites f WHERE f.household_id = r.household_id AND f.recipe_id = r.id AND f.user_id = ?) AS favourite,
+			(SELECT count(*) FROM cook_events ce WHERE ce.household_id = r.household_id AND ce.recipe_id = r.id) AS times_cooked,
+			(SELECT max(ce.cooked_at) FROM cook_events ce WHERE ce.household_id = r.household_id AND ce.recipe_id = r.id) AS last_cooked_at
+		FROM recipes r
+		JOIN users cu ON cu.id = r.created_by
+		JOIN users uu ON uu.id = r.updated_by
+		LEFT JOIN users nu ON nu.id = r.notes_by
+		WHERE r.household_id = ? AND r.id = ? AND r.deleted_at IS NULL AND r.draft = ?`, viewer, hh, id, false)
+	if err != nil {
+		return Recipe{}, notFound(err)
+	}
+	out := Recipe{
+		ID: r.ID, Name: r.Name, Description: r.Description, Photo: deref(r.Photo),
+		PrepMin: r.PrepMin, CookMin: r.CookMin, Servings: r.Servings, SourceURL: deref(r.SourceURL),
+		Notes: r.Notes, NotesAt: timePtr(r.NotesAt),
+		CreatedBy: Person{ID: r.CreatedBy, Name: r.CreatedName, Color: r.CreatedColor},
+		UpdatedBy: Person{ID: r.UpdatedBy, Name: r.UpdatedName, Color: r.UpdatedColor},
+		CreatedAt: r.CreatedAt.Time, UpdatedAt: r.UpdatedAt.Time,
+		Favourite: r.Favourite, TimesCooked: r.TimesCooked, LastCookedAt: timePtr(r.LastCookedAt),
+	}
+	if r.NotesBy != nil {
+		out.NotesBy = &Person{ID: *r.NotesBy, Name: deref(r.NotesByName), Color: deref(r.NotesByColor)}
+	}
+
+	var ings []struct {
+		ID         uuid.UUID
+		ItemID     uuid.UUID
+		ItemName   string
+		Quantity   *float64
+		Unit       *string
+		AmountText string
+		Optional   bool
+	}
+	if err := q.Select(ctx, &ings, `SELECT ri.id, ri.item_id, i.name AS item_name, ri.quantity, ri.unit, ri.amount_text, ri.optional
+		FROM recipe_ingredients ri JOIN items i ON i.household_id = ri.household_id AND i.id = ri.item_id
+		WHERE ri.household_id = ? AND ri.recipe_id = ? ORDER BY ri.position`, hh, id); err != nil {
+		return Recipe{}, err
+	}
+	for _, ri := range ings {
+		out.Ingredients = append(out.Ingredients, Ingredient{
+			ID: ri.ID, ItemID: ri.ItemID, ItemName: ri.ItemName, Optional: ri.Optional,
+			Amount: groceries.Amount{Quantity: ri.Quantity, Unit: deref(ri.Unit), Text: ri.AmountText},
+		})
+	}
+	if err := q.Select(ctx, &out.Steps, `SELECT id, text, timer_seconds FROM steps
+		WHERE household_id = ? AND recipe_id = ? ORDER BY position`, hh, id); err != nil {
+		return Recipe{}, err
+	}
+	if err := q.Select(ctx, &out.Tags, `SELECT t.id, t.name, t.pinned, 0 AS count FROM tags t
+		JOIN recipe_tags rt ON rt.household_id = t.household_id AND rt.tag_id = t.id
+		WHERE t.household_id = ? AND rt.recipe_id = ? ORDER BY t.name_key`, hh, id); err != nil {
+		return Recipe{}, err
+	}
+	return out, nil
+}
+
+// DeleteInfo is what the delete confirmation tells the member.
+type DeleteInfo struct {
+	Name        string
+	TimesCooked int
+	// Others are the household's other members, who lose the recipe too.
+	Others []Person
+}
+
+// DeleteInfo describes what deleting the recipe affects, as seen by viewer.
+func (s *Service) DeleteInfo(ctx context.Context, sc store.Scoped, id, viewer uuid.UUID) (DeleteInfo, error) {
+	q := sc.Read()
+	hh := sc.HouseholdID()
+	var out DeleteInfo
+	if err := q.QueryRow(ctx, `SELECT r.name,
+			(SELECT count(*) FROM cook_events ce WHERE ce.household_id = r.household_id AND ce.recipe_id = r.id)
+		FROM recipes r WHERE r.household_id = ? AND r.id = ? AND r.deleted_at IS NULL`, hh, id).
+		Scan(&out.Name, &out.TimesCooked); err != nil {
+		return DeleteInfo{}, notFound(err)
+	}
+	err := q.Select(ctx, &out.Others, `SELECT u.id, u.name, u.avatar_color AS color FROM memberships m
+		JOIN users u ON u.id = m.user_id
+		WHERE m.household_id = ? AND m.removed_at IS NULL AND m.user_id <> ? ORDER BY u.name`, hh, viewer)
+	return out, err
+}
+
+// Delete moves a recipe to the bin. Undo with Restore within UndoWindow;
+// the sweep deletes it for good afterwards.
+func (s *Service) Delete(ctx context.Context, sc store.Scoped, id uuid.UUID) error {
+	err := sc.Tx(ctx, func(ctx context.Context, q store.Querier) error {
+		now := s.clock()
+		res, err := q.Exec(ctx, `UPDATE recipes SET deleted_at = ?, updated_at = ?
+			WHERE household_id = ? AND id = ? AND deleted_at IS NULL`, now, now, sc.HouseholdID(), id)
+		if err != nil {
+			return err
+		}
+		return mustAffect(res)
+	})
+	if err != nil {
+		return err
+	}
+	s.publish(sc, recipeChanged(id), recipesChanged)
+	return nil
+}
+
+// Restore undoes Delete within UndoWindow, or returns ErrNotFound.
+func (s *Service) Restore(ctx context.Context, sc store.Scoped, id uuid.UUID) error {
+	err := sc.Tx(ctx, func(ctx context.Context, q store.Querier) error {
+		res, err := q.Exec(ctx, `UPDATE recipes SET deleted_at = NULL, updated_at = ?
+			WHERE household_id = ? AND id = ? AND deleted_at >= ?`, s.clock(), sc.HouseholdID(), id, s.undoCutoff())
+		if err != nil {
+			return err
+		}
+		return mustAffect(res)
+	})
+	if err != nil {
+		return err
+	}
+	s.publish(sc, recipeChanged(id), recipesChanged)
+	return nil
+}
+
+// SetFavourite marks or unmarks a recipe as a favourite of the member user.
+// It is idempotent.
+func (s *Service) SetFavourite(ctx context.Context, sc store.Scoped, user, id uuid.UUID, on bool) error {
+	err := sc.Tx(ctx, func(ctx context.Context, q store.Querier) error {
+		hh := sc.HouseholdID()
+		if err := lockRecipe(ctx, q, sc, id); err != nil {
+			return err
+		}
+		if !on {
+			_, err := q.Exec(ctx, `DELETE FROM favourites WHERE household_id = ? AND user_id = ? AND recipe_id = ?`, hh, user, id)
+			return err
+		}
+		now := s.clock()
+		_, err := q.Exec(ctx, `INSERT INTO favourites (household_id, user_id, recipe_id, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`, hh, user, id, now, now)
+		return err
+	})
+	if err != nil {
+		return err
+	}
+	s.publish(sc, recipeChanged(id), recipesChanged)
+	return nil
+}

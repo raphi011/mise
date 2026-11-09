@@ -1,0 +1,128 @@
+package recipes
+
+import (
+	"errors"
+	"testing"
+
+	"github.com/google/uuid"
+	"golang.org/x/text/language"
+
+	"github.com/raphi011/mise/internal/store"
+	"github.com/raphi011/mise/internal/store/storetest"
+)
+
+// TestHouseholdIsolation walks every Scoped method of this package against
+// two households with identical content and checks that neither sees or
+// changes the other's rows (docs/plan.md, Multi-tenancy).
+func TestHouseholdIsolation(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		ctx := t.Context()
+		type fixture struct {
+			env
+			recipe, binned Recipe
+			tag, spare     Tag
+		}
+		setup := func(name string) fixture {
+			e := newEnv(t, db, name)
+			f := fixture{env: e}
+			f.recipe = e.create(t, Input{Name: "Dal", Tags: []string{"Vegan"}, Ingredients: ings("250 g red lentils")})
+			f.binned = e.create(t, Input{Name: "Soup"})
+			if err := e.s.Delete(ctx, e.sc, f.binned.ID); err != nil {
+				t.Fatal(err)
+			}
+			if err := e.s.SetFavourite(ctx, e.sc, e.hh.Admin, f.recipe.ID, true); err != nil {
+				t.Fatal(err)
+			}
+			f.tag = f.recipe.Tags[0]
+			var err error
+			if f.spare, err = e.s.CreateTag(ctx, e.sc, "Spare"); err != nil {
+				t.Fatal(err)
+			}
+			return f
+		}
+		a, b := setup("a"), setup("b")
+
+		notFound := func(what string, err error) {
+			t.Helper()
+			if !errors.Is(err, ErrNotFound) {
+				t.Errorf("%s: %v, want ErrNotFound", what, err)
+			}
+		}
+
+		for _, pair := range []struct{ own, other fixture }{{a, b}, {b, a}} {
+			own, other := pair.own, pair.other
+			s, sc, me := own.s, own.sc, own.hh.Admin
+
+			// Reads return only own rows.
+			if cards, err := s.Library(ctx, sc, me, Filter{}); err != nil || len(cards) != 1 || cards[0].ID != own.recipe.ID {
+				t.Errorf("library: %v, %v", names(cards), err)
+			}
+			if cards, _ := s.Library(ctx, sc, me, Filter{Tags: []uuid.UUID{other.tag.ID}}); len(cards) != 0 {
+				t.Errorf("filter by other's tag: %v", names(cards))
+			}
+			if cards, _ := s.Library(ctx, sc, me, Filter{AddedBy: []uuid.UUID{other.hh.Admin}}); len(cards) != 0 {
+				t.Errorf("filter by other's member: %v", names(cards))
+			}
+			if n, err := s.Count(ctx, sc); err != nil || n != 1 {
+				t.Errorf("count %d, %v", n, err)
+			}
+			if res, err := s.Search(ctx, sc, me, "lentil"); err != nil || len(res.Ingredients) != 1 || res.Ingredients[0].ID != own.recipe.ID {
+				t.Errorf("search: %+v, %v", res, err)
+			}
+			if res, _ := s.Search(ctx, sc, me, "dal"); len(res.Names) != 1 || res.Names[0].ID != own.recipe.ID {
+				t.Errorf("search by name: %+v", res.Names)
+			}
+			if tags, err := s.Tags(ctx, sc); err != nil || len(tags) != 2 || tags[1].Count != 1 {
+				t.Errorf("tags %+v, %v", tags, err)
+			}
+			_, err := s.Get(ctx, sc, other.recipe.ID, me)
+			notFound("get other's recipe", err)
+			_, err = s.DeleteInfo(ctx, sc, other.recipe.ID, me)
+			notFound("delete info of other's recipe", err)
+			if info, _ := s.DeleteInfo(ctx, sc, own.recipe.ID, me); len(info.Others) != 1 || info.Others[0].ID != own.hh.Member {
+				t.Errorf("delete info lists %+v", info.Others)
+			}
+			st, err := s.ListStatus(ctx, sc, own.recipe.Ingredients)
+			if err != nil || st.List.ID != own.list.ID {
+				t.Errorf("list status on %v, %v", st.List.ID, err)
+			}
+
+			// Writes to the other's rows fail and leave them alone.
+			in := Input{Name: "Hijacked", Servings: 1}
+			notFound("update", s.Update(ctx, sc, other.recipe.ID, me, in))
+			notFound("delete", s.Delete(ctx, sc, other.recipe.ID))
+			notFound("restore", s.Restore(ctx, sc, other.binned.ID))
+			notFound("favourite", s.SetFavourite(ctx, sc, me, other.recipe.ID, false))
+			notFound("rename tag", s.RenameTag(ctx, sc, other.tag.ID, "Hijacked"))
+			notFound("pin tag", s.SetTagPinned(ctx, sc, other.tag.ID, true))
+			notFound("delete tag", s.DeleteTag(ctx, sc, other.spare.ID))
+			notFound("merge other's tag in", s.MergeTag(ctx, sc, other.tag.ID, own.tag.ID))
+			notFound("merge into other's tag", s.MergeTag(ctx, sc, own.spare.ID, other.tag.ID))
+			_, err = s.ToggleIngredient(ctx, sc, me, other.recipe.ID, other.recipe.Ingredients[0].ID, 2, true, language.English)
+			notFound("toggle other's ingredient", err)
+			_, err = s.ToggleIngredient(ctx, sc, me, own.recipe.ID, other.recipe.Ingredients[0].ID, 2, true, language.English)
+			notFound("toggle other's ingredient on own recipe", err)
+
+			// An ingredient may not point at the other's item.
+			in.Ingredients = []IngredientInput{{ItemID: &other.recipe.Ingredients[0].ItemID}}
+			var fe FieldErrors
+			if _, err := s.Create(ctx, sc, me, in); !errors.As(err, &fe) {
+				t.Errorf("create with other's item: %v", err)
+			}
+
+			if got, err := other.s.Get(ctx, other.sc, other.recipe.ID, other.hh.Admin); err != nil ||
+				got.Name != "Dal" || !got.Favourite || len(got.Tags) != 1 || got.Tags[0].Name != "Vegan" || got.Tags[0].Pinned {
+				t.Errorf("other's recipe changed: %+v, %v", got, err)
+			}
+			if tags, _ := other.s.Tags(ctx, other.sc); len(tags) != 2 {
+				t.Errorf("other's tags changed: %+v", tags)
+			}
+			if err := other.s.Restore(ctx, other.sc, other.binned.ID); err != nil {
+				t.Errorf("other's binned recipe: %v", err)
+			}
+			if err := other.s.Delete(ctx, other.sc, other.binned.ID); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
+}

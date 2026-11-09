@@ -27,6 +27,10 @@ type Entry struct {
 	// AddedByName and AddedByColor describe the member who added it.
 	AddedByName  string
 	AddedByColor string
+	// RecipeID and RecipeName name the recipe the entry was added from, if
+	// any and the recipe is not deleted.
+	RecipeID   *uuid.UUID
+	RecipeName string
 	// CheckedAt is set while the entry is in the cart.
 	CheckedAt *time.Time
 }
@@ -51,6 +55,8 @@ type entryRow struct {
 	AddedBy          uuid.UUID
 	AddedByName      string
 	AddedByColor     string
+	RecipeID         *uuid.UUID
+	RecipeName       *string
 	CheckedAt        *store.Time
 }
 
@@ -61,6 +67,9 @@ func (r entryRow) entry() Entry {
 		Note:    deref(r.Note),
 		AddedBy: r.AddedBy, AddedByName: r.AddedByName, AddedByColor: r.AddedByColor,
 		CheckedAt: timePtr(r.CheckedAt),
+	}
+	if r.RecipeID != nil && r.RecipeName != nil {
+		e.RecipeID, e.RecipeName = r.RecipeID, *r.RecipeName
 	}
 	if r.CategoryID != nil {
 		e.Category = &Category{ID: *r.CategoryID, Name: deref(r.CategoryName), Color: deref(r.CategoryColor)}
@@ -75,10 +84,12 @@ func (r entryRow) entry() Entry {
 const entrySelect = `SELECT e.id, e.list_id, e.item_id, i.name AS item_name, i.name_key, i.category_id,
 		c.name AS category_name, c.color AS category_color, c.position AS category_position,
 		e.quantity, e.unit, e.amount_text, e.note, e.added_by,
-		u.name AS added_by_name, u.avatar_color AS added_by_color, e.checked_at
+		u.name AS added_by_name, u.avatar_color AS added_by_color,
+		r.id AS recipe_id, r.name AS recipe_name, e.checked_at
 	FROM list_entries e
 	JOIN items i ON i.household_id = e.household_id AND i.id = e.item_id
 	LEFT JOIN categories c ON c.household_id = i.household_id AND c.id = i.category_id
+	LEFT JOIN recipes r ON r.household_id = e.household_id AND r.id = e.recipe_id AND r.deleted_at IS NULL
 	JOIN users u ON u.id = e.added_by
 	WHERE e.household_id = ?`
 
@@ -109,6 +120,9 @@ type AddInput struct {
 	Amount Amount
 	// AddedBy is the acting member.
 	AddedBy uuid.UUID
+	// RecipeID tags the entry with the recipe it comes from, if any. An
+	// entry merged into keeps the recipe it already has.
+	RecipeID *uuid.UUID
 	// Lang formats merged amounts.
 	Lang language.Tag
 }
@@ -153,14 +167,16 @@ func (s *Service) Add(ctx context.Context, sc store.Scoped, in AddInput) (Added,
 				return notFound(err)
 			}
 		} else {
-			key := NameKey(in.Name)
-			if _, err := q.Exec(ctx, `INSERT INTO items (id, household_id, name, name_key, created_at, updated_at)
-				VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (household_id, name_key) DO NOTHING`,
-				store.NewID(), hh, in.Name, key, now, now); err != nil {
+			var err error
+			if itemID, _, err = EnsureItem(ctx, q, sc, in.Name, now); err != nil {
 				return err
 			}
-			if err := q.Get(ctx, &itemID, `SELECT id FROM items WHERE household_id = ? AND name_key = ?`, hh, key); err != nil {
-				return err
+		}
+		if in.RecipeID != nil {
+			var got uuid.UUID
+			if err := q.Get(ctx, &got, `SELECT id FROM recipes WHERE household_id = ? AND id = ? AND deleted_at IS NULL`,
+				hh, *in.RecipeID); err != nil {
+				return notFound(err)
 			}
 		}
 
@@ -182,17 +198,19 @@ func (s *Service) Add(ctx context.Context, sc store.Scoped, in AddInput) (Added,
 			cur := Amount{Quantity: open[0].Quantity, Unit: deref(open[0].Unit), Text: open[0].AmountText}
 			if sum, ok := merge(cur, in.Amount, in.Lang); ok {
 				id, out.Merged = open[0].ID, true
-				if _, err := q.Exec(ctx, `UPDATE list_entries SET quantity = ?, unit = ?, amount_text = ?, updated_at = ?
-					WHERE household_id = ? AND id = ?`, sum.Quantity, nullable(sum.Unit), sum.Text, now, hh, id); err != nil {
+				if _, err := q.Exec(ctx, `UPDATE list_entries SET quantity = ?, unit = ?, amount_text = ?,
+					recipe_id = COALESCE(recipe_id, ?), updated_at = ?
+					WHERE household_id = ? AND id = ?`, sum.Quantity, nullable(sum.Unit), sum.Text, in.RecipeID, now, hh, id); err != nil {
 					return err
 				}
 			}
 		}
 		if !out.Merged {
 			if _, err := q.Exec(ctx, `INSERT INTO list_entries
-				(id, household_id, list_id, item_id, quantity, unit, amount_text, added_by, created_at, updated_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-				id, hh, in.ListID, itemID, in.Amount.Quantity, nullable(in.Amount.Unit), in.Amount.Text, in.AddedBy, now, now); err != nil {
+				(id, household_id, list_id, item_id, quantity, unit, amount_text, added_by, recipe_id, created_at, updated_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				id, hh, in.ListID, itemID, in.Amount.Quantity, nullable(in.Amount.Unit), in.Amount.Text, in.AddedBy,
+				in.RecipeID, now, now); err != nil {
 				return err
 			}
 		}
@@ -205,6 +223,83 @@ func (s *Service) Add(ctx context.Context, sc store.Scoped, in AddInput) (Added,
 	}
 	s.publish(sc, listChanged(in.ListID))
 	return out, nil
+}
+
+// EnsureItem returns the catalogue item named name (compared by NameKey),
+// creating it inside the caller's transaction if there is none. created
+// reports a new item; the caller publishes live.CatalogChanged after commit.
+// name must already be cleaned (CleanName) and checked.
+func EnsureItem(ctx context.Context, q store.Querier, sc store.Scoped, name string, now store.Time) (id uuid.UUID, created bool, err error) {
+	hh := sc.HouseholdID()
+	key := NameKey(name)
+	res, err := q.Exec(ctx, `INSERT INTO items (id, household_id, name, name_key, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (household_id, name_key) DO NOTHING`,
+		store.NewID(), hh, name, key, now, now)
+	if err != nil {
+		return uuid.Nil, false, err
+	}
+	if created, err = affected(res); err != nil {
+		return uuid.Nil, false, err
+	}
+	err = q.Get(ctx, &id, `SELECT id FROM items WHERE household_id = ? AND name_key = ?`, hh, key)
+	return id, created, err
+}
+
+// OnList reports which of the items have an entry on the list that is not
+// in the cart.
+func (s *Service) OnList(ctx context.Context, sc store.Scoped, listID uuid.UUID, itemIDs []uuid.UUID) (map[uuid.UUID]bool, error) {
+	out := map[uuid.UUID]bool{}
+	if len(itemIDs) == 0 {
+		return out, nil
+	}
+	var ids []uuid.UUID
+	err := sc.Read().Select(ctx, &ids, `SELECT DISTINCT item_id FROM list_entries
+		WHERE household_id = ? AND list_id = ? AND checked_at IS NULL AND deleted_at IS NULL`, sc.HouseholdID(), listID)
+	if err != nil {
+		return nil, err
+	}
+	want := map[uuid.UUID]bool{}
+	for _, id := range itemIDs {
+		want[id] = true
+	}
+	for _, id := range ids {
+		if want[id] {
+			out[id] = true
+		}
+	}
+	return out, nil
+}
+
+// RemoveItem takes every entry of the item off the list that is not in the
+// cart and returns their IDs. Undo restores each with Restore.
+func (s *Service) RemoveItem(ctx context.Context, sc store.Scoped, listID, itemID uuid.UUID) ([]uuid.UUID, error) {
+	var ids []uuid.UUID
+	err := sc.Tx(ctx, func(ctx context.Context, q store.Querier) error {
+		if err := lockList(ctx, q, sc, listID); err != nil {
+			return err
+		}
+		hh := sc.HouseholdID()
+		if err := q.Select(ctx, &ids, `SELECT id FROM list_entries
+			WHERE household_id = ? AND list_id = ? AND item_id = ? AND checked_at IS NULL AND deleted_at IS NULL`,
+			hh, listID, itemID); err != nil {
+			return err
+		}
+		if len(ids) == 0 {
+			return nil
+		}
+		now := s.clock()
+		_, err := q.Exec(ctx, `UPDATE list_entries SET deleted_at = ?, updated_at = ?
+			WHERE household_id = ? AND list_id = ? AND item_id = ? AND checked_at IS NULL AND deleted_at IS NULL`,
+			now, now, hh, listID, itemID)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(ids) > 0 {
+		s.publish(sc, listChanged(listID))
+	}
+	return ids, nil
 }
 
 // lockList checks that a list exists and is not deleted, and locks it for

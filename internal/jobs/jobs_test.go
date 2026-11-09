@@ -10,6 +10,7 @@ import (
 	"golang.org/x/text/language"
 
 	"github.com/raphi011/mise/internal/groceries"
+	"github.com/raphi011/mise/internal/recipes"
 	"github.com/raphi011/mise/internal/store"
 	"github.com/raphi011/mise/internal/store/storetest"
 )
@@ -113,6 +114,68 @@ func TestSeedGroceries(t *testing.T) {
 		lists, err = g.Lists(ctx, db.ScopeFor(started.ID))
 		if err != nil || len(lists) != 1 || lists[0].Name != "Mine" {
 			t.Errorf("started household changed: %+v, %v", lists, err)
+		}
+	})
+}
+
+func TestSweepRecipes(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		ctx := t.Context()
+		now := time.Date(2026, 11, 9, 12, 0, 0, 0, time.UTC)
+		clock := func() time.Time { return now }
+		g := groceries.New(nil, clock)
+		r := recipes.New(nil, g, clock)
+		hh := storetest.NewHousehold(t, db, "home")
+		sc := db.ScopeFor(hh.ID)
+		if _, err := g.Start(ctx, sc, groceries.Defaults{ListName: "List"}); err != nil {
+			t.Fatal(err)
+		}
+		in := recipes.Input{Name: "Dal", Servings: 2, Ingredients: []recipes.IngredientInput{
+			recipes.ParseIngredient("250 g red lentils", language.English),
+		}}
+		gone, err := r.Create(ctx, sc, hh.Admin, in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		in.Name = "Dal again"
+		kept, err := r.Create(ctx, sc, hh.Admin, in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rec, err := r.Get(ctx, sc, gone, hh.Admin)
+		if err != nil {
+			t.Fatal(err)
+		}
+		toggled, err := r.ToggleIngredient(ctx, sc, hh.Admin, gone, rec.Ingredients[0].ID, 2, true, language.English)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := r.Delete(ctx, sc, gone); err != nil {
+			t.Fatal(err)
+		}
+
+		s := NewSweeper(db, slog.New(slog.DiscardHandler), clock, 0)
+		now = now.Add(recipes.UndoWindow + time.Minute)
+		got, err := s.Sweep(ctx)
+		if err != nil || got != (Swept{Recipes: 1}) {
+			t.Fatalf("sweep: %+v, %v", got, err)
+		}
+		if err := r.Restore(ctx, sc, gone); !errors.Is(err, recipes.ErrNotFound) {
+			t.Errorf("swept recipe restored: %v", err)
+		}
+		if _, err := r.Get(ctx, sc, kept, hh.Admin); err != nil {
+			t.Errorf("live recipe swept: %v", err)
+		}
+		e, err := g.Entry(ctx, sc, toggled.Added.ID)
+		if err != nil {
+			t.Fatalf("list entry of swept recipe: %v", err)
+		}
+		if e.RecipeID != nil {
+			t.Errorf("entry still tagged with swept recipe %v", e.RecipeID)
+		}
+		var n int
+		if err := db.System().Read().QueryRow(ctx, `SELECT count(*) FROM recipe_ingredients`).Scan(&n); err != nil || n != 1 {
+			t.Errorf("ingredients left: %d, %v", n, err)
 		}
 	})
 }

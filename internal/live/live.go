@@ -28,6 +28,12 @@ const (
 	// CatalogChanged: items or categories changed, which affects how every
 	// list renders.
 	CatalogChanged Kind = "catalog.changed"
+	// RecipeChanged: the recipe RecipeID was edited, deleted or restored, or
+	// its favourites or cook history changed.
+	RecipeChanged Kind = "recipe.changed"
+	// RecipesChanged: recipes were added, deleted or restored, or tags
+	// changed, which affects the library and its filters.
+	RecipesChanged Kind = "recipes.changed"
 	// SessionsChanged: sessions of UserID ended (sign-out, revoke, password
 	// change, removal). Streams of that user re-check their session.
 	SessionsChanged Kind = "sessions.changed"
@@ -35,9 +41,10 @@ const (
 
 // Event is one change.
 type Event struct {
-	Kind   Kind
-	ListID uuid.UUID
-	UserID uuid.UUID
+	Kind     Kind
+	ListID   uuid.UUID
+	RecipeID uuid.UUID
+	UserID   uuid.UUID
 }
 
 // Publisher accepts events after a write has committed.
