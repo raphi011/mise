@@ -33,7 +33,7 @@ The binary is named `mise-server`, not `mise`, so `go install` does not shadow t
 | IDs | UUIDv7 (`github.com/google/uuid`) |
 | Text | `golang.org/x/text/cases` (case folding for name keys), `golang.org/x/text/message` (i18n) |
 | Images | stdlib `image/*` + `golang.org/x/image/draw`, EXIF orientation reader |
-| AI | `anthropic-sdk-go`, `openai-go` (OpenAI-compatible endpoints incl. Ollama) |
+| AI | `anthropic-sdk-go/v2`, `openai-go` (OpenAI-compatible endpoints incl. Ollama) |
 | Logging | `log/slog` |
 | Lint | golangci-lint v2 |
 | Dev tooling | `mise.toml` in repo pins go and golangci-lint; templ via `go tool` (go.mod `tool` directive). Migrations are embedded, so no goose CLI |
@@ -59,7 +59,7 @@ Env vars (flags mirror them):
 | `MISE_LISTEN` | `:8080` | listen address |
 | `MISE_BASE_URL` | required after setup | public URL for invite/reset links; also passed to `CrossOriginProtection.AddTrustedOrigin` for proxies that rewrite `Host`. If unset at first run, the setup page proposes the request's origin and stores it |
 | `MISE_TRUSTED_PROXIES` | unset | CIDRs whose `X-Forwarded-For` is trusted for client IP (rate limiting, logs) |
-| `MISE_SECRET_KEY` | generated into data dir | AES-GCM key for stored API keys; token HMAC |
+| `MISE_SECRET_KEY` | generated into `$MISE_DATA_DIR/secret.key` | AES-256-GCM key for stored API keys (base64, 32 bytes) |
 | `MISE_SMTP_HOST` | unset | optional; enables invite and password-reset emails. Without it invites are link-only and admins reset passwords |
 | `MISE_SMTP_PORT` | `587` | |
 | `MISE_SMTP_TLS` | `starttls` | `starttls`, `tls` (implicit, usually port 465) or `none` |
@@ -80,7 +80,7 @@ internal/groceries/       items, categories, lists, entries, amount parser
 internal/recipes/         recipes, ingredients, steps, tags, favourites, search
 internal/plan/            planned meals, cook events, suggestions
 internal/images/          upload, validate, orient, resize, serve
-internal/ai/              settings, providers, tool loop, import jobs, JSON-LD extractor, safe fetcher
+internal/ai/              settings, secret box, providers, tool loop, import jobs, JSON-LD extractor, safe fetcher
 internal/live/            per-household pub/sub, SSE fan-out
 internal/jobs/            periodic sweeps (soft deletes, orphan images, expired sessions/invites)
 internal/ui/              templ components, layouts, static assets (embedded)
@@ -138,8 +138,8 @@ All tables also have `household_id` (except `households`, `users`) and `created_
 | favourites | user_id, recipe_id |
 | planned_meals | id, date, recipe_id, servings, position (order within the day), created_by, deleted_at (several per date allowed; hidden while their recipe is in the bin, deleted with it) |
 | cook_events | id, recipe_id, user_id, cooked_at (table created in P2 for the library's filters and sorts; written from P3 on) |
-| ai_settings | household_id (PK), enabled, provider, endpoint, model, api_key_enc, tool_permissions |
-| import_jobs | id, user_id, source_url, source_text, status, steps (JSON), draft (JSON), error |
+| ai_settings | household_id (PK), enabled, provider, endpoint, model, api_key_enc, allow_fetch_page, allow_search_items, allow_create_item, tested_at, test_ok (P6) |
+| import_jobs | id, user_id, source_url, source_text, status, steps (JSON), draft (JSON), error_code, error_detail, started_at, finished_at (P6) |
 
 Derived, not stored: "on a list" per ingredient, times cooked (count of `cook_events`), "not cooked in a month", suggestion ranking.
 
@@ -207,19 +207,41 @@ Derived, not stored: "on a list" per ingredient, times cooked (count of `cook_ev
 
 ### AI import
 
-- Off by default; per-household settings (admin): provider (Anthropic, OpenAI-compatible incl. Ollama), endpoint, model, API key (AES-GCM encrypted, never returned), tool permissions, test connection.
-- **Safe fetcher** for `fetch_page` only (not for the admin-configured provider endpoint, which is often a LAN Ollama):
+Recipe import from a link or pasted text. Pages with schema.org `Recipe` JSON-LD import without a model, so link import works for every household; the model (off by default, per household) handles pages without JSON-LD and pasted text.
+
+- **Settings** (admin, Settings › AI import): enabled, provider, endpoint, model, API key, tool switches, test connection. Providers: "Anthropic API" (endpoint fixed, default model `claude-opus-5-5`), "OpenAI-compatible API" (endpoint and model required), "Local model (Ollama)" (OpenAI-compatible preset: endpoint `http://localhost:11434/v1`, no key; the model must support tool calls). Changing provider, endpoint, model or key clears the last test result.
+- **API key:** AES-256-GCM, never rendered back (the field shows "Replace"; a blank submit keeps the stored key). Key from `MISE_SECRET_KEY` (base64, 32 bytes) or generated once into `$MISE_DATA_DIR/secret.key` (0600). Stored as `v1:` + base64(nonce ‖ ciphertext) with the household ID as additional data, so a ciphertext copied to another household does not decrypt. Backups leave `secret.key` out; after a restore on a new machine without it (and without `MISE_SECRET_KEY`), the settings page says the key can't be read and asks for it again.
+- **Who:** admins configure; every member imports. Import jobs are per user: the library and job pages show only the viewer's own jobs.
+- **Safe fetcher** for the page (and its photo) and for `fetch_page`, not for the admin-configured provider endpoint (often a LAN Ollama):
   - Custom `net.Dialer.Control` checks the IP actually being dialled, so DNS rebinding cannot slip past a pre-resolve check.
-  - Blocks loopback, private (RFC 1918), link-local, CGNAT `100.64.0.0/10`, IPv6 ULA `fc00::/7`, IPv4-mapped IPv6, `0.0.0.0/8`, multicast.
-  - Re-validates on every redirect (max 5); 5 MB body cap; 15 s timeout; `http`/`https` only.
-- Pipeline for a URL:
-  1. Fetch the page.
-  2. If it has schema.org `Recipe` JSON-LD, build the draft from it without a model call.
-  3. Otherwise, or to match ingredients, run a tool-use loop with `fetch_page`, `search_items`, `create_item`, `create_recipe` gated by the permission table.
-- Fetched page content is untrusted input to the model. Defaults stay conservative: `create_item` is "Ask first" (proposed items appear on the review screen, nothing is written), `create_recipe` is "Draft only". The model can never update or delete existing recipes, items or lists.
-- Jobs run in a bounded goroutine pool using `store.ScopeFor`; steps are appended to `import_jobs.steps` and pushed over SSE to the running-import page. Users can leave and come back; drafts wait under Recipes. Cancel uses a context per job.
-- Failure (login wall, video) offers the pasted-text path.
-- Review screen: ingredient → item table with Matched / Check / New item; save recipe + new items in one transaction.
+  - Blocks loopback, private (RFC 1918), link-local, CGNAT `100.64.0.0/10`, IPv6 ULA `fc00::/7`, IPv4-mapped IPv6, `0.0.0.0/8`, multicast; ports 80 and 443 only; no proxy from the environment.
+  - Re-validates on every redirect (max 5); 5 MB body cap (15 MB for photos); 15 s timeout; `http`/`https` only; pages must be HTML, XHTML or plain text.
+- **Pipeline for a link:**
+  1. The server fetches the page (user-initiated, so no permission switch).
+  2. JSON-LD `Recipe` (also inside `@graph`, and `HowToSection`/`HowToStep` instructions): name, description, prep/cook time (ISO 8601 durations), yield → servings, ingredients, steps, keywords/category → tags, image. Ingredients go through the amount parser and match items by `name_key` like the editor (exact first, then the item search's ranking); no match → "New item". No model call, AI on or off.
+  3. No JSON-LD: with AI on, the page's text (scripts, styles, nav stripped; capped at 50 KB) goes to the tool loop; with AI off the job fails with "No recipe data on that page" and offers "Type it myself".
+- **Pasted text** (AI on only): the text (max 50 KB) goes straight to the tool loop.
+- **Tool loop** with these tools, each gated by a switch:
+
+  | Switch (settings label) | Tool | Default | Effect |
+  |---|---|---|---|
+  | Read recipe web pages | `fetch_page(url)` | on | fetches another page **on the source page's host** (e.g. a print view) through the safe fetcher; returns text plus any JSON-LD |
+  | Look up your grocery items | `search_items(query)` | on | up to 10 items `{id, name, category}`, household-scoped |
+  | Create new grocery items | `create_item(name, category)` | off | records a proposal on the job, returns a `new:N` reference; nothing is written until the user saves |
+  | Create recipes | `create_recipe(...)` | always on, not a switch | submits the draft and ends the loop |
+
+  The model never writes to the database: every write happens when the user saves the review. It cannot update or delete anything. With `search_items` off, the server matches ingredients by name after the loop; with `create_item` off, unmatched ingredients show as "New item" for the user to confirm. Fetched pages and pasted text are untrusted input: they go into user-turn content, never into the system prompt, and the system prompt says to ignore instructions found in them.
+- `create_recipe` input (strict schema): name, description, prep_min, cook_min, servings, source_url, ingredients `[{text, item}]` (`text` as written, e.g. "2 tbsp soy sauce", parsed by the amount parser; `item` an item ID, `new:N` or empty), steps `[{text, timer_seconds}]`, tags (names; only existing household tags are kept), image_url. The draft keeps the source language.
+- Limits: 12 model turns, 3 minutes per job, 16k max output tokens per turn, tool results capped at 50 KB.
+- **Providers** behind `ai.Provider`: `Chat(ctx, Request) (Response, error)` with a provider-neutral request (system, messages, tool definitions with JSON Schema) and response (text, tool calls, stop reason, token usage), plus `Test(ctx)` (one tiny request). Implementations: `anthropic-sdk-go/v2` (Messages API, adaptive thinking, default effort; `tool_choice: auto` with `strict` tools since forced tool use is rejected on current models; server-side refusal fallback `fallbacks: "default"` with the `server-side-fallback-2026-07-01` beta; a refusal fails the job) and `openai-go` (chat completions with tools, for OpenAI-compatible endpoints and Ollama). Tests use a scripted fake provider; the two clients are tested against `httptest` servers replaying recorded responses.
+- **Jobs:** `import_jobs` rows are the queue. A pool of 2 workers per process takes queued jobs oldest first, with `store.ScopeFor(household)`; at most 3 queued or running jobs per user (a fourth is refused with a message). Each step (`{kind, text, tool, state}`) is appended to `steps` and published as `import.changed{job_id}` to the user. Cancel cancels the job's context (or marks a queued job canceled). On start, jobs left queued or running by a previous process are marked failed ("The server restarted. Try again."). Ready and failed jobs are swept 14 days after they finish; saved, discarded and canceled jobs are deleted right away.
+- **Statuses:** queued, running, ready, failed, canceled. Failures store an error code (`no_recipe`, `fetch_failed`, `blocked_address`, `too_large`, `provider_error`, `refused`, `limit`, `interrupted`) shown as translated copy; provider errors also show the provider's message under "See details".
+- **Running screen** (`/recipes/import/{id}` while queued or running): source, live step list and progress bar from `GET /live?page=import&job={id}`, "You can leave this screen. The draft will be waiting under Recipes.", Cancel. Without JavaScript the page refreshes itself every 3 s (`<meta http-equiv="refresh">`) until the job finishes.
+- **Failed screen** (same URL): the error, then the import form with "Pasted text" selected (when AI is on) and the link kept, "Type it myself" (the empty editor) and "Import text".
+- **Review screen** (same URL when ready): the draft card (photo, name, times, servings, steps count, tags), the assistant's steps (collapsed on phones), and the ingredient table "On the page / Your item / Status" with Matched, Check (model match whose name differs from the page's, or a JSON-LD match that was not exact) and New item. Each row's item is changeable ("Choose another item": the item search, or a new item). Actions: "Save recipe" (with "& N new items" when any), "Open in editor", "Discard". Save creates the new items, the recipe with ingredients, steps, tags and photo in one transaction, deletes the job and goes to the recipe. "Open in editor" opens `/recipes/new?import={id}` prefilled with the draft (ingredients as typed lines); the editor's save deletes the job.
+- **Photo:** downloaded through the safe fetcher only on save (review save or editor save), then through the image pipeline; a failed download saves the recipe without a photo and says so in the toast. Review shows the remote photo through a server-side proxy (`/recipes/import/{id}/photo`) that uses the safe fetcher, never as a direct `<img src>` to the source host.
+- **Drafts under Recipes:** the library shows the viewer's jobs above the cards ("Importing…", "Ready to review", "Import failed"), each linking to its job page. `recipes.draft` stays unused by import: a draft is the job row until saved.
+- **Entry points:** the editor's "Have a link? Import it with AI" card (shown on new recipes; reads "Import a recipe" when AI is off, since link import still works) and "Import" in the library's add menu, both to `/recipes/import`. The page has "Link" and "Pasted text" tabs; "Pasted text" shows only with AI on.
 
 ### UI structure
 
@@ -297,8 +319,12 @@ Each phase ends with something usable and is merged before the next starts.
 - OIDC, KitchenOwl import, "always have" staples, tablet polish.
 
 ### P6 — AI import
-- Settings page, safe fetcher, JSON-LD extractor, providers, tool loop with permissions, job runner, running/failed/review screens, pasted text.
-- The editor's "Import it with AI" card appears with this phase.
+- As decided in AI import above. P5 stays later; P6 goes first.
+- Routes: `/settings/ai` (admin page; `POST /settings/ai` saves, `POST /settings/ai/test` tests), `/recipes/import` (form; `POST /recipes/import` creates a job and redirects to it), `/recipes/import/{id}` (running, failed or review by status), `POST /recipes/import/{id}/cancel`, `/save`, `/discard`, `/recipes/import/{id}/items?row=` (item picker for a review row), `/recipes/import/{id}/photo`, `/recipes/new?import={id}`, `GET /live?page=import&job={id}`.
+- Schema (migration `00007_ai_import` on both engines):
+  - `ai_settings`: household_id (PK, FK households), enabled, provider (`anthropic`, `openai`, `ollama`), endpoint, model, api_key_enc (nullable), allow_fetch_page, allow_search_items, allow_create_item, tested_at, test_ok (nullable), updated_by (composite FK to memberships), created_at, updated_at. Booleans as columns instead of a `tool_permissions` JSON blob, so both engines check them the same way.
+  - `import_jobs`: id, household_id, user_id (composite FK to memberships), source_url, source_text (one of them set), status, steps (JSON text), draft (JSON text, nullable), error_code, error_detail, created_at, updated_at, started_at, finished_at. `UNIQUE (household_id, id)`; index `(household_id, user_id, created_at)` and `(status, created_at)` for the worker. JSON is `TEXT` on both engines; only Go reads it.
+- Order and commits, each with tests: settings page and encrypted key; safe fetcher; JSON-LD extractor (with name matching and the no-model import path end to end); provider clients behind the interface; tool loop with permissions; job runner; running/failed/review screens; pasted text; the editor card and library entries.
 
 ## Risks
 
