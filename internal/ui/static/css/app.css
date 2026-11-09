@@ -2397,9 +2397,9 @@ button.menu__item:hover { background: var(--surface-2); }
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 36px;
-  padding: 0 12px;
-  border-radius: 18px;
+  min-height: var(--target);
+  padding: 0 14px;
+  border-radius: calc(var(--target) / 2);
   border: 1px solid var(--line-strong);
   background: var(--surface);
   color: var(--ink);
