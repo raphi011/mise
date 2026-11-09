@@ -24,6 +24,10 @@ func newTestServer(t *testing.T, cfg config.Config) http.Handler {
 
 func newServer(t *testing.T, cfg config.Config, db *store.DB, log *slog.Logger) *Server {
 	t.Helper()
+	if cfg.DataDir == "" {
+		// Uploaded photos go here, not into the package directory.
+		cfg.DataDir = t.TempDir()
+	}
 	s, err := New(cfg, db, log)
 	if err != nil {
 		t.Fatal(err)

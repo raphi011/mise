@@ -1,0 +1,266 @@
+package ui
+
+import "github.com/raphi011/mise/internal/i18n"
+
+// RecipeEdit is the recipe editor. It is one multipart form; the photo
+// file input comes last so the other fields are read even when the photo
+// is too large. Adding, moving and removing ingredient rows and steps
+// submit the form without JavaScript; with it, app.js and a Datastar row
+// request do the same in place.
+templ RecipeEdit(p Page, v RecipeEditView) {
+	@Layout(p) {
+		<form
+			id="recipe-form"
+			class="editor"
+			method="post"
+			action={ templ.SafeURL(v.Action()) }
+			enctype="multipart/form-data"
+			novalidate
+			data-signals="{newing: ''}"
+		>
+			@formAlert(v.Form)
+			<div class="editor__grid">
+				<section class="editor__details stack-lg" aria-label={ i18n.T(ctx, "recipes.edit.details") }>
+					@textField(Field{ID: "recipe-name", Name: "name", Label: i18n.T(ctx, "field.name"), Required: true, Attrs: templ.Attributes{"placeholder": i18n.T(ctx, "recipes.edit.namePlaceholder"), "autocomplete": "off"}}, v.Form)
+					<div class="field only-wide">
+						<label class="field__label" for="recipe-description">{ i18n.T(ctx, "recipes.edit.description") }</label>
+						@textarea("recipe-description", "description", 3, v.Form.Value("description"), v.Form.Error("description"), "")
+					</div>
+					<div class="editor__times">
+						@numberField("recipe-prep", "prep_min", i18n.T(ctx, "recipes.edit.prep"), v.Form)
+						@numberField("recipe-cook", "cook_min", i18n.T(ctx, "recipes.edit.cook"), v.Form)
+						@numberField("recipe-servings", "servings", i18n.T(ctx, "recipes.edit.servings"), v.Form)
+					</div>
+					<fieldset class="choices">
+						<legend class="field__label">{ i18n.T(ctx, "recipes.tags") }</legend>
+						if len(v.Tags) > 0 {
+							<div class="chips">
+								for _, t := range v.Tags {
+									<label class="chip chip--radio">
+										<input type="checkbox" name="tags" value={ t.Name } checked?={ t.Checked }/>
+										<span>{ t.Name }</span>
+									</label>
+								}
+							</div>
+						}
+						@fieldError("recipe-tags-error", v.Form.Error("tags"))
+					</fieldset>
+					@textField(Field{ID: "recipe-new-tags", Name: "new_tags", Label: i18n.T(ctx, "recipes.edit.newTags"), LabelNote: i18n.T(ctx, "field.optional"), Hint: i18n.T(ctx, "recipes.edit.newTagsHint"), Attrs: templ.Attributes{"autocomplete": "off"}}, v.Form)
+					@textField(Field{ID: "recipe-source", Name: "source_url", Type: "url", Label: i18n.T(ctx, "recipes.edit.source"), LabelNote: i18n.T(ctx, "field.optional"), Attrs: templ.Attributes{"inputmode": "url", "autocomplete": "off"}}, v.Form)
+				</section>
+				<section class="editor__ingredients editor-section" aria-labelledby="edit-ingredients-title">
+					<div class="editor-section__head">
+						<h2 class="recipe-section__title" id="edit-ingredients-title">{ i18n.T(ctx, "recipes.ingredients") }</h2>
+						<span class="muted only-wide">{ i18n.T(ctx, "recipes.edit.linked") }</span>
+					</div>
+					@fieldError("recipe-ingredients-error", v.Form.Error("ingredients"))
+					<ol id="ing-rows" class="list ing-rows" data-rows>
+						for _, row := range v.Rows {
+							@IngredientRowItem(row)
+						}
+					</ol>
+					<div class="add-line">
+						<span class="add-form__icon" aria-hidden="true">
+							@iconPlus(18)
+						</span>
+						<label class="visually-hidden" for="ing-new">{ i18n.T(ctx, "recipes.edit.addIngredient") }</label>
+						<input
+							id="ing-new"
+							class="add-line__input"
+							name="ing_new"
+							type="text"
+							autocomplete="off"
+							enterkeyhint="enter"
+							value={ v.Form.Value("ing_new") }
+							placeholder={ i18n.T(ctx, "recipes.edit.addPlaceholder") }
+							data-bind:newing
+							data-on:keydown={ "evt.key === 'Enter' && (evt.preventDefault(), " + addRowAction + ")" }
+						/>
+						<button type="submit" name="action" value="add-ingredient" class="add-form__submit" data-on:click__prevent={ addRowAction }>{ i18n.T(ctx, "groceries.add") }</button>
+					</div>
+					<p class="muted">{ i18n.T(ctx, "recipes.edit.ingredientsHint") }</p>
+				</section>
+				<section class="editor__method editor-section" aria-labelledby="edit-method-title">
+					<h2 class="recipe-section__title" id="edit-method-title">{ i18n.T(ctx, "recipes.method") }</h2>
+					@fieldError("recipe-steps-error", v.Form.Error("steps"))
+					<div class="only-phone field">
+						<label class="visually-hidden" for="recipe-steps">{ i18n.T(ctx, "recipes.method") }</label>
+						@textarea("recipe-steps", "steps_text", 6, joinLines(v.Steps), stepErrors(ctx, v), "data-steps-text")
+						<span class="field__hint">{ i18n.T(ctx, "recipes.edit.stepsHint") }</span>
+					</div>
+					<div class="only-wide stack" data-steps-fields>
+						<ol id="step-rows" class="step-rows" data-steps>
+							for i, st := range v.Steps {
+								@stepRow(i, st, v.StepError(i))
+							}
+						</ol>
+						<div>
+							<button type="submit" name="action" value="add-step" class="btn btn--secondary btn--small" data-step-add>
+								@iconPlus(16)
+								{ i18n.T(ctx, "recipes.edit.addStep") }
+							</button>
+						</div>
+						<template id="step-template">
+							@stepRow(-1, "", "")
+						</template>
+					</div>
+					<input type="hidden" name="steps_orig" value={ joinLines(v.Steps) }/>
+					<p class="muted">{ i18n.T(ctx, "recipes.method.highlightHint") }</p>
+				</section>
+				<section class="editor__notes editor-section" id="notes">
+					<label class="recipe-section__title" for="recipe-notes">{ i18n.T(ctx, "recipes.notes") }</label>
+					@textarea("recipe-notes", "notes", 4, v.Form.Value("notes"), v.Form.Error("notes"), "")
+					<span class="field__hint">{ i18n.T(ctx, "recipes.edit.notesHint") }</span>
+				</section>
+				<section class="editor__photo" aria-labelledby="edit-photo-title" data-photo>
+					<h2 class="visually-hidden" id="edit-photo-title">{ i18n.T(ctx, "recipes.edit.photo") }</h2>
+					<div class="photo-drop">
+						<img
+							class="photo-drop__img"
+							if v.Photo != "" {
+								src={ ImageURL(v.Photo, "thumb") }
+							} else {
+								hidden
+							}
+							alt=""
+							data-photo-preview
+						/>
+						<span class="photo-drop__empty" data-photo-empty hidden?={ v.Photo != "" }>
+							@iconPhoto()
+						</span>
+					</div>
+					<input type="hidden" name="photo" value={ v.Photo }/>
+					<div class="photo-drop__actions">
+						<label class="btn btn--secondary btn--small photo-drop__pick">
+							if v.Photo != "" {
+								{ i18n.T(ctx, "recipes.edit.changePhoto") }
+							} else {
+								{ i18n.T(ctx, "recipes.edit.addPhoto") }
+							}
+							<input
+								class="photo-drop__file"
+								id="photo-file"
+								type="file"
+								name="photo_file"
+								accept="image/jpeg,image/png,image/webp"
+								data-max={ itoa(MaxUploadBytes) }
+								data-too-large={ i18n.T(ctx, "recipes.photo.tooLarge") }
+								aria-describedby="photo-hint photo-error"
+							/>
+						</label>
+						if v.Photo != "" {
+							<label class="toggle-row toggle-row--inline">
+								<input type="checkbox" name="remove_photo" value="1"/>
+								<span>{ i18n.T(ctx, "recipes.edit.removePhoto") }</span>
+							</label>
+						}
+					</div>
+					<span class="field__hint" id="photo-hint">{ i18n.T(ctx, "recipes.edit.photoHint") }</span>
+					<span class="field__error" id="photo-error" role="alert" data-photo-error>{ v.Form.Error("photo") }</span>
+				</section>
+			</div>
+		</form>
+	}
+}
+
+// RecipeEditActions are the editor's header buttons. Save comes first in
+// tree order, so Enter in a field saves.
+templ RecipeEditActions(v RecipeEditView) {
+	<a class="btn btn--ghost btn--small" href={ templ.SafeURL(v.Cancel()) }>{ i18n.T(ctx, "recipes.edit.cancel") }</a>
+	<button type="submit" form="recipe-form" class="btn btn--primary btn--small">{ i18n.T(ctx, "recipes.edit.save") }</button>
+}
+
+// IngredientRowItem is one editable ingredient row.
+templ IngredientRowItem(row IngredientRow) {
+	<li class="ing-row" data-row>
+		<input type="hidden" name="ing_key" value={ row.Key }/>
+		<div class="ing-row__fields">
+			<label class="visually-hidden" for={ "ing-amount-" + row.Key }>{ i18n.T(ctx, "recipes.edit.amount") }</label>
+			<input
+				class="input ing-row__amount"
+				id={ "ing-amount-" + row.Key }
+				name="ing_amount"
+				type="text"
+				autocomplete="off"
+				value={ row.Amount }
+				placeholder={ i18n.T(ctx, "recipes.edit.amount") }
+			/>
+			<label class="visually-hidden" for={ "ing-name-" + row.Key }>{ i18n.T(ctx, "recipes.edit.item") }</label>
+			<input
+				class="input ing-row__name"
+				id={ "ing-name-" + row.Key }
+				name="ing_name"
+				type="text"
+				autocomplete="off"
+				value={ row.Name }
+				if row.Error != "" {
+					aria-invalid="true"
+					aria-describedby={ "ing-error-" + row.Key }
+				}
+			/>
+		</div>
+		<label class="ing-row__opt">
+			<input type="checkbox" name="ing_opt" value={ row.Key } checked?={ row.Optional }/>
+			<span>{ i18n.T(ctx, "recipes.optional") }</span>
+		</label>
+		<span class="ing-row__moves">
+			<button type="submit" class="icon-btn" name="action" value={ "up:" + row.Key } data-row-move="up" aria-label={ i18n.T(ctx, "recipes.edit.moveUp", rowLabel(row)) }>
+				@iconArrow(true)
+			</button>
+			<button type="submit" class="icon-btn" name="action" value={ "down:" + row.Key } data-row-move="down" aria-label={ i18n.T(ctx, "recipes.edit.moveDown", rowLabel(row)) }>
+				@iconArrow(false)
+			</button>
+			<button type="submit" class="icon-btn" name="action" value={ "remove:" + row.Key } data-row-move="remove" aria-label={ i18n.T(ctx, "recipes.edit.remove", rowLabel(row)) }>
+				@iconClose()
+			</button>
+		</span>
+		if row.Error != "" {
+			<span class="field__error ing-row__error" id={ "ing-error-" + row.Key }>{ row.Error }</span>
+		}
+	</li>
+}
+
+templ stepRow(i int, text, err string) {
+	<li class="step-row" data-step>
+		<span class="step__n" aria-hidden="true" data-step-n>{ itoa(i + 1) }</span>
+		<label class="visually-hidden" for={ "step-" + itoa(i) } data-step-label>{ i18n.T(ctx, "recipes.edit.step", i+1) }</label>
+		<textarea
+			class="input input--area"
+			id={ "step-" + itoa(i) }
+			name="step"
+			rows="2"
+			if err != "" {
+				aria-invalid="true"
+			}
+		>{ text }</textarea>
+		<button type="submit" class="icon-btn" name="action" value={ "step-remove:" + itoa(i) } data-step-remove aria-label={ i18n.T(ctx, "recipes.edit.removeStep", i+1) }>
+			@iconClose()
+		</button>
+		if err != "" {
+			<span class="field__error step-row__error">{ err }</span>
+		}
+	</li>
+}
+
+templ textarea(id, name string, rows int, value, err, marker string) {
+	<textarea
+		class="input input--area"
+		id={ id }
+		name={ name }
+		rows={ itoa(rows) }
+		if err != "" {
+			aria-invalid="true"
+			aria-describedby={ id + "-error" }
+		}
+		if marker != "" {
+			{ templ.Attributes{marker: true}... }
+		}
+	>{ value }</textarea>
+	if err != "" {
+		<span class="field__error" id={ id + "-error" }>{ err }</span>
+	}
+}
+
+templ numberField(id, name, label string, form Form) {
+	@textField(Field{ID: id, Name: name, Label: label, Attrs: templ.Attributes{"inputmode": "numeric", "pattern": "[0-9]*", "autocomplete": "off"}}, form)
+}

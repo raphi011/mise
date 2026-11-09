@@ -1,0 +1,417 @@
+package ui
+
+import "github.com/raphi011/mise/internal/i18n"
+
+// Library is the Recipes page. The region with the chips and cards and the
+// sidebar's tag list are patched by the live stream; toast and sheet sit
+// outside them.
+templ Library(p Page, v LibraryView, undo *Toast) {
+	@Layout(p) {
+		<div class="recipes" data-init={ liveAction(libraryLive(v.Query)) }>
+			<a class="search-link" href="/recipes/search">
+				@iconSearch(20)
+				<span>{ i18n.T(ctx, "recipes.searchPlaceholder", v.Total) }</span>
+			</a>
+			@LibraryRegion(v)
+			if undo != nil {
+				@ToastRegion(*undo)
+			} else {
+				@EmptyToast()
+			}
+			@EmptySheet()
+		</div>
+	}
+}
+
+// LibraryActions are the Recipes page's header buttons.
+templ LibraryActions() {
+	<a class="btn btn--strong btn--small" href="/recipes/new">
+		@iconPlus(16)
+		{ i18n.T(ctx, "recipes.new") }
+	</a>
+}
+
+// NavTags is the desktop sidebar's tag list on Recipes.
+templ NavTags(v LibraryView) {
+	<div id="nav-tags" class="nav-tags">
+		if len(v.Tags) > 0 {
+			<h2 class="nav-tags__title">{ i18n.T(ctx, "recipes.tags") }</h2>
+			<ul class="nav-tags__list" role="list">
+				for _, t := range v.Tags {
+					<li>
+						<a
+							class="nav-tags__link"
+							href={ templ.SafeURL(t.Href) }
+							if t.On {
+								aria-current="true"
+							}
+						>
+							<span class="nav-tags__name">{ t.Label }</span>
+							<span class="nav-tags__count">{ itoa(t.Count) }</span>
+						</a>
+					</li>
+				}
+			</ul>
+		}
+	</div>
+}
+
+// LibraryRegion is the live part of the Recipes page.
+templ LibraryRegion(v LibraryView) {
+	<div id="recipes-live" class="recipes__live">
+		<nav class="filter-chips" aria-label={ i18n.T(ctx, "recipes.quickFilters") }>
+			<a
+				class="chip chip--on"
+				href={ templ.SafeURL(withQuery("/recipes/filters", v.Query)) }
+				data-on:click__prevent={ getAction(withQuery("/recipes/filters", v.Query)) }
+			>
+				@iconFilter()
+				{ i18n.T(ctx, "recipes.filters") }
+			</a>
+			for _, c := range v.Chips {
+				@filterChip(c)
+			}
+		</nav>
+		if len(v.People) > 1 {
+			<div class="people-filter only-wide">
+				<span class="people-filter__label">{ i18n.T(ctx, "recipes.addedBy") }</span>
+				<ul class="chips" role="list">
+					for _, c := range v.People {
+						<li>
+							@filterChip(c)
+						</li>
+					}
+				</ul>
+			</div>
+		}
+		<div class="library-head">
+			<h2 class="section-title" aria-live="polite">
+				if v.Filtered {
+					{ plural(ctx, len(v.Cards), "recipes.resultsOne", "recipes.results") }
+				} else {
+					{ i18n.T(ctx, "recipes.library") }
+				}
+			</h2>
+			<span class="library-head__actions">
+				if v.Filtered {
+					<a class="section-action" href="/recipes">{ i18n.T(ctx, "recipes.clearFilters") }</a>
+				}
+				<a
+					class="section-action"
+					href={ templ.SafeURL(withQuery("/recipes/filters", v.Query)) }
+					data-on:click__prevent={ getAction(withQuery("/recipes/filters", v.Query)) }
+				>{ i18n.T(ctx, "recipes.sortBy", v.Sort) }</a>
+			</span>
+		</div>
+		if len(v.Cards) == 0 {
+			<section class="empty">
+				if v.Filtered {
+					<h2>{ i18n.T(ctx, "recipes.noMatch.title") }</h2>
+					<p><a href="/recipes">{ i18n.T(ctx, "recipes.clearFilters") }</a></p>
+				} else {
+					<h2>{ i18n.T(ctx, "recipes.empty.title") }</h2>
+					<p>{ i18n.T(ctx, "recipes.empty.body") }</p>
+					<p><a href="/recipes/new">{ i18n.T(ctx, "recipes.empty.link") }</a></p>
+				}
+			</section>
+		} else {
+			<ul class="recipe-grid" role="list">
+				for _, c := range v.Cards {
+					<li>
+						@recipeCard(c)
+					</li>
+				}
+			</ul>
+		}
+	</div>
+}
+
+templ filterChip(c FilterChip) {
+	<a
+		class={ "chip", templ.KV("chip--on", c.On), templ.KV("chip--person", c.Initial != "") }
+		href={ templ.SafeURL(c.Href) }
+		if c.On {
+			aria-current="true"
+		}
+	>
+		if c.Initial != "" {
+			<span class={ avatarClass(c.Color, "chip") } aria-hidden="true">{ c.Initial }</span>
+		}
+		{ c.Label }
+	</a>
+}
+
+templ recipeCard(c RecipeCard) {
+	<a class="recipe-card" href={ templ.SafeURL(RecipeHref(c.ID)) }>
+		<span class={ "recipe-card__media avatar--" + Tint(c.ID) }>
+			if c.Photo != "" {
+				<img src={ ImageURL(c.Photo, "thumb") } alt="" loading="lazy"/>
+			} else {
+				<span class="recipe-card__initial" aria-hidden="true">{ Initial(c.Name) }</span>
+			}
+			if c.Favourite {
+				<span class="recipe-card__fav">
+					@iconHeart(true, 15, i18n.T(ctx, "recipes.favourite"))
+				</span>
+			}
+		</span>
+		<span class="recipe-card__body">
+			<span class="recipe-card__name">{ c.Name }</span>
+			if c.Meta != "" {
+				<span class="recipe-card__meta">{ c.Meta }</span>
+			}
+			<span class="recipe-card__by">
+				<span class={ avatarClass(c.By.Color, "xs") } aria-hidden="true">{ Initial(c.By.Name) }</span>
+				{ i18n.T(ctx, "recipes.by", c.ByLabel) }
+			</span>
+		</span>
+	</a>
+}
+
+// FilterSheet is the filter sheet as a modal dialog.
+templ FilterSheet(v FilterSheetView) {
+	<div id="sheet">
+		<dialog class="sheet-dialog" aria-labelledby="filter-title" data-init="el.open || el.showModal()" data-on:close="el.remove()">
+			@filterForm(v, true)
+		</dialog>
+	</div>
+}
+
+// FilterPage is the filter sheet as a page, without JavaScript.
+templ FilterPage(p Page, v FilterSheetView) {
+	@Layout(p) {
+		<div class="narrow sheet">
+			@filterForm(v, false)
+		</div>
+	}
+}
+
+templ filterForm(v FilterSheetView, modal bool) {
+	<div class="sheet__head">
+		<h2 class="sheet__title" id="filter-title">{ i18n.T(ctx, "recipes.filter.title") }</h2>
+		<a class="section-action" href="/recipes">{ i18n.T(ctx, "recipes.filter.reset") }</a>
+		if modal {
+			<button type="button" class="icon-btn" aria-label={ i18n.T(ctx, "groceries.edit.close") } data-on:click="el.closest('dialog').close()">
+				@iconClose()
+			</button>
+		}
+	</div>
+	<form class="stack-lg" method="get" action="/recipes">
+		if len(v.People) > 1 {
+			<fieldset class="choices">
+				<legend class="field__label">{ i18n.T(ctx, "recipes.addedBy") }</legend>
+				<div class="chips">
+					for _, o := range v.People {
+						<label class="chip chip--radio chip--person">
+							<input type="checkbox" name="by" value={ o.Value } checked?={ o.Checked }/>
+							<span class={ avatarClass(o.Color, "chip") } aria-hidden="true">{ Initial(o.Label) }</span>
+							<span>{ o.Label }</span>
+						</label>
+					}
+				</div>
+				<span class="field__hint">{ i18n.T(ctx, "recipes.filter.combine") }</span>
+			</fieldset>
+		}
+		if len(v.Tags) > 0 {
+			<fieldset class="choices">
+				<legend class="field__label">{ i18n.T(ctx, "recipes.tags") }</legend>
+				<div class="chips">
+					for _, o := range v.Tags {
+						<label class="chip chip--radio">
+							<input type="checkbox" name="tag" value={ o.Value } checked?={ o.Checked }/>
+							<span>{ o.Label }</span>
+						</label>
+					}
+				</div>
+			</fieldset>
+		}
+		<fieldset class="choices">
+			<legend class="field__label">{ i18n.T(ctx, "recipes.filter.time") }</legend>
+			<div class="segmented segmented--fill">
+				@segment("max", "", i18n.T(ctx, "recipes.filter.anyTime"), v.Max == "")
+				@segment("max", "30", i18n.T(ctx, "recipes.filter.upTo", 30), v.Max == "30")
+				@segment("max", "60", i18n.T(ctx, "recipes.filter.upTo", 60), v.Max == "60")
+			</div>
+		</fieldset>
+		<fieldset class="choices">
+			<legend class="field__label">{ i18n.T(ctx, "recipes.filter.showOnly") }</legend>
+			<div class="toggle-rows">
+				@toggleRow("fav", i18n.T(ctx, "recipes.favourites"), v.Favourites)
+				@toggleRow("stale", i18n.T(ctx, "recipes.filter.stale"), v.Stale)
+				@toggleRow("never", i18n.T(ctx, "recipes.filter.never"), v.Never)
+			</div>
+		</fieldset>
+		<div class="field">
+			<label class="field__label" for="filter-sort">{ i18n.T(ctx, "recipes.filter.sort") }</label>
+			<select class="input" id="filter-sort" name="sort">
+				for _, o := range v.Sorts {
+					<option value={ o.Value } selected?={ v.Sort == o.Value }>{ o.Label }</option>
+				}
+			</select>
+		</div>
+		<button type="submit" class="btn btn--primary btn--block">{ i18n.T(ctx, "recipes.filter.show") }</button>
+	</form>
+}
+
+templ segment(name, value, label string, checked bool) {
+	<label class="segmented__option">
+		<input type="radio" name={ name } value={ value } checked?={ checked }/>
+		<span>{ label }</span>
+	</label>
+}
+
+templ toggleRow(name, label string, checked bool) {
+	<label class="toggle-row">
+		<span>{ label }</span>
+		<input type="checkbox" name={ name } value="1" checked?={ checked }/>
+	</label>
+}
+
+// Search is the recipe search page. Results update as the user types; the
+// form also works as a plain GET.
+templ Search(p Page, v SearchView) {
+	@Layout(p) {
+		<div class="search" data-signals={ "{q: " + jsString(v.Query) + "}" }>
+			<form id="search-form" class="search-form" method="get" action="/recipes/search" role="search">
+				<label class="search-link search-link--field">
+					@iconSearch(20)
+					<span class="visually-hidden">{ i18n.T(ctx, "recipes.search.label") }</span>
+					<input
+						id="search-input"
+						class="search-link__input"
+						type="search"
+						name="q"
+						value={ v.Query }
+						autocomplete="off"
+						enterkeyhint="search"
+						autofocus
+						placeholder={ i18n.T(ctx, "recipes.search.placeholder") }
+						aria-controls="search-results"
+						data-bind:q
+						data-on:input__debounce.200ms="@get('/recipes/search/results', {filterSignals: {include: /^q$/}})"
+					/>
+				</label>
+			</form>
+			<section class="recent" aria-labelledby="recent-title" data-recent hidden>
+				<h2 class="section-title" id="recent-title">{ i18n.T(ctx, "recipes.search.recent") }</h2>
+				<ul class="chips" role="list" data-recent-list></ul>
+			</section>
+			@SearchResults(v)
+		</div>
+	}
+}
+
+// SearchResults is the patched result region of the search page.
+templ SearchResults(v SearchView) {
+	<div id="search-results" class="search-results">
+		<p class="muted" role="status">{ v.Status }</p>
+		if v.Query != "" && len(v.Names) == 0 && len(v.Ingredients) == 0 {
+			<section class="empty empty--center">
+				<span class="confirm-dialog__icon" aria-hidden="true">
+					@iconSearch(22)
+				</span>
+				<h2>{ i18n.T(ctx, "recipes.search.none", v.Query) }</h2>
+				<p>{ i18n.T(ctx, "recipes.search.noneBody", v.Total) }</p>
+				<p><a class="btn btn--secondary" href="/recipes/new">{ i18n.T(ctx, "recipes.search.write") }</a></p>
+			</section>
+		}
+		if len(v.Names) > 0 {
+			@hitSection("hits-names", i18n.T(ctx, "recipes.search.names"), v.Names, false)
+		}
+		if len(v.Ingredients) > 0 {
+			@hitSection("hits-ingredients", i18n.T(ctx, "recipes.search.ingredients"), v.Ingredients, true)
+		}
+	</div>
+}
+
+templ hitSection(id, title string, hits []SearchHit, ingredient bool) {
+	<section class="list-group" aria-labelledby={ id }>
+		<div class="list-group__head">
+			<h2 class="section-title" id={ id }>{ title }</h2>
+			<span class="list-group__count">{ itoa(len(hits)) }</span>
+		</div>
+		<ul class="list" role="list">
+			for _, h := range hits {
+				<li>
+					<a class="list__link hit" href={ templ.SafeURL(RecipeHref(h.ID)) }>
+						if h.Photo != "" {
+							<img class="tile" src={ ImageURL(h.Photo, "thumb") } alt="" loading="lazy"/>
+						} else {
+							<span class={ tileClass(Tint(h.ID), "") } aria-hidden="true">{ Initial(h.Name) }</span>
+						}
+						<span class="list__text">
+							if ingredient {
+								<span class="hit__name">{ h.Name }</span>
+								<span class="muted">
+									{ i18n.T(ctx, "recipes.search.uses") }
+									@marked(h)
+									if h.Amount != "" {
+										{ " · " + h.Amount }
+									}
+								</span>
+							} else {
+								<span class="hit__name">
+									@marked(h)
+								</span>
+								if h.Meta != "" {
+									<span class="muted">{ h.Meta }</span>
+								}
+							}
+						</span>
+						@chevron()
+					</a>
+				</li>
+			}
+		</ul>
+	</section>
+}
+
+templ marked(h SearchHit) {
+	{ h.Pre }
+	if h.Hit != "" {
+		<mark>{ h.Hit }</mark>
+	}
+	{ h.Post }
+}
+
+templ iconSearch(size int) {
+	<svg width={ size } height={ size } viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="M20 20l-4-4"></path></svg>
+}
+
+templ iconFilter() {
+	<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"></path></svg>
+}
+
+// iconHeart is filled when on; label, if set, names it for screen readers.
+templ iconHeart(on bool, size int, label string) {
+	<svg
+		width={ size }
+		height={ size }
+		viewBox="0 0 24 24"
+		if on {
+			fill="currentColor"
+		} else {
+			fill="none"
+		}
+		stroke="currentColor"
+		stroke-width="1.6"
+		if label != "" {
+			role="img"
+			aria-label={ label }
+		} else {
+			aria-hidden="true"
+		}
+	><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"></path></svg>
+}
+
+templ iconEdit() {
+	<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"></path><path d="M13.5 6.5l4 4"></path></svg>
+}
+
+templ iconLink() {
+	<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"></path><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"></path></svg>
+}
+
+templ iconPhoto() {
+	<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"></rect><circle cx="9" cy="10" r="1.8"></circle><path d="M21 16l-5-5-8 8"></path></svg>
+}

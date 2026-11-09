@@ -12,6 +12,8 @@ import (
 // write panics at startup when given a safe method.
 type router struct {
 	mux *http.ServeMux
+	// patterns lists the registered "METHOD /path" patterns, for tests.
+	patterns []string
 }
 
 func newRouter() *router { return &router{mux: http.NewServeMux()} }
@@ -19,6 +21,7 @@ func newRouter() *router { return &router{mux: http.NewServeMux()} }
 // read registers a GET handler (ServeMux also answers HEAD for it).
 func (r *router) read(path string, h http.Handler) {
 	r.mux.Handle("GET "+path, recordRoute(h))
+	r.patterns = append(r.patterns, "GET "+path)
 }
 
 // write registers a state-changing handler. method must be POST, PUT, PATCH
@@ -30,6 +33,7 @@ func (r *router) write(method, path string, h http.Handler) {
 		panic(fmt.Sprintf("web: write route %s %s must use POST, PUT, PATCH or DELETE", method, path))
 	}
 	r.mux.Handle(method+" "+path, recordRoute(h))
+	r.patterns = append(r.patterns, method+" "+path)
 }
 
 // fallback handles every request no other route matches, for any method.

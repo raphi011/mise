@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/url"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -220,6 +221,16 @@ func (in *Input) clean() error {
 		checkLen(errs, "steps."+strconv.Itoa(i), st, maxStepLen)
 	}
 	return errs.orNil()
+}
+
+// Validate reports what is wrong with in as FieldErrors, without saving
+// it, so a form can show every problem at once. Ingredients that pick an
+// item by ID are checked only when saved.
+func Validate(in Input) error {
+	in.Tags = slices.Clone(in.Tags)
+	in.Ingredients = slices.Clone(in.Ingredients)
+	in.Steps = slices.Clone(in.Steps)
+	return in.clean()
 }
 
 // Create adds a recipe written by the member by and returns its ID.

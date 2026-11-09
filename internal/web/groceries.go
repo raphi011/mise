@@ -91,7 +91,7 @@ func (s *Server) groceriesView(ctx context.Context, sc store.Scoped, id *auth.Id
 }
 
 func entryRow(e groceries.Entry, viewer uuid.UUID) ui.EntryRow {
-	row := ui.EntryRow{ID: e.ID.String(), Name: e.ItemName, Amount: e.Amount.Text, Note: e.Note}
+	row := ui.EntryRow{ID: e.ID.String(), Name: e.ItemName, Amount: e.Amount.Text, Note: e.Note, Recipe: e.RecipeName}
 	if e.Category != nil {
 		row.Color = e.Category.Color
 	}
@@ -626,19 +626,8 @@ func (s *Server) saveEntry(w http.ResponseWriter, r *http.Request) {
 
 // ---- Live ----
 
-// liveStream is the page's SSE stream. It re-renders the list region for
-// this viewer whenever any list, the lists or the catalogue change.
+// liveStream is a page's SSE stream; ?page= names the page.
 func (s *Server) liveStream(w http.ResponseWriter, r *http.Request) {
-	q := r.URL.Query()
-	if q.Get("page") != "groceries" {
-		s.notFound(w, r)
-		return
-	}
-	listID, err := uuid.Parse(q.Get("list"))
-	if err != nil {
-		s.notFound(w, r)
-		return
-	}
 	ctx := r.Context()
 	sc, err := s.db.Scope(ctx)
 	if err != nil {
@@ -646,9 +635,42 @@ func (s *Server) liveStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := identity(r)
+	switch r.URL.Query().Get("page") {
+	case "groceries":
+		s.groceriesLive(w, r, sc, id)
+	case "recipes":
+		s.libraryLive(w, r, sc, id)
+	case "recipe":
+		s.recipeLive(w, r, sc, id)
+	default:
+		s.notFound(w, r)
+	}
+}
+
+// serveLive subscribes to the household's events and serves st until the
+// stream ends. It fills in the session check and heartbeat.
+func (s *Server) serveLive(w http.ResponseWriter, r *http.Request, id *auth.Identity, st live.Stream) {
+	ctx := r.Context()
 	sub := s.live.Subscribe(id.HouseholdID, id.UserID, id.SessionID)
 	defer sub.Close()
-	err = live.Serve(w, r, sub, live.Stream{
+	st.Alive = func(ctx context.Context) (bool, error) {
+		return s.auth.SessionActive(ctx, id.SessionID)
+	}
+	st.Heartbeat = s.heartbeat
+	if err := live.Serve(w, r, sub, st); err != nil && ctx.Err() == nil {
+		s.log.ErrorContext(ctx, "live stream", slog.String("page", r.URL.Query().Get("page")), slog.Any("err", err))
+	}
+}
+
+// groceriesLive re-renders the list region for this viewer whenever any
+// list, the lists or the catalogue change.
+func (s *Server) groceriesLive(w http.ResponseWriter, r *http.Request, sc store.Scoped, id *auth.Identity) {
+	listID, err := uuid.Parse(r.URL.Query().Get("list"))
+	if err != nil {
+		s.notFound(w, r)
+		return
+	}
+	s.serveLive(w, r, id, live.Stream{
 		Refresh: func(ctx context.Context, sse *datastar.ServerSentEventGenerator) error {
 			v, err := s.groceriesView(ctx, sc, id, listID)
 			if err != nil {
@@ -665,14 +687,7 @@ func (s *Server) liveStream(w http.ResponseWriter, r *http.Request) {
 			}
 			return false
 		},
-		Alive: func(ctx context.Context) (bool, error) {
-			return s.auth.SessionActive(ctx, id.SessionID)
-		},
-		Heartbeat: s.heartbeat,
 	})
-	if err != nil && ctx.Err() == nil {
-		s.log.ErrorContext(ctx, "live stream", slog.Any("err", err))
-	}
 }
 
 // CloseStreams ends every open live stream. Register it with

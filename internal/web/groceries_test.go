@@ -86,7 +86,13 @@ type stream struct {
 // openStream opens the list page's live stream like Datastar's @get.
 func (b *browser) openStream(listID string) *stream {
 	b.t.Helper()
-	req, err := http.NewRequestWithContext(b.t.Context(), http.MethodGet, b.url("/live?page=groceries&list="+listID), nil)
+	return b.openStreamURL("/live?page=groceries&list=" + listID)
+}
+
+// openStreamURL opens a live stream at path like Datastar's @get.
+func (b *browser) openStreamURL(path string) *stream {
+	b.t.Helper()
+	req, err := http.NewRequestWithContext(b.t.Context(), http.MethodGet, b.url(path), nil)
 	if err != nil {
 		b.t.Fatal(err)
 	}

@@ -25,6 +25,11 @@ type Page struct {
 	// BackHref, when set, renders a back link before the title.
 	BackHref  string
 	BackLabel string
+	// Actions, when set, render in the page header after the title.
+	Actions templ.Component
+	// NavExtra, when set, renders under the main links in the desktop
+	// sidebar (e.g. the recipe tags).
+	NavExtra templ.Component
 }
 
 func fontFaces() string {
@@ -51,6 +56,7 @@ templ document(p Page) {
 			<link rel="preload" href={ Asset("fonts/inter-latin.woff2") } as="font" type="font/woff2" crossorigin/>
 			<style>@templ.Raw(fontFaces())</style>
 			<link rel="stylesheet" href={ Asset("css/app.css") }/>
+			<script type="module" src={ Asset("js/app.js") }></script>
 			<script type="module" src={ Asset("js/datastar.js") }></script>
 		</head>
 		<body>
@@ -63,14 +69,19 @@ templ document(p Page) {
 templ Layout(p Page) {
 	@document(p) {
 		<div class="shell">
-			@nav(p.Active, p.User)
+			@nav(p.Active, p.User, p.NavExtra)
 			<main class="main" id="main">
 				<div class="content">
 					<header class="page-header">
 						if p.BackHref != "" {
 							@backLink(p.BackHref, p.BackLabel)
 						}
-						<h1 class="page-title">{ p.Title }</h1>
+						@PageTitle(p.Title)
+						if p.Actions != nil {
+							<div class="page-actions">
+								@p.Actions
+							</div>
+						}
 						if p.User != nil {
 							@avatarLink(p.User)
 						}
@@ -82,7 +93,7 @@ templ Layout(p Page) {
 	}
 }
 
-templ nav(active NavItem, user *Viewer) {
+templ nav(active NavItem, user *Viewer, extra templ.Component) {
 	<nav class="nav" aria-label={ i18n.T(ctx, "nav.main") }>
 		<a class="nav__brand" href="/" aria-label="mise">
 			@logo(32)
@@ -93,6 +104,11 @@ templ nav(active NavItem, user *Viewer) {
 			@navLink("/plan", i18n.T(ctx, "nav.plan"), active == NavPlan, iconPlan())
 			@navLink("/groceries", i18n.T(ctx, "nav.groceries"), active == NavGroceries, iconGroceries())
 		</div>
+		if extra != nil {
+			<div class="nav__extra">
+				@extra
+			</div>
+		}
 		if user != nil {
 			<a
 				class="nav__footer"
@@ -145,4 +161,9 @@ templ iconPlan() {
 
 templ iconGroceries() {
 	<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 6h10M10 12h10M10 18h10"></path><path d="M3.5 6l1.5 1.5L7.5 5M3.5 12l1.5 1.5 2.5-2.5M3.5 18l1.5 1.5 2.5-2.5"></path></svg>
+}
+
+// PageTitle is the page's heading, patched when what it names is renamed.
+templ PageTitle(title string) {
+	<h1 class="page-title" id="page-title">{ title }</h1>
 }

@@ -124,8 +124,13 @@ templ entryRow(e EntryRow) {
 				<span class={ tileClass(e.Color, "") } aria-hidden="true">{ Initial(e.Name) }</span>
 				<span class="entry__text">
 					<span class="entry__name">{ e.Name }</span>
-					if e.Amount != "" || e.Note != "" {
-						<span class="entry__meta">{ joinNonEmpty(" · ", e.Amount, e.Note) }</span>
+					if e.Amount != "" || e.Note != "" || e.Recipe != "" {
+						<span class="entry__meta">
+							{ joinNonEmpty(" · ", e.Amount, e.Note) }
+							if e.Recipe != "" {
+								<span class="entry__recipe">{ e.Recipe }</span>
+							}
+						</span>
 					}
 				</span>
 				if e.By != nil {

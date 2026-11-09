@@ -47,6 +47,9 @@ func entryLabel(ctx context.Context, e EntryRow) string {
 	if e.Amount != "" {
 		s += ", " + e.Amount
 	}
+	if e.Recipe != "" {
+		s += ", " + i18n.T(ctx, "groceries.fromRecipe", e.Recipe)
+	}
 	if e.By != nil {
 		s += ", " + i18n.T(ctx, "groceries.addedByShort", e.By.Name)
 	}
@@ -97,6 +100,8 @@ type EntryRow struct {
 	Color  string
 	Amount string
 	Note   string
+	// Recipe names the recipe the entry was added from, if any.
+	Recipe string
 	// By is set when someone other than the viewer added the entry.
 	By *Viewer
 }
