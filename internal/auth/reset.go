@@ -187,3 +187,11 @@ func (s *Service) CompleteReset(ctx context.Context, token, password, userAgent 
 	})
 	return session, userID, err
 }
+
+// dropResets deletes the account's outstanding reset tokens. Every change
+// that settles who controls the account (a new password, a different email
+// address) calls it, so an older link cannot undo that change.
+func dropResets(ctx context.Context, q store.Querier, userID uuid.UUID) error {
+	_, err := q.Exec(ctx, `DELETE FROM password_resets WHERE user_id = ?`, userID)
+	return err
+}

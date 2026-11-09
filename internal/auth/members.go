@@ -165,9 +165,13 @@ func (s *Service) ResetPassword(ctx context.Context, sc store.Scoped, actor, use
 			return ErrSharedAccount
 		}
 		now := s.clock()
-		// users and sessions are account-wide; the checks above limit this
-		// to accounts that belong to the scoped household only.
+		// users, sessions and password resets are account-wide; the checks
+		// above limit this to accounts that belong to the scoped household
+		// only.
 		if _, err := q.Exec(ctx, `UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?`, hash, now, userID); err != nil {
+			return err
+		}
+		if err := dropResets(ctx, q, userID); err != nil {
 			return err
 		}
 		_, err := q.Exec(ctx, `DELETE FROM sessions WHERE user_id = ?`, userID)

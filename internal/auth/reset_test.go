@@ -3,7 +3,9 @@ package auth
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -129,6 +131,66 @@ func TestCompleteReset(t *testing.T) {
 		}
 		if _, err := s.ResetByToken(ctx, "not-a-token"); !errors.Is(err, ErrResetInvalid) {
 			t.Errorf("unknown token: %v", err)
+		}
+	})
+}
+
+// TestAccountChangesDropResets: a reset link must not undo a change that
+// settled who controls the account. Changing only the name, or the email's
+// case, keeps the link.
+func TestAccountChangesDropResets(t *testing.T) {
+	cases := []struct {
+		name   string
+		change func(t *testing.T, s *Service, f fixture, id *Identity, email string) error
+		keeps  bool
+	}{
+		{"new email", func(t *testing.T, s *Service, f fixture, id *Identity, email string) error {
+			return s.UpdateProfile(t.Context(), id, Profile{Name: "Ben", Email: "ben@elsewhere.example", AvatarColor: AvatarColors[0]})
+		}, false},
+		{"email removed", func(t *testing.T, s *Service, f fixture, id *Identity, email string) error {
+			return s.UpdateProfile(t.Context(), id, Profile{Name: "Ben", AvatarColor: AvatarColors[0]})
+		}, false},
+		{"same email, other case", func(t *testing.T, s *Service, f fixture, id *Identity, email string) error {
+			return s.UpdateProfile(t.Context(), id, Profile{Name: "Benjamin", Email: strings.ToUpper(email), AvatarColor: AvatarColors[0]})
+		}, true},
+		{"password change", func(t *testing.T, s *Service, f fixture, id *Identity, email string) error {
+			return s.ChangePassword(t.Context(), id, testPassword, "a brand new secret")
+		}, false},
+		{"admin reset", func(t *testing.T, s *Service, f fixture, id *Identity, email string) error {
+			return s.ResetPassword(t.Context(), f.sc, f.admin, f.member, "a brand new secret")
+		}, false},
+	}
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		for i, c := range cases {
+			t.Run(c.name, func(t *testing.T) {
+				ctx := t.Context()
+				s, _ := newService(t, db)
+				name, email := fmt.Sprintf("h%d", i), fmt.Sprintf("ben%d@example.com", i)
+				f := addHousehold(t, db, name)
+				setEmail(t, db, f.member, email, nil)
+				session, err := s.SignIn(ctx, name+"-member", testPassword, "ua")
+				if err != nil {
+					t.Fatal(err)
+				}
+				id, _, err := s.Authenticate(ctx, session)
+				if err != nil {
+					t.Fatal(err)
+				}
+				tickets, err := s.RequestPasswordReset(ctx, email)
+				if err != nil || len(tickets) != 1 {
+					t.Fatal(tickets, err)
+				}
+				if err := c.change(t, s, f, id, email); err != nil {
+					t.Fatal(err)
+				}
+				_, err = s.ResetByToken(ctx, tickets[0].Token)
+				if c.keeps && err != nil {
+					t.Errorf("link dropped: %v", err)
+				}
+				if !c.keeps && !errors.Is(err, ErrResetInvalid) {
+					t.Errorf("link survived: %v", err)
+				}
+			})
 		}
 	})
 }

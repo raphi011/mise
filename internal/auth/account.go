@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"strings"
 
 	"github.com/raphi011/mise/internal/store"
 )
@@ -24,6 +25,17 @@ func (s *Service) UpdateProfile(ctx context.Context, id *Identity, p Profile) er
 		return err
 	}
 	return s.db.System().Tx(ctx, func(ctx context.Context, q store.Querier) error {
+		var old *string
+		if err := q.Get(ctx, &old, `SELECT email FROM users WHERE id = ?`, id.UserID); err != nil {
+			return err
+		}
+		// Reset links went to the old address; they must not outlive it.
+		// Addresses match case-insensitively, as in RequestPasswordReset.
+		if old != nil && !strings.EqualFold(*old, p.Email) {
+			if err := dropResets(ctx, q, id.UserID); err != nil {
+				return err
+			}
+		}
 		_, err := q.Exec(ctx, `UPDATE users SET name = ?, email = ?, avatar_color = ?, updated_at = ? WHERE id = ?`,
 			p.Name, nullable(p.Email), p.AvatarColor, s.clock(), id.UserID)
 		return err
@@ -83,6 +95,9 @@ func (s *Service) ChangePassword(ctx context.Context, id *Identity, current, nex
 	}
 	return s.db.System().Tx(ctx, func(ctx context.Context, q store.Querier) error {
 		if _, err := q.Exec(ctx, `UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?`, hash, s.clock(), id.UserID); err != nil {
+			return err
+		}
+		if err := dropResets(ctx, q, id.UserID); err != nil {
 			return err
 		}
 		_, err := q.Exec(ctx, `DELETE FROM sessions WHERE user_id = ? AND id <> ?`, id.UserID, id.SessionID)
