@@ -15,7 +15,9 @@ import (
 
 	"github.com/raphi011/mise/internal/auth"
 	"github.com/raphi011/mise/internal/config"
+	"github.com/raphi011/mise/internal/groceries"
 	"github.com/raphi011/mise/internal/i18n"
+	"github.com/raphi011/mise/internal/live"
 	"github.com/raphi011/mise/internal/store"
 	"github.com/raphi011/mise/internal/ui"
 )
@@ -50,6 +52,11 @@ type Server struct {
 	csrf *http.CrossOriginProtection
 	auth *auth.Service
 
+	live      *live.Hub
+	groceries *groceries.Service
+	// heartbeat overrides live.DefaultHeartbeat, for tests.
+	heartbeat time.Duration
+
 	ipLimit       *auth.Limiter
 	pairLimit     *auth.Limiter
 	userLimit     *auth.Limiter
@@ -74,6 +81,8 @@ func New(cfg config.Config, db *store.DB, log *slog.Logger) (*Server, error) {
 		passwordLimit: auth.NewLimiter(passwordBurst, passwordInterval, limiterMaxKeys, nil),
 	}
 	s.auth = auth.New(db, auth.Config{Log: log, SecureCookie: s.secureCookie})
+	s.live = live.NewHub()
+	s.groceries = groceries.New(s.live, nil)
 	if cfg.BaseURL != nil {
 		if err := s.setBaseURL(cfg.BaseURL); err != nil {
 			return nil, err
@@ -216,7 +225,20 @@ func (s *Server) routes(r *router) {
 	r.read("/{$}", s.user(http.RedirectHandler("/groceries", http.StatusFound).ServeHTTP))
 	r.read("/recipes", s.user(s.placeholder(ui.NavRecipes, "page.recipes.title")))
 	r.read("/plan", s.user(s.placeholder(ui.NavPlan, "page.plan.title")))
-	r.read("/groceries", s.user(s.placeholder(ui.NavGroceries, "page.groceries.title")))
+	r.read("/groceries", s.user(s.groceriesHome))
+	r.read("/groceries/lists/{id}", s.user(s.listPage))
+	r.read("/groceries/lists/{id}/suggest", s.user(s.suggest))
+	r.write(http.MethodPost, "/groceries/lists/{id}/entries", s.user(s.addEntry))
+	r.read("/groceries/lists/{id}/clear", s.user(s.clearCartPage))
+	r.write(http.MethodPost, "/groceries/lists/{id}/clear", s.user(s.clearCart))
+	r.write(http.MethodPost, "/groceries/lists/{id}/restore-cart", s.user(s.restoreCart))
+	r.write(http.MethodPost, "/groceries/entries/{id}/check", s.user(s.checkEntry))
+	r.write(http.MethodPost, "/groceries/entries/{id}/uncheck", s.user(s.uncheckEntry))
+	r.read("/groceries/entries/{id}/edit", s.user(s.editEntryPage))
+	r.write(http.MethodPost, "/groceries/entries/{id}/edit", s.user(s.saveEntry))
+	r.write(http.MethodPost, "/groceries/entries/{id}/remove", s.user(s.removeEntry))
+	r.write(http.MethodPost, "/groceries/entries/{id}/restore", s.user(s.restoreEntry))
+	r.read("/live", s.user(s.liveStream))
 
 	// Settings.
 	r.read("/settings", s.user(s.settingsPage))
@@ -226,6 +248,16 @@ func (s *Server) routes(r *router) {
 	r.write(http.MethodPost, "/settings/account/password", s.user(s.changePassword))
 	r.write(http.MethodPost, "/settings/account/sessions/revoke-others", s.user(s.revokeOtherSessions))
 	r.write(http.MethodPost, "/settings/account/sessions/{id}/revoke", s.user(s.revokeSession))
+	r.write(http.MethodPost, "/settings/lists", s.user(s.createList))
+	r.write(http.MethodPost, "/settings/lists/{id}/rename", s.user(s.renameList))
+	r.write(http.MethodPost, "/settings/lists/{id}/move", s.user(s.moveList))
+	r.write(http.MethodPost, "/settings/lists/{id}/delete", s.user(s.deleteList))
+	r.write(http.MethodPost, "/settings/lists/{id}/restore", s.user(s.restoreList))
+	r.read("/settings/categories", s.user(s.categoriesPage))
+	r.write(http.MethodPost, "/settings/categories", s.user(s.createCategory))
+	r.write(http.MethodPost, "/settings/categories/{id}", s.user(s.updateCategory))
+	r.write(http.MethodPost, "/settings/categories/{id}/move", s.user(s.moveCategory))
+	r.write(http.MethodPost, "/settings/categories/{id}/delete", s.user(s.deleteCategory))
 	r.read("/settings/invite", s.admin(s.invitePage))
 	r.write(http.MethodPost, "/settings/invites", s.admin(s.createInvite))
 	r.write(http.MethodPost, "/settings/invites/{id}/revoke", s.admin(s.revokeInvite))

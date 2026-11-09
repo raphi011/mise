@@ -1,0 +1,440 @@
+package ui
+
+import "github.com/raphi011/mise/internal/i18n"
+
+// Groceries is the list page. The region with the tabs, entries, cart and
+// chips is patched by the live stream; the add field, toast and sheet sit
+// outside it so a patch never touches a focused input.
+templ Groceries(p Page, v GroceriesView) {
+	@Layout(p) {
+		<div
+			class="groceries"
+			data-signals="{add: '', _opts: [], _sel: -1, _for: ''}"
+			data-init={ liveAction("/live?page=groceries&list=" + v.List.ID) }
+		>
+			@GroceriesRegion(v)
+			@addBar(v)
+			@EmptyToast()
+			@EmptySheet()
+		</div>
+	}
+}
+
+// GroceriesRegion is the live part of the list page.
+templ GroceriesRegion(v GroceriesView) {
+	<div id="groceries-live" class="groceries__live">
+		<nav class="list-tabs" aria-label={ i18n.T(ctx, "groceries.lists") }>
+			for _, l := range v.Lists {
+				<a
+					class={ "chip", templ.KV("chip--on", l.Current) }
+					href={ templ.SafeURL(l.Href()) }
+					if l.Current {
+						aria-current="page"
+					}
+				>
+					{ l.Name }
+					if l.Open > 0 {
+						<span class="chip__count">{ itoa(l.Open) }</span>
+					}
+				</a>
+			}
+			<a class="chip chip--dashed chip--icon" href="/settings#lists" aria-label={ i18n.T(ctx, "groceries.manageLists") }>
+				@iconPlus(16)
+			</a>
+		</nav>
+		if v.Gone {
+			<section class="empty" role="status">
+				<h2>{ i18n.T(ctx, "groceries.gone.title") }</h2>
+				<p>{ i18n.T(ctx, "groceries.gone.body") }</p>
+				<p><a href="/groceries">{ i18n.T(ctx, "groceries.gone.link") }</a></p>
+			</section>
+		} else {
+			<p class="list-meta" aria-live="polite">
+				{ i18n.T(ctx, "groceries.toGet", v.Open) }
+				if v.InCart > 0 {
+					{ " · " + i18n.T(ctx, "groceries.inCartCount", v.InCart) }
+				}
+			</p>
+			if len(v.Groups) == 0 {
+				<section class="empty">
+					<h2>{ i18n.T(ctx, "groceries.empty.title") }</h2>
+					<p>{ i18n.T(ctx, "groceries.empty.body") }</p>
+				</section>
+			}
+			for i, g := range v.Groups {
+				<section class="list-group" aria-labelledby={ "group-" + itoa(i) }>
+					<div class="list-group__head">
+						<h2 class="section-title" id={ "group-" + itoa(i) }>{ g.Name }</h2>
+						<span class="list-group__count">{ itoa(len(g.Entries)) }</span>
+					</div>
+					<ul class="list entries" role="list">
+						for _, e := range g.Entries {
+							@entryRow(e)
+						}
+					</ul>
+				</section>
+			}
+			if len(v.Cart) > 0 {
+				<section class="list-group" aria-labelledby="cart-title">
+					<div class="list-group__head">
+						<h2 class="section-title" id="cart-title">{ i18n.T(ctx, "groceries.inCart") }</h2>
+						<a
+							class="section-action"
+							href={ templ.SafeURL("/groceries/lists/" + v.List.ID + "/clear") }
+							data-on:click__prevent={ getAction("/groceries/lists/" + v.List.ID + "/clear") }
+						>{ i18n.T(ctx, "groceries.clear") }</a>
+					</div>
+					<ul class="chips" role="list">
+						for _, e := range v.Cart {
+							<li>
+								<form method="post" action={ templ.SafeURL("/groceries/entries/" + e.ID + "/uncheck") } data-on:submit={ postForm("/groceries/entries/" + e.ID + "/uncheck") }>
+									<button type="submit" class="chip chip--done" aria-label={ i18n.T(ctx, "groceries.putBack", e.Name) }>
+										@iconCheck(18)
+										{ e.Name }
+									</button>
+								</form>
+							</li>
+						}
+					</ul>
+				</section>
+			}
+			if len(v.Usual) > 0 {
+				<section class="list-group" aria-labelledby="usual-title">
+					<h2 class="section-title" id="usual-title">{ i18n.T(ctx, "groceries.usual") }</h2>
+					<ul class="chips" role="list">
+						for _, it := range v.Usual {
+							<li>
+								<form method="post" action={ templ.SafeURL("/groceries/lists/" + v.List.ID + "/entries") } data-on:submit={ postForm("/groceries/lists/" + v.List.ID + "/entries") }>
+									<input type="hidden" name="pick" value={ it.ID }/>
+									<button type="submit" class="chip chip--dashed" aria-label={ i18n.T(ctx, "groceries.addItem", it.Name) }>{ "+ " + it.Name }</button>
+								</form>
+							</li>
+						}
+					</ul>
+				</section>
+			}
+		}
+	</div>
+}
+
+templ entryRow(e EntryRow) {
+	<li class="entry">
+		<form class="entry__check" method="post" action={ templ.SafeURL("/groceries/entries/" + e.ID + "/check") } data-on:submit={ postForm("/groceries/entries/" + e.ID + "/check") }>
+			<button type="submit" class="entry__main" aria-label={ entryLabel(ctx, e) }>
+				<span class={ tileClass(e.Color, "") } aria-hidden="true">{ Initial(e.Name) }</span>
+				<span class="entry__text">
+					<span class="entry__name">{ e.Name }</span>
+					if e.Amount != "" || e.Note != "" {
+						<span class="entry__meta">{ joinNonEmpty(" · ", e.Amount, e.Note) }</span>
+					}
+				</span>
+				if e.By != nil {
+					<span class={ avatarClass(e.By.Color, "xs") } title={ i18n.T(ctx, "groceries.addedBy", e.By.Name) } aria-hidden="true">{ Initial(e.By.Name) }</span>
+				}
+				<span class="entry__box" aria-hidden="true"></span>
+			</button>
+		</form>
+		<a
+			class="entry__more"
+			href={ templ.SafeURL("/groceries/entries/" + e.ID + "/edit") }
+			data-on:click__prevent={ getAction("/groceries/entries/" + e.ID + "/edit") }
+			aria-label={ i18n.T(ctx, "groceries.edit", e.Name) }
+		>
+			@iconMore()
+		</a>
+	</li>
+}
+
+templ addBar(v GroceriesView) {
+	<div class="add-bar">
+		<div id="suggest" class="suggest" data-show="$_opts.length > 0" style="display: none">
+			@Suggestions(SuggestView{})
+		</div>
+		<form
+			id="add-form"
+			class="add-form"
+			method="post"
+			action={ templ.SafeURL("/groceries/lists/" + v.List.ID + "/entries") }
+			data-on:submit={ postForm("/groceries/lists/" + v.List.ID + "/entries") }
+			novalidate
+		>
+			<label class="visually-hidden" for="add-input">{ i18n.T(ctx, "groceries.addLabel") }</label>
+			<span class="add-form__icon" aria-hidden="true">
+				@iconPlus(20)
+			</span>
+			<input
+				id="add-input"
+				class="add-form__input"
+				name="text"
+				type="text"
+				value={ v.AddForm.Value("text") }
+				autocomplete="off"
+				enterkeyhint="done"
+				placeholder={ i18n.T(ctx, "groceries.addPlaceholder") }
+				role="combobox"
+				aria-autocomplete="list"
+				aria-controls="suggest"
+				data-attr:aria-expanded="String($_opts.length > 0)"
+				if v.AddForm.Error("text") != "" {
+					aria-invalid="true"
+					aria-describedby="add-error"
+				}
+				data-bind:add
+				data-on:input__debounce.150ms={ suggestAction(v.List.ID) }
+				data-on:keydown={ addKeys }
+			/>
+			<input type="hidden" name="sel" data-attr:value="$_opts[$_sel] ?? ''"/>
+			<input type="hidden" name="for" data-attr:value="$_for"/>
+			<button type="submit" class="add-form__submit">{ i18n.T(ctx, "groceries.add") }</button>
+		</form>
+		@AddError(v.AddForm.Error("text"))
+	</div>
+}
+
+// AddError is the message under the add field.
+templ AddError(msg string) {
+	<p id="add-error" class="add-bar__error" role="alert">
+		if msg != "" {
+			{ msg }
+		}
+	</p>
+}
+
+// EmptyToast is the toast region without a toast.
+templ EmptyToast() {
+	<div id="toast" class="toast-region" aria-live="polite"></div>
+}
+
+// Suggestions is the content of the box of matching items above the add
+// field; the box itself is shown while there are options. Options submit
+// the add form with their item.
+templ Suggestions(v SuggestView) {
+	<div id="suggest-body">
+		if v.Amount != "" {
+			<p class="suggest__amount">
+				<span class="badge">{ i18n.T(ctx, "groceries.suggest.amount", v.Amount) }</span>
+				{ i18n.T(ctx, "groceries.suggest.amountNote") }
+			</p>
+		}
+		<ul class="suggest__options" role="listbox" aria-label={ i18n.T(ctx, "groceries.suggest.matching") }>
+			for i, o := range v.Options {
+				<li role="option" data-attr:aria-selected={ selectedExpr(i) }>
+					<button type="submit" form="add-form" name="pick" value={ o.ItemID } class="suggest__option">
+						<span class={ tileClass(o.Color, "sm") } aria-hidden="true">{ Initial(o.Name) }</span>
+						<span class="suggest__text">
+							<span class="suggest__name">{ o.Name }</span>
+							if o.Detail != "" {
+								<span class="suggest__detail">{ o.Detail }</span>
+							}
+						</span>
+						if o.OnList {
+							<span class="suggest__on-list">
+								@iconCheck(18)
+							</span>
+						} else if v.Amount != "" {
+							<span class="suggest__action">{ i18n.T(ctx, "groceries.suggest.addAmount", v.Amount) }</span>
+						}
+					</button>
+				</li>
+			}
+			if v.Create != "" {
+				<li role="option" data-attr:aria-selected={ selectedExpr(len(v.Options)) }>
+					<button type="submit" form="add-form" name="pick" value="new" class="suggest__option suggest__option--create">
+						<span class="tile tile--sm tile--dashed" aria-hidden="true">
+							@iconPlus(16)
+						</span>
+						<span class="suggest__text">{ i18n.T(ctx, "groceries.suggest.create", v.Create) }</span>
+					</button>
+				</li>
+			}
+		</ul>
+		<p class="suggest__keys only-wide" aria-hidden="true">{ i18n.T(ctx, "groceries.suggest.keys") }</p>
+	</div>
+}
+
+// ToastRegion shows t, replacing any earlier toast.
+templ ToastRegion(t Toast) {
+	<div id="toast" class="toast-region" aria-live="polite">
+		<div class="toast" id={ "toast-" + t.Key } role="status">
+			<span class="toast__text">{ t.Message }</span>
+			if t.UndoAction != "" {
+				<form method="post" action={ templ.SafeURL(t.UndoAction) } data-on:submit={ postForm(t.UndoAction) }>
+					for k, val := range t.UndoFields {
+						<input type="hidden" name={ k } value={ val }/>
+					}
+					<button type="submit" class="toast__undo">{ i18n.T(ctx, "groceries.undo") }</button>
+				</form>
+			}
+		</div>
+	</div>
+}
+
+// EmptySheet closes the sheet.
+templ EmptySheet() {
+	<div id="sheet"></div>
+}
+
+// EntryEditSheet is the edit sheet as a modal dialog.
+templ EntryEditSheet(v EntryEditView) {
+	<div id="sheet">
+		<dialog class="sheet-dialog" aria-labelledby="sheet-title" data-init="el.open || el.showModal()" data-on:close="el.remove()">
+			@entryEditForm(v, true)
+		</dialog>
+	</div>
+}
+
+// EntryEditPage is the edit sheet as a page, without JavaScript.
+templ EntryEditPage(p Page, v EntryEditView) {
+	@Layout(p) {
+		<div class="narrow sheet">
+			@entryEditForm(v, false)
+		</div>
+	}
+}
+
+templ entryEditForm(v EntryEditView, modal bool) {
+	<div class="sheet__head">
+		<span class={ tileClass(v.Color, "lg") } aria-hidden="true">{ Initial(v.ItemName) }</span>
+		<h2 class="sheet__title" id="sheet-title">{ v.ItemName }</h2>
+		if modal {
+			<button type="button" class="icon-btn" aria-label={ i18n.T(ctx, "groceries.edit.close") } data-on:click="el.closest('dialog').close()">
+				@iconClose()
+			</button>
+		}
+	</div>
+	<form
+		id="entry-edit"
+		class="stack"
+		method="post"
+		action={ templ.SafeURL("/groceries/entries/" + v.ID + "/edit") }
+		data-on:submit={ postForm("/groceries/entries/" + v.ID + "/edit") }
+		novalidate
+	>
+		@formAlert(v.Form)
+		@textField(Field{ID: "edit-name", Name: "name", Label: i18n.T(ctx, "field.name"), Required: true, Hint: i18n.T(ctx, "groceries.edit.renameHint")}, v.Form)
+		@textField(Field{ID: "edit-amount", Name: "amount", Label: i18n.T(ctx, "groceries.edit.amount"), Hint: i18n.T(ctx, "groceries.edit.amountHint"), Attrs: templ.Attributes{"autocomplete": "off"}}, v.Form)
+		<fieldset class="choices">
+			<legend class="field__label">{ i18n.T(ctx, "groceries.edit.category") }</legend>
+			<div class="chips">
+				for _, o := range v.Categories {
+					<label class="chip chip--radio">
+						<input type="radio" name="category" value={ o.Value } checked?={ v.Form.Value("category") == o.Value }/>
+						<span>{ o.Label }</span>
+					</label>
+				}
+			</div>
+			@fieldError("edit-category-error", v.Form.Error("category"))
+			<span class="field__hint">{ i18n.T(ctx, "groceries.edit.categoryHint", v.ItemName) }</span>
+		</fieldset>
+		@textField(Field{ID: "edit-new-category", Name: "new_category", Label: i18n.T(ctx, "groceries.edit.newCategory"), LabelNote: i18n.T(ctx, "field.optional"), Hint: i18n.T(ctx, "groceries.edit.newCategoryHint"), Attrs: templ.Attributes{"autocomplete": "off"}}, v.Form)
+		<div class="field">
+			<label class="field__label" for="edit-list">{ i18n.T(ctx, "groceries.edit.list") }</label>
+			<select class="input" id="edit-list" name="list">
+				for _, o := range v.Lists {
+					<option value={ o.Value } selected?={ v.Form.Value("list") == o.Value }>{ o.Label }</option>
+				}
+			</select>
+		</div>
+		@textField(Field{ID: "edit-note", Name: "note", Label: i18n.T(ctx, "groceries.edit.note"), LabelNote: i18n.T(ctx, "field.optional")}, v.Form)
+		<div class="sheet__actions">
+			<button type="submit" form="entry-remove" class="btn btn--destructive">
+				@iconTrash()
+				{ i18n.T(ctx, "groceries.edit.remove") }
+			</button>
+			<button type="submit" class="btn btn--primary sheet__save">{ i18n.T(ctx, "form.save") }</button>
+		</div>
+	</form>
+	<form
+		id="entry-remove"
+		method="post"
+		action={ templ.SafeURL("/groceries/entries/" + v.ID + "/remove") }
+		data-on:submit={ postForm("/groceries/entries/" + v.ID + "/remove") }
+	></form>
+	if !modal {
+		<p><a href={ templ.SafeURL("/groceries/lists/" + v.ListID) }>{ i18n.T(ctx, "groceries.backToList") }</a></p>
+	}
+}
+
+// ClearCartDialog asks before clearing the cart, as a modal dialog.
+templ ClearCartDialog(v ClearCartView) {
+	<div id="sheet">
+		<dialog class="confirm-dialog" role="alertdialog" aria-labelledby="clear-title" data-init="el.open || el.showModal()" data-on:close="el.remove()">
+			@clearCartBody(v, true)
+		</dialog>
+	</div>
+}
+
+// ClearCartPage asks before clearing the cart, as a page.
+templ ClearCartPage(p Page, v ClearCartView) {
+	@Layout(p) {
+		<div class="narrow sheet">
+			@clearCartBody(v, false)
+		</div>
+	}
+}
+
+templ clearCartBody(v ClearCartView, modal bool) {
+	<span class="confirm-dialog__icon" aria-hidden="true">
+		@iconCart()
+	</span>
+	<h2 class="sheet__title" id="clear-title">{ i18n.T(ctx, "groceries.clear.title") }</h2>
+	if len(v.Items) == 0 {
+		<p class="lead">{ i18n.T(ctx, "groceries.clear.empty") }</p>
+	} else {
+		<p class="confirm-dialog__body">{ i18n.T(ctx, "groceries.clear.body", v.ListName) }</p>
+		<ul class="chips" aria-label={ i18n.T(ctx, "groceries.clear.items") }>
+			for _, name := range v.Items {
+				<li class="chip chip--static">{ name }</li>
+			}
+		</ul>
+		<p class="muted">{ i18n.T(ctx, "groceries.clear.note") }</p>
+	}
+	<div class="confirm-dialog__actions">
+		if len(v.Items) > 0 {
+			<form method="post" action={ templ.SafeURL("/groceries/lists/" + v.ListID + "/clear") } data-on:submit={ postForm("/groceries/lists/" + v.ListID + "/clear") }>
+				<button type="submit" class="btn btn--strong btn--block btn--tall">{ plural(ctx, len(v.Items), "groceries.clear.confirmOne", "groceries.clear.confirm") }</button>
+			</form>
+		}
+		if modal {
+			<button type="button" class="btn btn--secondary btn--block btn--tall" data-on:click="el.closest('dialog').close()">{ i18n.T(ctx, "groceries.clear.keep") }</button>
+		} else {
+			<a class="btn btn--secondary btn--block btn--tall" href={ templ.SafeURL("/groceries/lists/" + v.ListID) }>{ i18n.T(ctx, "groceries.clear.keep") }</a>
+		}
+	</div>
+}
+
+templ iconPlus(size int) {
+	<svg width={ size } height={ size } viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+}
+
+templ iconCheck(size int) {
+	<svg width={ size } height={ size } viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>
+}
+
+templ iconMore() {
+	<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.7"></circle><circle cx="12" cy="12" r="1.7"></circle><circle cx="12" cy="19" r="1.7"></circle></svg>
+}
+
+templ iconClose() {
+	<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+}
+
+templ iconTrash() {
+	<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"></path></svg>
+}
+
+templ iconCart() {
+	<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h2l2.4 11h10.2L20 8H7"></path><circle cx="9.5" cy="19" r="1.4"></circle><circle cx="16.5" cy="19" r="1.4"></circle></svg>
+}
+
+templ iconGrip() {
+	<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"></circle><circle cx="15" cy="6" r="1.6"></circle><circle cx="9" cy="12" r="1.6"></circle><circle cx="15" cy="12" r="1.6"></circle><circle cx="9" cy="18" r="1.6"></circle><circle cx="15" cy="18" r="1.6"></circle></svg>
+}
+
+templ iconArrow(up bool) {
+	if up {
+		<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"></path></svg>
+	} else {
+		<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"></path></svg>
+	}
+}

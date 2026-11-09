@@ -1,0 +1,133 @@
+package ui
+
+import "github.com/raphi011/mise/internal/i18n"
+
+// CategoriesView is Settings › Categories & aisles.
+type CategoriesView struct {
+	Categories    []CategoryRow
+	Uncategorised int
+	Colors        []Option
+	// New holds the new-category form.
+	New Form
+	// Edit holds the form of the category EditID after an error.
+	EditID string
+	Edit   Form
+	Notice string
+}
+
+// CategoryRow is one category in aisle order.
+type CategoryRow struct {
+	ID    string
+	Name  string
+	Color string
+	Items int
+}
+
+templ Categories(p Page, v CategoriesView) {
+	@Layout(p) {
+		@CategoriesBody(v)
+	}
+}
+
+// CategoriesBody is the categories page content, patched after a drag.
+templ CategoriesBody(v CategoriesView) {
+	<div id="categories" class="narrow stack">
+		@notice(v.Notice)
+		<p class="lead">{ i18n.T(ctx, "categories.lead") }</p>
+		<p class="muted hint-row">
+			@iconGrip()
+			{ i18n.T(ctx, "categories.dragHint") }
+		</p>
+		<ol class="list aisles" aria-label={ i18n.T(ctx, "categories.order") } data-signals="{_drag: ''}">
+			for i, c := range v.Categories {
+				<li
+					class="aisle"
+					draggable="true"
+					data-on:dragstart={ "$_drag = '" + c.ID + "'; evt.dataTransfer.effectAllowed = 'move'; evt.dataTransfer.setData('text/plain', '" + c.ID + "')" }
+					data-on:dragend="$_drag = ''"
+					data-on:dragover__prevent="evt.dataTransfer.dropEffect = 'move'"
+					data-on:drop__prevent={ "$_drag && $_drag !== '" + c.ID + "' && @post('/settings/categories/' + $_drag + '/move', {payload: {to: " + itoa(i) + "}})" }
+					data-class:aisle--dragging={ "$_drag === '" + c.ID + "'" }
+				>
+					<div class="aisle__row">
+						<span class="aisle__grip" aria-hidden="true">
+							@iconGrip()
+						</span>
+						<span class="aisle__pos" aria-hidden="true">{ itoa(i + 1) }</span>
+						<span class={ "aisle__swatch avatar--" + c.Color } aria-hidden="true"></span>
+						<details class="disclosure aisle__details" open?={ v.EditID == c.ID }>
+							<summary class="aisle__summary" aria-label={ i18n.T(ctx, "categories.edit", c.Name) }>
+								<span class="aisle__name">{ c.Name }</span>
+								<span class="muted">{ plural(ctx, c.Items, "categories.itemsOne", "categories.items") }</span>
+							</summary>
+							<div class="stack disclosure__body">
+								<form class="stack" method="post" action={ templ.SafeURL("/settings/categories/" + c.ID) } novalidate>
+									if v.EditID == c.ID {
+										@formAlert(v.Edit)
+									}
+									@textField(Field{ID: "category-name-" + c.ID, Name: "name", Label: i18n.T(ctx, "field.name"), Required: true}, categoryForm(v, c))
+									@colorChoice("category-color-"+c.ID, v.Colors, categoryForm(v, c))
+									<div>
+										<button class="btn btn--secondary btn--small" type="submit">{ i18n.T(ctx, "form.save") }</button>
+									</div>
+								</form>
+								<details class="disclosure disclosure--danger">
+									<summary class="disclosure__summary">{ i18n.T(ctx, "categories.delete") }</summary>
+									<div class="stack disclosure__body">
+										<p>{ i18n.T(ctx, "categories.deleteNote") }</p>
+										<div>
+											@postButton("/settings/categories/"+c.ID+"/delete", i18n.T(ctx, "categories.deleteConfirm", c.Name), "btn btn--destructive", nil)
+										</div>
+									</div>
+								</details>
+							</div>
+						</details>
+						<form class="inline-form" method="post" action={ templ.SafeURL("/settings/categories/" + c.ID + "/move") }>
+							<input type="hidden" name="to" value={ itoa(i - 1) }/>
+							<button class="icon-btn" type="submit" disabled?={ i == 0 } aria-label={ i18n.T(ctx, "categories.moveUp", c.Name) }>
+								@iconArrow(true)
+							</button>
+						</form>
+						<form class="inline-form" method="post" action={ templ.SafeURL("/settings/categories/" + c.ID + "/move") }>
+							<input type="hidden" name="to" value={ itoa(i + 1) }/>
+							<button class="icon-btn" type="submit" disabled?={ i == len(v.Categories)-1 } aria-label={ i18n.T(ctx, "categories.moveDown", c.Name) }>
+								@iconArrow(false)
+							</button>
+						</form>
+					</div>
+				</li>
+			}
+		</ol>
+		<div class="aisle aisle--fixed">
+			<span class="list__text">
+				<span class="aisle__name">{ i18n.T(ctx, "groceries.uncategorised") }</span>
+				<span class="muted">{ plural(ctx, v.Uncategorised, "categories.uncategorisedNoteOne", "categories.uncategorisedNote") }</span>
+			</span>
+		</div>
+		<form class="card stack" method="post" action="/settings/categories" novalidate>
+			<h2 class="card__title">{ i18n.T(ctx, "categories.new") }</h2>
+			@formAlert(v.New)
+			@textField(Field{ID: "new-category-name", Name: "name", Label: i18n.T(ctx, "field.name"), Required: true}, v.New)
+			@colorChoice("new-category-color", v.Colors, v.New)
+			<div>
+				<button class="btn btn--secondary" type="submit">{ i18n.T(ctx, "categories.create") }</button>
+			</div>
+		</form>
+		<p class="fine-print">{ i18n.T(ctx, "categories.footer") }</p>
+	</div>
+}
+
+templ colorChoice(id string, colors []Option, form Form) {
+	<fieldset class="swatches swatches--start" aria-describedby={ id + "-error" }>
+		<legend class="field__label">{ i18n.T(ctx, "categories.color") }</legend>
+		<div class="swatches__options">
+			for _, c := range colors {
+				<label class={ "swatch avatar--" + c.Value }>
+					<input type="radio" name="color" value={ c.Value } checked?={ form.Value("color") == c.Value }/>
+					<span class="visually-hidden">{ c.Label }</span>
+				</label>
+			}
+		</div>
+		@fieldError(id+"-error", form.Error("color"))
+	</fieldset>
+}

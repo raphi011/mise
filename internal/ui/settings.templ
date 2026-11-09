@@ -18,6 +18,16 @@ type SettingsView struct {
 	Languages []Option
 	// Notice is a translated status message after a change.
 	Notice string
+	// Lists are the household's shopping lists.
+	Lists []ListTab
+	// ListForm holds errors of a list form; ListFormID names the list it
+	// belongs to ("" for the new-list form).
+	ListForm   Form
+	ListFormID string
+	// UndoList is a list just deleted, offered for restoring.
+	UndoList string
+	// Categories counts the household's categories.
+	Categories int
 }
 
 // MemberRow is one person in the People list.
@@ -42,10 +52,19 @@ type InviteRow struct {
 
 templ Settings(p Page, v SettingsView) {
 	@Layout(p) {
-		@notice(v.Notice)
+		if v.UndoList != "" {
+			<div class="notice notice--undo" role="status" aria-live="polite">
+				<span>{ v.Notice }</span>
+				@postButton("/settings/lists/"+v.UndoList+"/restore", i18n.T(ctx, "groceries.undo"), "btn-link", nil)
+			</div>
+		} else {
+			@notice(v.Notice)
+		}
 		<div class="settings">
 			<nav class="settings-nav" aria-label={ i18n.T(ctx, "settings.sections") }>
 				<a href="#people">{ i18n.T(ctx, "settings.people") }</a>
+				<a href="#lists">{ i18n.T(ctx, "settings.lists") }</a>
+				<a href="#groceries">{ i18n.T(ctx, "settings.groceries") }</a>
 				<a href="#app">{ i18n.T(ctx, "settings.appAccount") }</a>
 			</nav>
 			<div class="settings-body">
@@ -97,6 +116,21 @@ templ Settings(p Page, v SettingsView) {
 						}
 					</ul>
 					<span class="settings-section__foot">{ i18n.T(ctx, "settings.peopleNote") }</span>
+				</section>
+				@listsSection(v)
+				<section class="settings-section" id="groceries" aria-labelledby="groceries-title">
+					<div class="settings-section__head">
+						<h2 class="settings-section__title" id="groceries-title">{ i18n.T(ctx, "settings.groceries") }</h2>
+					</div>
+					<ul class="list" role="list">
+						<li class="list__row">
+							<a class="list__link" href="/settings/categories">
+								<span class="list__text">{ i18n.T(ctx, "settings.categories") }</span>
+								<span class="role-label">{ itoa(v.Categories) }</span>
+								@chevron()
+							</a>
+						</li>
+					</ul>
 				</section>
 				<section class="settings-section" id="app" aria-labelledby="app-title">
 					<div class="settings-section__head">
@@ -388,4 +422,66 @@ templ MemberPage(p Page, v MemberPageView) {
 			}
 		</div>
 	}
+}
+
+templ listsSection(v SettingsView) {
+	<section class="settings-section" id="lists" aria-labelledby="lists-title">
+		<div class="settings-section__head">
+			<span class="settings-section__titles">
+				<h2 class="settings-section__title" id="lists-title">{ i18n.T(ctx, "settings.lists") }</h2>
+				<span class="settings-section__desc">{ i18n.T(ctx, "settings.listsNote") }</span>
+			</span>
+		</div>
+		<ul class="list" role="list">
+			for i, l := range v.Lists {
+				<li class="list__row">
+					<details class="disclosure" open?={ v.ListFormID == l.ID }>
+						<summary class="list__link">
+							<span class="list__text">{ l.Name }</span>
+							<span class="role-label">
+								if l.Open > 0 {
+									{ i18n.T(ctx, "settings.listItems", l.Open) }
+								} else {
+									{ i18n.T(ctx, "settings.listEmpty") }
+								}
+							</span>
+							@chevron()
+						</summary>
+						<div class="stack disclosure__body">
+							<form class="stack" method="post" action={ templ.SafeURL("/settings/lists/" + l.ID + "/rename") } novalidate>
+								if v.ListFormID == l.ID {
+									@formAlert(v.ListForm)
+								}
+								@textField(Field{ID: "list-name-" + l.ID, Name: "name", Label: i18n.T(ctx, "settings.listName"), Required: true}, listNameForm(v, l))
+								<div>
+									<button class="btn btn--secondary btn--small" type="submit">{ i18n.T(ctx, "settings.rename") }</button>
+								</div>
+							</form>
+							<div class="settings-actions">
+								if i > 0 {
+									@postButton("/settings/lists/"+l.ID+"/move", i18n.T(ctx, "settings.moveUp"), "btn btn--ghost btn--small", map[string]string{"to": itoa(i - 1)})
+								}
+								if i < len(v.Lists)-1 {
+									@postButton("/settings/lists/"+l.ID+"/move", i18n.T(ctx, "settings.moveDown"), "btn btn--ghost btn--small", map[string]string{"to": itoa(i + 1)})
+								}
+								if len(v.Lists) > 1 {
+									@postButton("/settings/lists/"+l.ID+"/delete", i18n.T(ctx, "settings.deleteList"), "btn btn--ghost btn--small btn--danger-text", nil)
+								}
+							</div>
+						</div>
+					</details>
+				</li>
+			}
+		</ul>
+		<form class="card stack" method="post" action="/settings/lists" novalidate>
+			if v.ListFormID == "" {
+				@formAlert(v.ListForm)
+			}
+			@textField(Field{ID: "new-list-name", Name: "name", Label: i18n.T(ctx, "settings.newList"), Required: true}, newListForm(v))
+			<div>
+				<button class="btn btn--secondary btn--small" type="submit">{ i18n.T(ctx, "settings.createList") }</button>
+			</div>
+		</form>
+		<span class="settings-section__foot">{ i18n.T(ctx, "settings.listsNote") }</span>
+	</section>
 }

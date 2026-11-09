@@ -21,14 +21,18 @@ const inviteCookie = "mise_new_invite"
 
 // notices maps the ?done= parameter of a redirect to its status message.
 var notices = map[string]i18n.Key{
-	"saved":         "notice.saved",
-	"password":      "notice.passwordChanged",
-	"revoked":       "notice.deviceSignedOut",
-	"revokedOthers": "notice.othersSignedOut",
-	"inviteRevoked": "notice.inviteRevoked",
-	"role":          "notice.roleChanged",
-	"reset":         "notice.passwordSet",
-	"removed":       "notice.memberRemoved",
+	"saved":           "notice.saved",
+	"password":        "notice.passwordChanged",
+	"revoked":         "notice.deviceSignedOut",
+	"revokedOthers":   "notice.othersSignedOut",
+	"inviteRevoked":   "notice.inviteRevoked",
+	"role":            "notice.roleChanged",
+	"reset":           "notice.passwordSet",
+	"removed":         "notice.memberRemoved",
+	"listCreated":     "notice.listCreated",
+	"listDeleted":     "notice.listDeleted",
+	"listRestored":    "notice.listRestored",
+	"categoryDeleted": "notice.categoryDeleted",
 }
 
 func noticeFor(r *http.Request) string {
@@ -71,10 +75,22 @@ func roleOptions(r *http.Request) []ui.Option {
 // ---- Overview ----
 
 func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
-	s.renderSettings(w, r, http.StatusOK, ui.Form{}, noticeFor(r))
+	s.renderSettings(w, r, http.StatusOK, settingsState{notice: noticeFor(r), undoList: undoListParam(r)})
 }
 
-func (s *Server) renderSettings(w http.ResponseWriter, r *http.Request, status int, prefs ui.Form, notice string) {
+// settingsState is what a settings render carries besides stored data:
+// submitted forms with errors and the status message.
+type settingsState struct {
+	prefs ui.Form
+	// list is a shopping-list form with errors; listID names its list, or
+	// is empty for the new-list form.
+	list     ui.Form
+	listID   string
+	undoList string
+	notice   string
+}
+
+func (s *Server) renderSettings(w http.ResponseWriter, r *http.Request, status int, st settingsState) {
 	ctx := r.Context()
 	id := identity(r)
 	sc, err := s.db.Scope(ctx)
@@ -87,15 +103,29 @@ func (s *Server) renderSettings(w http.ResponseWriter, r *http.Request, status i
 		s.serverError(w, r, err)
 		return
 	}
+	lists, err := s.groceries.Lists(ctx, sc)
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	cats, err := s.groceries.Categories(ctx, sc)
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
 	v := ui.SettingsView{
 		Name: id.Name, Username: id.Username, Color: id.AvatarColor, Admin: id.IsAdmin(),
-		Prefs: prefs, Notice: notice,
+		Prefs: st.prefs, Notice: st.notice,
+		ListForm: st.list, ListFormID: st.listID, UndoList: st.undoList, Categories: len(cats),
 		Themes: []ui.Option{
 			{Value: "system", Label: i18n.T(ctx, "theme.system")},
 			{Value: "light", Label: i18n.T(ctx, "theme.light")},
 			{Value: "dark", Label: i18n.T(ctx, "theme.dark")},
 		},
 		Languages: languageOptions(r),
+	}
+	for _, l := range lists {
+		v.Lists = append(v.Lists, ui.ListTab{ID: l.ID.String(), Name: l.Name, Open: l.Open})
 	}
 	if v.Prefs.Values == nil {
 		v.Prefs.Values = map[string]string{"theme": id.Theme, "language": id.Language}
@@ -152,7 +182,7 @@ func (s *Server) savePreferences(w http.ResponseWriter, r *http.Request) {
 	f := formOf(r, "theme", "language")
 	err := s.auth.UpdatePreferences(r.Context(), identity(r), auth.Preferences{Theme: f.Value("theme"), Language: f.Value("language")})
 	if f, ok := withErrors(r.Context(), f, err); ok {
-		s.renderSettings(w, r, http.StatusUnprocessableEntity, f, "")
+		s.renderSettings(w, r, http.StatusUnprocessableEntity, settingsState{prefs: f})
 		return
 	}
 	if err != nil {
@@ -255,6 +285,7 @@ func (s *Server) changePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	refundAll(attempts)
+	s.sessionsEnded(id.UserID)
 	seeOther(w, r, "/settings/account?done=password")
 }
 
@@ -270,6 +301,7 @@ func (s *Server) revokeSession(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
+	s.sessionsEnded(id.UserID)
 	if sessionID == id.SessionID {
 		s.auth.ClearSessionCookie(w, r)
 		seeOther(w, r, "/signin")
@@ -283,6 +315,7 @@ func (s *Server) revokeOtherSessions(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
+	s.sessionsEnded(identity(r).UserID)
 	seeOther(w, r, "/settings/account?done=revokedOthers")
 }
 
@@ -527,6 +560,7 @@ func (s *Server) resetPassword(w http.ResponseWriter, r *http.Request) {
 		s.adminError(w, r, err)
 		return
 	}
+	s.sessionsEnded(userID)
 	seeOther(w, r, "/settings/people/"+userID.String()+"?done=reset")
 }
 
@@ -547,5 +581,6 @@ func (s *Server) removeMember(w http.ResponseWriter, r *http.Request) {
 		s.adminError(w, r, err)
 		return
 	}
+	s.sessionsEnded(userID)
 	seeOther(w, r, "/settings?done=removed#people")
 }

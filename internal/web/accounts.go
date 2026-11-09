@@ -21,17 +21,24 @@ func formOf(r *http.Request, names ...string) ui.Form {
 	return f
 }
 
+// fieldErrors is implemented by the validation errors of domain packages
+// (auth.FieldErrors, groceries.FieldErrors).
+type fieldErrors interface {
+	error
+	Fields() map[string]i18n.Key
+}
+
 // withErrors translates validation errors into f. It reports false when err
 // is not a validation error.
 func withErrors(ctx context.Context, f ui.Form, err error) (ui.Form, bool) {
-	var fe auth.FieldErrors
+	var fe fieldErrors
 	if !errors.As(err, &fe) {
 		return f, false
 	}
 	if f.Errors == nil {
 		f.Errors = map[string]string{}
 	}
-	for field, key := range fe {
+	for field, key := range fe.Fields() {
 		f.Errors[field] = i18n.T(ctx, key)
 	}
 	return f, true
@@ -212,6 +219,7 @@ func (s *Server) signOut(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
+	s.sessionsEnded(id.UserID)
 	s.auth.ClearSessionCookie(w, r)
 	seeOther(w, r, "/signin")
 }
