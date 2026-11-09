@@ -27,6 +27,11 @@ type Page struct {
 	BackLabel string
 	// Actions, when set, render in the page header after the title.
 	Actions templ.Component
+	// Bar makes the header a form bar, as on pages that save or cancel:
+	// BackLabel is a text link instead of an arrow, and the avatar is left
+	// out. On phones it is a compact "Cancel · title · Save" bar with a
+	// small centred title.
+	Bar bool
 	// NavExtra, when set, renders under the main links in the desktop
 	// sidebar (e.g. the recipe tags).
 	NavExtra templ.Component
@@ -72,8 +77,10 @@ templ Layout(p Page) {
 			@nav(p.Active, p.User, p.NavExtra)
 			<main class="main" id="main">
 				<div class="content">
-					<header class="page-header">
-						if p.BackHref != "" {
+					<header class={ "page-header", templ.KV("page-header--bar", p.Bar) }>
+						if p.BackHref != "" && p.Bar {
+							<a class="btn btn--ghost btn--small page-header__cancel" href={ templ.SafeURL(p.BackHref) }>{ p.BackLabel }</a>
+						} else if p.BackHref != "" {
 							@backLink(p.BackHref, p.BackLabel)
 						}
 						@PageTitle(p.Title)
@@ -82,7 +89,7 @@ templ Layout(p Page) {
 								@p.Actions
 							</div>
 						}
-						if p.User != nil {
+						if p.User != nil && !p.Bar {
 							@avatarLink(p.User)
 						}
 					</header>

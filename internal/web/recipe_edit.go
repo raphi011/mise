@@ -340,6 +340,7 @@ func (s *Server) renderEditor(w http.ResponseWriter, r *http.Request, status int
 	}
 	p := s.page(r, title, ui.NavRecipes)
 	p.BackHref, p.BackLabel = v.Cancel(), i18n.T(ctx, "recipes.edit.cancel")
+	p.Bar = true
 	p.Actions = ui.RecipeEditActions(v)
 	s.render(w, r, status, ui.RecipeEdit(p, v))
 }

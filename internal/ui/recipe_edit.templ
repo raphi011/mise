@@ -168,7 +168,6 @@ templ RecipeEdit(p Page, v RecipeEditView) {
 // RecipeEditActions are the editor's header buttons. Save comes first in
 // tree order, so Enter in a field saves.
 templ RecipeEditActions(v RecipeEditView) {
-	<a class="btn btn--ghost btn--small" href={ templ.SafeURL(v.Cancel()) }>{ i18n.T(ctx, "recipes.edit.cancel") }</a>
 	<button type="submit" form="recipe-form" class="btn btn--primary btn--small">{ i18n.T(ctx, "recipes.edit.save") }</button>
 }
 
