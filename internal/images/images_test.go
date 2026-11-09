@@ -229,3 +229,63 @@ func TestSaveStoredAndSweepable(t *testing.T) {
 		t.Errorf("orphan full size not listed: %+v, %v", list, err)
 	}
 }
+
+// jpegSOF returns the start of a JPEG with a frame header and the start of
+// a scan: enough for image.DecodeConfig (which reads up to the scan for
+// colour components), not for decoding. sampling holds each component's
+// factors as 0xHV.
+func jpegSOF(marker byte, w, h int, sampling ...byte) []byte {
+	b := []byte{0xFF, 0xD8, 0xFF, marker}
+	b = binary.BigEndian.AppendUint16(b, uint16(8+3*len(sampling)))
+	b = append(b, 8)
+	b = binary.BigEndian.AppendUint16(b, uint16(h))
+	b = binary.BigEndian.AppendUint16(b, uint16(w))
+	b = append(b, byte(len(sampling)))
+	for i, hv := range sampling {
+		b = append(b, byte(i+1), hv, 0)
+	}
+	return append(b, 0xFF, 0xDA, 0x00, 0x08, 0x01, 0x01, 0x00, 0x00, 0x3F, 0x00)
+}
+
+// TestProgressiveDecodeBudget checks that progressive JPEGs pay for the
+// coefficients image/jpeg keeps on top of the decoded pixels.
+func TestProgressiveDecodeBudget(t *testing.T) {
+	const (
+		sof0 = 0xC0 // baseline
+		sof2 = 0xC2 // progressive
+	)
+	// 4000×3000 at 4:2:0: 250×188 MCUs of 16×16; Y has 4 blocks per
+	// MCU, Cb and Cr one each, at 256 bytes a block.
+	f, err := readJPEGFrame(jpegSOF(sof2, 4000, 3000, 0x22, 0x11, 0x11))
+	if err != nil || !f.progressive {
+		t.Fatalf("frame %+v, %v", f, err)
+	}
+	if got, want := f.coefficientBytes(), int64(250*188*6*256); got != want {
+		t.Errorf("coefficients %d, want %d", got, want)
+	}
+	if f, _ := readJPEGFrame(jpegSOF(sof0, 4000, 3000, 0x22, 0x11, 0x11)); f.progressive {
+		t.Error("baseline read as progressive")
+	}
+
+	s := New(t.TempDir())
+	hh := uuid.New()
+	for name, tc := range map[string]struct {
+		data []byte
+		want error
+	}{
+		// Within budget, so they get to the decoder, which fails on the
+		// headers-only data.
+		"baseline 30 MP":    {jpegSOF(sof0, 6000, 5000, 0x22, 0x11, 0x11), ErrUnsupported},
+		"progressive 12 MP": {jpegSOF(sof2, 4000, 3000, 0x22, 0x11, 0x11), ErrUnsupported},
+		"progressive 30 MP": {jpegSOF(sof2, 6000, 5000, 0x22, 0x11, 0x11), ErrTooManyPx},
+		// 4:4:4 keeps 12 bytes of coefficients per pixel: 9 MP fits, 12 MP
+		// does not.
+		"progressive 4:4:4 9M":  {jpegSOF(sof2, 3600, 2500, 0x11, 0x11, 0x11), ErrUnsupported},
+		"progressive 4:4:4 12M": {jpegSOF(sof2, 4000, 3000, 0x11, 0x11, 0x11), ErrTooManyPx},
+		"bad sampling":          {jpegSOF(sof2, 100, 100, 0x00), ErrUnsupported},
+	} {
+		if _, err := s.Save(t.Context(), hh, bytes.NewReader(tc.data)); !errors.Is(err, tc.want) {
+			t.Errorf("%s: %v, want %v", name, err, tc.want)
+		}
+	}
+}

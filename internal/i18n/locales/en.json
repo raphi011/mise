@@ -444,7 +444,7 @@
   "recipes.edit.removePhoto": "Remove photo",
   "recipes.edit.photoHint": "JPEG, PNG or WebP, up to 15 MB.",
   "recipes.photo.tooLarge": "That photo is larger than 15 MB. Pick a smaller one.",
-  "recipes.photo.tooManyPixels": "That photo has more than 40 megapixels. Pick a smaller one.",
+  "recipes.photo.tooManyPixels": "That photo is too big to process. Pick a smaller one.",
   "recipes.photo.heic": "HEIC photos aren't supported. Convert to JPEG or pick from Photos.",
   "recipes.photo.unsupported": "That file isn't a JPEG, PNG or WebP image.",
   "settings.recipes": "Recipes",

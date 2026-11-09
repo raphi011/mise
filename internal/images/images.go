@@ -33,9 +33,10 @@ const (
 	MaxUploadBytes = 15 << 20
 	// MaxPixels caps an upload's dimensions before it is decoded.
 	MaxPixels = 40_000_000
-	// maxDecodeBytes caps the memory a decoded upload may take: 40
-	// megapixels at 8-bit RGBA. A 16-bit image of that size would take
-	// twice as much and is rejected.
+	// maxDecodeBytes caps the memory decoding an upload may take (see
+	// decodeBytes): 40 megapixels at 8-bit RGBA. A 16-bit image of that
+	// size would take twice as much and is rejected, and so is a
+	// progressive JPEG over about 16 megapixels at 4:2:0 or 10 at 4:4:4.
 	maxDecodeBytes = 4 * MaxPixels
 	// FullEdge and ThumbEdge are the long edges of the stored sizes.
 	FullEdge  = 2400
@@ -112,7 +113,14 @@ func (s *Store) Save(ctx context.Context, hh uuid.UUID, r io.Reader) (string, er
 		return "", ErrUnsupported
 	}
 	px := int64(cfg.Width) * int64(cfg.Height)
-	if cfg.Width <= 0 || cfg.Height <= 0 || px > MaxPixels || px*bytesPerPixel(cfg.ColorModel) > maxDecodeBytes {
+	if cfg.Width <= 0 || cfg.Height <= 0 || px > MaxPixels {
+		return "", ErrTooManyPx
+	}
+	need, err := decodeBytes(data, cfg)
+	if err != nil {
+		return "", err
+	}
+	if need > maxDecodeBytes {
 		return "", ErrTooManyPx
 	}
 
@@ -163,6 +171,24 @@ func (s *Store) touch(hh uuid.UUID, hash string) (bool, error) {
 		}
 	}
 	return true, nil
+}
+
+// decodeBytes estimates the memory decoding an image takes: the decoded
+// pixels, plus for a progressive JPEG the DCT coefficients image/jpeg keeps
+// for every block until the last scan.
+func decodeBytes(data []byte, cfg image.Config) (int64, error) {
+	n := int64(cfg.Width) * int64(cfg.Height) * bytesPerPixel(cfg.ColorModel)
+	if !isJPEG(data) {
+		return n, nil
+	}
+	f, err := readJPEGFrame(data)
+	if err != nil {
+		return 0, ErrUnsupported
+	}
+	if f.progressive {
+		n += f.coefficientBytes()
+	}
+	return n, nil
 }
 
 // bytesPerPixel is roughly what decoding an image of model m takes per
