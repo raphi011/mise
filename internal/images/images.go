@@ -42,6 +42,9 @@ const (
 	FullEdge  = 2400
 	ThumbEdge = 600
 	quality   = 85
+	// maxDecodes is how many uploads decode at once: one, since each may
+	// take maxDecodeBytes and a second would double the peak.
+	maxDecodes = 1
 )
 
 // Size names a stored size.
@@ -70,13 +73,15 @@ func ValidHash(s string) bool { return hashRE.MatchString(s) }
 // Store saves and opens images under a directory.
 type Store struct {
 	dir string
-	// sem bounds concurrent decodes: each takes up to maxDecodeBytes.
+	// sem bounds concurrent decodes (maxDecodes).
 	sem chan struct{}
+	// decoding, when set, runs while a save holds a decode slot (tests).
+	decoding func()
 }
 
 // New returns a Store under dataDir/images.
 func New(dataDir string) *Store {
-	return &Store{dir: filepath.Join(dataDir, "images"), sem: make(chan struct{}, 2)}
+	return &Store{dir: filepath.Join(dataDir, "images"), sem: make(chan struct{}, maxDecodes)}
 }
 
 func (s *Store) householdDir(hh uuid.UUID) string { return filepath.Join(s.dir, hh.String()) }
@@ -130,30 +135,38 @@ func (s *Store) Save(ctx context.Context, hh uuid.UUID, r io.Reader) (string, er
 		return "", ctx.Err()
 	}
 	defer func() { <-s.sem }()
-
-	src, _, err := image.Decode(bytes.NewReader(data))
-	if err != nil {
-		return "", ErrUnsupported
+	if s.decoding != nil {
+		s.decoding()
 	}
+	if err := s.store(hh, hash, data); err != nil {
+		return "", err
+	}
+	return hash, nil
+}
+
+// store decodes data and writes both sizes. The decoded pixels are locals
+// of this call, so nothing holds them once it returns and the slot is free.
+func (s *Store) store(hh uuid.UUID, hash string, data []byte) error {
 	orient := 1
 	if isJPEG(data) {
 		orient = exifOrientation(data)
 	}
+	src, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return ErrUnsupported
+	}
+	// src is dead after this line, so a GC during the encodes can free it.
 	full := orientImage(resize(src, FullEdge), orient)
-	thumb := resize(full, ThumbEdge)
 
 	if err := os.MkdirAll(s.householdDir(hh), 0o750); err != nil {
-		return "", err
+		return err
 	}
 	// Full first: a thumbnail marks the image as stored (see touch and
 	// List), so it must not exist without the full size.
 	if err := writeJPEG(s.path(hh, hash, Full), full); err != nil {
-		return "", err
+		return err
 	}
-	if err := writeJPEG(s.path(hh, hash, Thumb), thumb); err != nil {
-		return "", err
-	}
-	return hash, nil
+	return writeJPEG(s.path(hh, hash, Thumb), resize(full, ThumbEdge))
 }
 
 // touch reports whether both sizes of hash are stored and, if so, marks

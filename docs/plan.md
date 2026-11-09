@@ -197,7 +197,7 @@ Derived, not stored: "on a list" per ingredient, times cooked (count of `cook_ev
 
 ### Images
 
-- Upload via form, max 15 MB. Before decoding, `image.DecodeConfig` rejects images over 40 megapixels.
+- Upload via form, max 15 MB. Before decoding, `image.DecodeConfig` rejects images over 40 megapixels. One upload decodes at a time (a 40 MP decode is about 160 MB); a request waiting for its turn gives up when it is cancelled.
 - Accepted: JPEG, PNG, WebP (sniffed from bytes, not the extension). HEIC/HEIF is detected and rejected with a clear message ("Convert to JPEG or pick from Photos"). The file input lists `image/jpeg` first, which makes iOS convert when picking from Photos; picks from Files and macOS uploads can still send HEIC.
 - EXIF orientation is read and applied before re-encoding (which strips all metadata).
 - Output: original capped at 2400 px long edge and a 600 px thumbnail, both JPEG.
