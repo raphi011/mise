@@ -96,8 +96,16 @@ type Input struct {
 	Photo       string
 	Tags        []string
 	Ingredients []IngredientInput
-	// Steps are the method's steps in order; blank ones are dropped.
-	Steps []string
+	// Steps are the method's steps in order; steps without text or timer
+	// are dropped.
+	Steps []StepInput
+}
+
+// StepInput is one step of the method as the editor submits it.
+type StepInput struct {
+	Text string
+	// TimerSeconds is the step's cook-mode timer, or nil for none.
+	TimerSeconds *int
 }
 
 // IngredientInput is one ingredient row. ItemID picks a catalogue item;
@@ -137,6 +145,7 @@ const (
 	maxItemNameLen    = 80
 	maxAmountLen      = 40
 	maxMinutes        = 24 * 60
+	maxTimerSeconds   = maxMinutes * 60
 	maxServings       = 100
 )
 
@@ -215,7 +224,8 @@ func (in *Input) clean() error {
 
 	steps := in.Steps[:0:0]
 	for _, st := range in.Steps {
-		if st = strings.TrimSpace(st); st != "" {
+		st.Text = strings.TrimSpace(st.Text)
+		if st.Text != "" || st.TimerSeconds != nil {
 			steps = append(steps, st)
 		}
 	}
@@ -224,7 +234,14 @@ func (in *Input) clean() error {
 		errs["steps"] = "form.error.tooMany"
 	}
 	for i, st := range in.Steps {
-		checkLen(errs, "steps."+strconv.Itoa(i), st, maxStepLen)
+		field := "steps." + strconv.Itoa(i)
+		if st.Text == "" {
+			errs[field] = "form.error.required"
+		}
+		checkLen(errs, field, st.Text, maxStepLen)
+		if t := st.TimerSeconds; t != nil && (*t < 1 || *t > maxTimerSeconds) {
+			errs[field+".timer"] = "form.error.range"
+		}
 	}
 	return errs.orNil()
 }
@@ -421,43 +438,60 @@ func (s *Service) writeIngredients(ctx context.Context, q store.Querier, sc stor
 }
 
 // writeSteps keeps the ID of every step whose text is unchanged, wherever
-// it moved; the editor posts steps as plain text, so an edited step is a
-// new one.
-func writeSteps(ctx context.Context, q store.Querier, sc store.Scoped, id uuid.UUID, steps []string, now store.Time, existing bool) error {
+// it moved, and updates its position and timer; the editor posts steps as
+// plain text, so an edited step is a new one.
+func writeSteps(ctx context.Context, q store.Querier, sc store.Scoped, id uuid.UUID, steps []StepInput, now store.Time, existing bool) error {
 	hh := sc.HouseholdID()
-	byText := map[string][]uuid.UUID{}
+	type oldStep struct {
+		ID           uuid.UUID
+		Position     int
+		TimerSeconds *int
+	}
+	byText := map[string][]oldStep{}
 	stale := map[uuid.UUID]bool{}
 	if existing {
 		var old []struct {
-			ID   uuid.UUID
+			oldStep
 			Text string
 		}
-		if err := q.Select(ctx, &old, `SELECT id, text FROM steps WHERE household_id = ? AND recipe_id = ? ORDER BY position, id`,
-			hh, id); err != nil {
+		if err := q.Select(ctx, &old, `SELECT id, position, timer_seconds, text FROM steps
+			WHERE household_id = ? AND recipe_id = ? ORDER BY position, id`, hh, id); err != nil {
 			return err
 		}
 		for _, st := range old {
-			byText[st.Text] = append(byText[st.Text], st.ID)
+			byText[st.Text] = append(byText[st.Text], st.oldStep)
 			stale[st.ID] = true
 		}
 	}
-	for i, text := range steps {
-		if ids := byText[text]; len(ids) > 0 {
-			byText[text] = ids[1:]
-			delete(stale, ids[0])
-			if _, err := q.Exec(ctx, `UPDATE steps SET position = ?, updated_at = ?
-				WHERE household_id = ? AND recipe_id = ? AND id = ? AND position <> ?`,
-				i, now, hh, id, ids[0], i); err != nil {
+	for i, st := range steps {
+		if olds := byText[st.Text]; len(olds) > 0 {
+			o := olds[0]
+			byText[st.Text] = olds[1:]
+			delete(stale, o.ID)
+			if o.Position == i && equalInt(o.TimerSeconds, st.TimerSeconds) {
+				continue
+			}
+			if _, err := q.Exec(ctx, `UPDATE steps SET position = ?, timer_seconds = ?, updated_at = ?
+				WHERE household_id = ? AND recipe_id = ? AND id = ?`,
+				i, st.TimerSeconds, now, hh, id, o.ID); err != nil {
 				return err
 			}
 			continue
 		}
-		if _, err := q.Exec(ctx, `INSERT INTO steps (id, household_id, recipe_id, position, text, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?)`, store.NewID(), hh, id, i, text, now, now); err != nil {
+		if _, err := q.Exec(ctx, `INSERT INTO steps (id, household_id, recipe_id, position, text, timer_seconds, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, store.NewID(), hh, id, i, st.Text, st.TimerSeconds, now, now); err != nil {
 			return err
 		}
 	}
 	return deleteChildren(ctx, q, sc, "steps", id, stale)
+}
+
+// equalInt reports whether two optional numbers are equal.
+func equalInt(a, b *int) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
 }
 
 type recipeRow struct {

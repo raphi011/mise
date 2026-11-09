@@ -63,57 +63,37 @@ function renumberSteps(steps) {
   [...steps.querySelectorAll(":scope > [data-step]")].forEach((li, i) => {
     const n = String(i + 1);
     li.querySelector("[data-step-n]").textContent = n;
+    const relabel = (el) => (el.textContent = el.textContent.replace(/\d+/, n));
     const area = li.querySelector("textarea");
     area.id = "step-" + i;
     const label = li.querySelector("[data-step-label]");
     label.htmlFor = area.id;
-    label.textContent = label.textContent.replace(/\d+/, n);
+    relabel(label);
+    const timer = li.querySelector("input[name=step_timer]");
+    timer.id = "step-timer-" + i;
+    const timerLabel = li.querySelector("[data-step-timer-label]");
+    timerLabel.htmlFor = timer.id;
+    relabel(timerLabel);
     const rm = li.querySelector("[data-step-remove]");
     rm.value = "step-remove:" + i;
     rm.setAttribute("aria-label", rm.getAttribute("aria-label").replace(/\d+/, n));
   });
 }
 
-// Phones edit the method as one step per line, wider screens one field per
-// step. Only the visible variant is submitted; switching copies the steps.
+// Steps are added and removed in place; without JavaScript the buttons
+// submit the form and the server does the same.
 function setupSteps() {
-  const text = document.querySelector("[data-steps-text]");
   const fields = document.querySelector("[data-steps-fields]");
-  if (!text || !fields) return;
+  if (!fields) return;
   const steps = fields.querySelector("[data-steps]");
   const template = document.getElementById("step-template");
-  const mq = window.matchMedia("(min-width: 900px)");
-  let wide = null;
-
-  const fieldValues = () => [...steps.querySelectorAll("textarea")].map((a) => a.value.replace(/\s*\n\s*/g, " ").trim()).filter(Boolean);
-  const addStep = (value) => {
-    const li = template.content.firstElementChild.cloneNode(true);
-    li.querySelector("textarea").value = value;
-    steps.append(li);
-    return li;
-  };
-  const apply = () => {
-    if (wide === mq.matches) return;
-    if (wide === true) {
-      text.value = fieldValues().join("\n");
-    } else if (wide === false) {
-      steps.replaceChildren();
-      text.value.split("\n").map((s) => s.trim()).filter(Boolean).forEach(addStep);
-      renumberSteps(steps);
-    }
-    wide = mq.matches;
-    text.disabled = wide;
-    steps.querySelectorAll("textarea").forEach((a) => (a.disabled = !wide));
-  };
-  apply();
-  mq.addEventListener("change", apply);
-
   fields.addEventListener("click", (e) => {
     const add = e.target.closest("[data-step-add]");
     const rm = e.target.closest("[data-step-remove]");
     if (add) {
       e.preventDefault();
-      const li = addStep("");
+      const li = template.content.firstElementChild.cloneNode(true);
+      steps.append(li);
       renumberSteps(steps);
       li.querySelector("textarea").focus();
     } else if (rm) {
@@ -181,6 +161,188 @@ function setupPhoto() {
     img.hidden = false;
     if (empty) empty.hidden = true;
   });
+}
+
+// ---- Cook mode ----
+
+// clock formats seconds as m:ss, or h:mm:ss from an hour (as ui.Clock).
+function clock(seconds) {
+  seconds = Math.max(0, Math.ceil(seconds));
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor(seconds / 60) % 60;
+  const s = String(seconds % 60).padStart(2, "0");
+  return h ? `${h}:${String(m).padStart(2, "0")}:${s}` : `${m}:${s}`;
+}
+
+// beep plays three short tones. The audio context is created on the tap
+// that starts a timer, since browsers only allow sound after a gesture.
+let audio = null;
+function unlockAudio() {
+  if (audio || !window.AudioContext) return;
+  try {
+    audio = new AudioContext();
+  } catch {
+    audio = null;
+  }
+}
+function beep() {
+  if (!audio) return;
+  audio.resume().catch(() => {});
+  for (let i = 0; i < 3; i++) {
+    const t = audio.currentTime + i * 0.4;
+    const osc = audio.createOscillator();
+    const gain = audio.createGain();
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.25, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+    osc.connect(gain).connect(audio.destination);
+    osc.start(t);
+    osc.stop(t + 0.3);
+  }
+}
+
+// Cook mode shows one step at a time, keeps the screen awake while the
+// page is visible, and runs step timers. Timers keep their end times in
+// sessionStorage, so a reload or a detour to the recipe keeps them.
+function setupCook() {
+  const root = document.querySelector("[data-cook]");
+  if (!root) return;
+  const label = (name, vars) => Object.entries(vars).reduce((s, [k, v]) => s.replace("{" + k + "}", v), root.dataset[name]);
+  const key = "mise.cook." + root.dataset.cook;
+  const steps = [...root.querySelectorAll("[data-cook-step]")];
+  const announce = root.querySelector("[data-cook-announce]");
+
+  // Steps.
+  const goTo = (i) => {
+    if (i < 0 || i >= steps.length) return;
+    steps.forEach((s, j) => s.classList.toggle("cook__step--off", j !== i));
+    const url = new URL(location.href);
+    url.searchParams.set("step", String(i + 1));
+    history.replaceState(null, "", url);
+    steps[i].querySelector(".cook__count").focus();
+  };
+
+  // Wake lock: browsers drop it when the page is hidden; take it again
+  // when it is visible.
+  const badge = root.querySelector("[data-wake]");
+  let lock = null;
+  const wake = async () => {
+    if (lock || !("wakeLock" in navigator) || document.visibilityState !== "visible") return;
+    try {
+      lock = await navigator.wakeLock.request("screen");
+      badge.hidden = false;
+      lock.addEventListener("release", () => {
+        lock = null;
+        badge.hidden = true;
+      });
+    } catch {
+      // Not allowed here (e.g. plain HTTP); the badge stays hidden.
+    }
+  };
+
+  // Timers: {step: {end}} running, {step: {left}} paused, {step: {done}}.
+  let timers = {};
+  try {
+    timers = JSON.parse(sessionStorage.getItem(key) || "{}") || {};
+  } catch {
+    timers = {};
+  }
+  const save = () => {
+    try {
+      sessionStorage.setItem(key, JSON.stringify(timers));
+    } catch {
+      // Timers still run; they just don't survive a reload.
+    }
+  };
+  const controls = [...root.querySelectorAll("[data-timer]")];
+  const seconds = (box) => Number(box.dataset.seconds);
+  const left = (i, box) => {
+    const t = timers[i];
+    if (!t) return seconds(box);
+    if (t.done) return 0;
+    if (t.end) return (t.end - Date.now()) / 1000;
+    return t.left;
+  };
+  const render = () => {
+    for (const box of controls) {
+      const i = box.dataset.timer;
+      const t = timers[i];
+      const rest = left(i, box);
+      let text;
+      if (!t) text = label("cookStart", { t: clock(seconds(box)) });
+      else if (t.done) text = label("cookDone", {});
+      else if (t.end) text = label("cookPause", { t: clock(rest) });
+      else text = label("cookResume", { t: clock(rest) });
+      box.querySelector("[data-timer-label]").textContent = text;
+      box.querySelector("[data-timer-reset]").hidden = !t || t.done;
+      box.classList.toggle("cook-timer--running", !!(t && t.end));
+      box.classList.toggle("cook-timer--done", !!(t && t.done));
+      const chip = root.querySelector(`[data-chip="${i}"]`);
+      chip.hidden = !t;
+      chip.classList.toggle("cook-chip--done", !!(t && t.done));
+      chip.querySelector("[data-chip-time]").textContent = t && t.done ? root.dataset.cookChipDone : clock(rest);
+    }
+  };
+  const tick = () => {
+    let changed = false;
+    for (const box of controls) {
+      const i = box.dataset.timer;
+      const t = timers[i];
+      if (t && t.end && t.end <= Date.now()) {
+        timers[i] = { done: true };
+        changed = true;
+        announce.textContent = label("cookAlert", { n: String(Number(i) + 1) });
+        // Vibration needs a tap on the page first (not so after a reload).
+        if (navigator.vibrate && navigator.userActivation?.hasBeenActive !== false) navigator.vibrate([300, 150, 300, 150, 300]);
+        beep();
+      }
+    }
+    if (changed) save();
+    render();
+  };
+
+  root.addEventListener("click", (e) => {
+    const go = e.target.closest("[data-cook-go]");
+    if (go) {
+      e.preventDefault();
+      goTo(Number(go.dataset.cookGo));
+      return;
+    }
+    const box = e.target.closest("[data-timer]");
+    if (!box) return;
+    const i = box.dataset.timer;
+    const t = timers[i];
+    if (e.target.closest("[data-timer-reset]")) {
+      delete timers[i];
+    } else if (e.target.closest("[data-timer-toggle]")) {
+      unlockAudio();
+      if (!t) timers[i] = { end: Date.now() + seconds(box) * 1000 };
+      else if (t.done) delete timers[i];
+      else if (t.end) timers[i] = { left: (t.end - Date.now()) / 1000 };
+      else timers[i] = { end: Date.now() + t.left * 1000 };
+    } else {
+      return;
+    }
+    save();
+    render();
+  });
+  // Done leaves cook mode; its timers go with it.
+  root.querySelector("[data-cook-finish]")?.addEventListener("submit", () => {
+    try {
+      sessionStorage.removeItem(key);
+    } catch {
+      // Nothing to clear.
+    }
+  });
+  document.addEventListener("visibilitychange", () => {
+    wake();
+    tick();
+  });
+
+  controls.forEach((box) => (box.hidden = false));
+  wake();
+  tick();
+  setInterval(tick, 250);
 }
 
 // ---- Installing ----
@@ -300,6 +462,7 @@ function init() {
   setupRows();
   setupSteps();
   setupPhoto();
+  setupCook();
 }
 
 if (document.readyState === "loading") {

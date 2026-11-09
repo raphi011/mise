@@ -93,7 +93,6 @@ func (s *Server) recipeView(ctx context.Context, sc store.Scoped, id *auth.Ident
 	if err != nil {
 		return ui.RecipeView{}, err
 	}
-	lang := i18n.Locale(ctx)
 	loc := location(id)
 	servings = clampServings(servings, rec.Servings)
 	v := ui.RecipeView{
@@ -125,9 +124,8 @@ func (s *Server) recipeView(ctx context.Context, sc store.Scoped, id *auth.Ident
 		v.NotesWhen = dayMonth(ctx, *rec.NotesAt, loc)
 	}
 
-	amounts := make([]string, len(rec.Ingredients))
+	amounts := scaledAmounts(ctx, rec, servings)
 	for i, ing := range rec.Ingredients {
-		amounts[i] = recipes.DisplayAmount(recipes.Scale(ing.Amount, rec.Servings, servings, lang), lang)
 		v.Ingredients = append(v.Ingredients, ui.IngredientView{
 			ID: ing.ID.String(), Name: ing.ItemName, Amount: amounts[i], Optional: ing.Optional, On: st.On[ing.ItemID],
 		})
@@ -135,7 +133,25 @@ func (s *Server) recipeView(ctx context.Context, sc store.Scoped, id *auth.Ident
 	on, total := st.Count(rec.Ingredients)
 	v.ListStatus = i18n.T(ctx, "recipes.onList", on, total, st.List.Name)
 
+	v.Steps = stepParts(rec, amounts)
+	return v, nil
+}
+
+// scaledAmounts returns the display amount of each ingredient at servings.
+func scaledAmounts(ctx context.Context, rec recipes.Recipe, servings int) []string {
+	lang := i18n.Locale(ctx)
+	amounts := make([]string, len(rec.Ingredients))
+	for i, ing := range rec.Ingredients {
+		amounts[i] = recipes.DisplayAmount(recipes.Scale(ing.Amount, rec.Servings, servings, lang), lang)
+	}
+	return amounts
+}
+
+// stepParts splits each step into text and ingredient mentions carrying
+// their amounts.
+func stepParts(rec recipes.Recipe, amounts []string) [][]ui.StepPart {
 	seen := map[int]bool{}
+	out := make([][]ui.StepPart, 0, len(rec.Steps))
 	for _, step := range rec.Steps {
 		var parts []ui.StepPart
 		for _, p := range recipes.Highlight(step.Text, rec.Ingredients, seen) {
@@ -145,9 +161,9 @@ func (s *Server) recipeView(ctx context.Context, sc store.Scoped, id *auth.Ident
 			}
 			parts = append(parts, part)
 		}
-		v.Steps = append(v.Steps, parts)
+		out = append(out, parts)
 	}
-	return v, nil
+	return out
 }
 
 // recipeTarget parses the {id} path value and the scope.
@@ -181,6 +197,10 @@ func (s *Server) recipePage(w http.ResponseWriter, r *http.Request) {
 	if v.Gone {
 		s.notFound(w, r)
 		return
+	}
+	if event, ok := s.takeCookedFlash(w, r, recipeID); ok {
+		t := cookedToast(ctx, recipeID, event, r.URL.RequestURI())
+		v.Toast = &t
 	}
 	p := s.page(r, v.Name, ui.NavRecipes)
 	p.BackHref, p.BackLabel = "/recipes", i18n.T(ctx, "recipes.back")

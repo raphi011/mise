@@ -12,7 +12,11 @@ templ RecipePage(p Page, v RecipeView) {
 			<div class="recipe-cta only-phone">
 				@AddToPlanButton(v.ID, "btn--block")
 			</div>
-			@EmptyToast()
+			if v.Toast != nil {
+				@ToastRegion(*v.Toast)
+			} else {
+				@EmptyToast()
+			}
 			@EmptySheet()
 		</div>
 	}
@@ -124,6 +128,12 @@ templ RecipeRegion(v RecipeView) {
 				<section class="recipe-section" aria-labelledby="method-title">
 					<div class="recipe-section__head">
 						<h2 class="recipe-section__title" id="method-title">{ i18n.T(ctx, "recipes.method") }</h2>
+						if len(v.Steps) > 0 {
+							<a class="btn btn--strong btn--small" href={ templ.SafeURL(v.CookHref()) }>
+								@iconPlay()
+								{ i18n.T(ctx, "recipes.cookMode") }
+							</a>
+						}
 					</div>
 					if len(v.Steps) > 0 {
 						<ol class="steps">
@@ -360,4 +370,8 @@ templ deleteRecipeBody(v DeleteRecipeView, modal bool) {
 			<a class="btn btn--secondary btn--block btn--tall" href={ templ.SafeURL(RecipeHref(v.ID)) }>{ i18n.T(ctx, "recipes.delete.keep") }</a>
 		}
 	</div>
+}
+
+templ iconPlay() {
+	<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"></path></svg>
 }

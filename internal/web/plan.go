@@ -1300,8 +1300,10 @@ func (s *Server) markCooked(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	back := localPath(r.PostFormValue("back"), ui.RecipeHref(recipeID.String()))
-	s.planDone(w, r, back, toast(i18n.T(ctx, "plan.toast.cooked"),
-		"/recipes/"+recipeID.String()+"/cooked/"+event.String()+"/undo", map[string]string{"back": back}))
+	if !isDatastar(r) && isRecipePage(back, recipeID) {
+		s.setCookedFlash(w, r, recipeID, event)
+	}
+	s.planDone(w, r, back, patchTempl(ui.ToastRegion(cookedToast(ctx, recipeID, event, back))))
 }
 
 func (s *Server) undoCooked(w http.ResponseWriter, r *http.Request) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"math"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -50,7 +51,7 @@ func photoErrorKey(err error) (key i18n.Key, ok bool) {
 type editorState struct {
 	vals   url.Values
 	rows   []ui.IngredientRow
-	steps  []string
+	steps  []ui.StepRow
 	action string
 	// photoErr is the message key of a rejected photo.
 	photoErr i18n.Key
@@ -89,7 +90,13 @@ func (s *Server) readEditor(w http.ResponseWriter, r *http.Request) (editorState
 	for i, k := range keys {
 		st.rows = append(st.rows, ui.IngredientRow{Key: k, Amount: strings.TrimSpace(amounts[i]), Name: strings.TrimSpace(names[i]), Optional: slices.Contains(optional, k)})
 	}
-	st.steps = chooseSteps(st.vals)
+	texts, timers := st.vals["step"], st.vals["step_timer"]
+	if len(timers) != len(texts) {
+		return st, errBadForm
+	}
+	for i, text := range texts {
+		st.steps = append(st.steps, ui.StepRow{Text: strings.Join(strings.Fields(text), " "), Timer: strings.TrimSpace(timers[i])})
+	}
 	st.action = st.vals.Get("action")
 	if st.vals.Get("remove_photo") != "" {
 		st.vals.Set("photo", "")
@@ -150,43 +157,31 @@ func (s *Server) readParts(ctx context.Context, mr *multipart.Reader, hh uuid.UU
 	}
 }
 
-// chooseSteps returns the method from whichever field the user edited:
-// phones submit one step per line, wider screens one field per step. With
-// JavaScript only the visible one is sent; without it both are, and the
-// one that differs from the steps as rendered wins.
-func chooseSteps(vals url.Values) []string {
-	text, hasText := vals["steps_text"]
-	fields, hasFields := vals["step"]
-	var fromFields []string
-	for _, f := range fields {
-		fromFields = append(fromFields, strings.Join(strings.Fields(f), " "))
-	}
-	var fromText []string
-	if hasText {
-		fromText = strings.Split(strings.ReplaceAll(text[0], "\r\n", "\n"), "\n")
-	}
-	switch {
-	case hasFields && hasText:
-		if strings.Join(fromFields, "\n") != vals.Get("steps_orig") {
-			return fromFields
-		}
-		return fromText
-	case hasFields:
-		return fromFields
-	}
-	return fromText
-}
-
-// nonBlank drops empty steps, so step N of the form is step N of the
-// recipe and its errors line up.
-func nonBlank(steps []string) []string {
-	var out []string
+// nonBlank drops steps without text or timer, so step N of the form is
+// step N of the recipe and its errors line up.
+func nonBlank(steps []ui.StepRow) []ui.StepRow {
+	var out []ui.StepRow
 	for _, st := range steps {
-		if st = strings.TrimSpace(st); st != "" {
+		if st.Text != "" || st.Timer != "" {
 			out = append(out, st)
 		}
 	}
 	return out
+}
+
+// timerSeconds parses a step's timer, typed in whole minutes; empty is
+// nil. Numbers too large to convert become an out-of-range value for the
+// domain to reject.
+func timerSeconds(errs map[string]i18n.Key, field, minutes string) *int {
+	n := optionalInt(errs, field, minutes)
+	if n == nil {
+		return nil
+	}
+	secs := math.MaxInt
+	if *n <= math.MaxInt/60 {
+		secs = *n * 60
+	}
+	return &secs
 }
 
 func newRowKey() string { return "n" + strings.ReplaceAll(store.NewID().String(), "-", "")[20:] }
@@ -242,7 +237,7 @@ func (st *editorState) apply(ctx context.Context) bool {
 			st.rows = slices.Delete(st.rows, idx, idx+1)
 		}
 	case "add-step":
-		st.steps = append(st.steps, "")
+		st.steps = append(st.steps, ui.StepRow{})
 	case "step-remove":
 		if i, err := strconv.Atoi(arg); err == nil && i >= 0 && i < len(st.steps) {
 			st.steps = slices.Delete(st.steps, i, i+1)
@@ -302,7 +297,11 @@ func (st *editorState) input(ctx context.Context) (recipes.Input, []int, map[str
 		})
 	}
 	st.steps = nonBlank(st.steps)
-	in.Steps = st.steps
+	for i, row := range st.steps {
+		in.Steps = append(in.Steps, recipes.StepInput{
+			Text: row.Text, TimerSeconds: timerSeconds(errs, "steps."+strconv.Itoa(i)+".timer", row.Timer),
+		})
+	}
 	return in, rowOf, errs
 }
 
@@ -391,7 +390,11 @@ func (s *Server) editRecipePage(w http.ResponseWriter, r *http.Request) {
 		st.rows = append(st.rows, ui.IngredientRow{Key: savedRowKey(ing.ID), Name: ing.ItemName, Amount: amount, Optional: ing.Optional})
 	}
 	for _, step := range rec.Steps {
-		st.steps = append(st.steps, step.Text)
+		row := ui.StepRow{Text: step.Text}
+		if step.TimerSeconds != nil {
+			row.Timer = strconv.Itoa((*step.TimerSeconds + 59) / 60)
+		}
+		st.steps = append(st.steps, row)
 	}
 	s.renderEditor(w, r, http.StatusOK, sc, recipeID.String(), st, ui.Form{})
 }

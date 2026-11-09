@@ -36,7 +36,8 @@ func stickyTofu() url.Values {
 		"ing_amount": {"400 g", "3 tbsp"},
 		"ing_name":   {"Firm tofu", "Soy sauce"},
 		"ing_opt":    {},
-		"steps_text": {"Press the tofu for 10 minutes.\nWhisk the soy sauce and pour it over."},
+		"step":       {"Press the tofu for 10 minutes.", "Whisk the soy sauce and pour it over."},
+		"step_timer": {"10", ""},
 		"notes":      {"Double the glaze for 4."},
 	}
 }

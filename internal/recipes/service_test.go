@@ -89,6 +89,15 @@ func ings(lines ...string) []IngredientInput {
 
 func ptr[T any](v T) *T { return &v }
 
+// steps returns steps without timers.
+func steps(texts ...string) []StepInput {
+	out := make([]StepInput, len(texts))
+	for i, t := range texts {
+		out[i] = StepInput{Text: t}
+	}
+	return out
+}
+
 func (e env) create(t *testing.T, in Input) Recipe {
 	t.Helper()
 	if in.Servings == 0 {
@@ -135,7 +144,7 @@ func TestCreateGetUpdate(t *testing.T) {
 			SourceURL: "https://example.com/tofu", Notes: "Double the glaze",
 			Tags:        []string{"vegan", "Vegan", "asian"},
 			Ingredients: ings("400 g firm tofu", "3 tbsp soy sauce", "1 thumb ginger"),
-			Steps:       []string{"Press the tofu.", "  ", "Fry it."},
+			Steps:       steps("Press the tofu.", "  ", "Fry it."),
 		})
 		if r.Name != "Sticky tofu" || *r.TotalMin() != 35 || r.SourceURL != "https://example.com/tofu" {
 			t.Errorf("recipe %+v", r)
@@ -168,7 +177,7 @@ func TestCreateGetUpdate(t *testing.T) {
 		e.clk.Add(time.Hour)
 		in := Input{Name: "Sticky tofu", Servings: 4, Notes: "Double the glaze", Tags: []string{"Vegan"},
 			Ingredients: []IngredientInput{{ItemID: &r.Ingredients[1].ItemID, Amount: groceries.ParseAmount("4 tbsp", language.English)}},
-			Steps:       []string{"Just fry it."}}
+			Steps:       steps("Just fry it.")}
 		if err := e.s.Update(ctx, e.sc, r.ID, e.hh.Member, in); err != nil {
 			t.Fatal(err)
 		}
@@ -224,6 +233,9 @@ func TestValidation(t *testing.T) {
 			{Input{Name: "x", Servings: 2, Ingredients: []IngredientInput{{Name: "ok"}, {Name: " "}}}, "ingredients.1"},
 			{Input{Name: "x", Servings: 2, Ingredients: []IngredientInput{{ItemID: ptr(store.NewID())}}}, "ingredients.0"},
 			{Input{Name: "x" + long, Servings: 2}, "name"},
+			{Input{Name: "x", Servings: 2, Steps: []StepInput{{Text: "Fry."}, {Text: " ", TimerSeconds: ptr(60)}}}, "steps.1"},
+			{Input{Name: "x", Servings: 2, Steps: []StepInput{{Text: "Fry.", TimerSeconds: ptr(0)}}}, "steps.0.timer"},
+			{Input{Name: "x", Servings: 2, Steps: []StepInput{{Text: "Fry.", TimerSeconds: ptr(maxTimerSeconds + 1)}}}, "steps.0.timer"},
 		} {
 			_, err := e.s.Create(t.Context(), e.sc, e.hh.Admin, tc.in)
 			var fe FieldErrors
@@ -577,7 +589,7 @@ func TestUpdateKeepsRowIDs(t *testing.T) {
 		r := e.create(t, Input{
 			Name:        "Sticky tofu",
 			Ingredients: ings("400 g firm tofu", "3 tbsp soy sauce", "1 thumb ginger"),
-			Steps:       []string{"Press the tofu.", "Fry it.", "Glaze it."},
+			Steps:       steps("Press the tofu.", "Fry it.", "Glaze it."),
 		})
 		tofu, soy, ginger := r.Ingredients[0], r.Ingredients[1], r.Ingredients[2]
 
@@ -587,7 +599,7 @@ func TestUpdateKeepsRowIDs(t *testing.T) {
 		edit := ings("4 tbsp soy sauce", "400 g firm tofu", "2 cloves garlic", "1 lime", "1 tbsp soy sauce")
 		edit[0].ID, edit[1].ID, edit[3].ID, edit[4].ID = soy.ID, tofu.ID, other.Ingredients[0].ID, soy.ID
 		in := Input{Name: "Sticky tofu", Servings: 2, Ingredients: edit,
-			Steps: []string{"Fry it.", "Press the tofu well.", "Glaze it."}}
+			Steps: steps("Fry it.", "Press the tofu well.", "Glaze it.")}
 		if err := e.s.Update(ctx, e.sc, r.ID, e.hh.Admin, in); err != nil {
 			t.Fatal(err)
 		}
@@ -623,6 +635,41 @@ func TestUpdateKeepsRowIDs(t *testing.T) {
 		if len(u.Steps) != 3 || u.Steps[0].ID != r.Steps[1].ID || u.Steps[2].ID != r.Steps[2].ID ||
 			u.Steps[1].ID == r.Steps[0].ID || u.Steps[1].Text != "Press the tofu well." {
 			t.Errorf("steps before %+v after %+v", r.Steps, u.Steps)
+		}
+	})
+}
+
+// TestStepTimers checks that timers are saved with their steps and follow
+// a step whose text is unchanged.
+func TestStepTimers(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		ctx := t.Context()
+		e := newEnv(t, db, "home")
+		r := e.create(t, Input{Name: "Sticky tofu", Servings: 2, Steps: []StepInput{
+			{Text: "Press the tofu.", TimerSeconds: ptr(600)},
+			{Text: "Fry it."},
+		}})
+		if len(r.Steps) != 2 || r.Steps[0].TimerSeconds == nil || *r.Steps[0].TimerSeconds != 600 || r.Steps[1].TimerSeconds != nil {
+			t.Fatalf("steps %+v", r.Steps)
+		}
+
+		// The steps swap; frying gets a timer and pressing loses its own.
+		in := Input{Name: "Sticky tofu", Servings: 2, Steps: []StepInput{
+			{Text: "Fry it.", TimerSeconds: ptr(480)},
+			{Text: "Press the tofu."},
+		}}
+		if err := e.s.Update(ctx, e.sc, r.ID, e.hh.Admin, in); err != nil {
+			t.Fatal(err)
+		}
+		u, err := e.s.Get(ctx, e.sc, r.ID, e.hh.Admin)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(u.Steps) != 2 || u.Steps[0].ID != r.Steps[1].ID || u.Steps[1].ID != r.Steps[0].ID {
+			t.Fatalf("steps not kept: before %+v after %+v", r.Steps, u.Steps)
+		}
+		if u.Steps[0].TimerSeconds == nil || *u.Steps[0].TimerSeconds != 480 || u.Steps[1].TimerSeconds != nil {
+			t.Errorf("timers after edit %+v", u.Steps)
 		}
 	})
 }

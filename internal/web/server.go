@@ -263,6 +263,7 @@ func (s *Server) routes(r *router) {
 	r.read("/recipes/{id}/edit", s.user(s.editRecipePage))
 	r.write(http.MethodPost, "/recipes/{id}/edit", s.user(s.updateRecipe))
 	r.read("/recipes/{id}/menu", s.user(s.recipeMenu))
+	r.read("/recipes/{id}/cook", s.user(s.cookPage))
 	r.write(http.MethodPost, "/recipes/{id}/favourite", s.user(s.setFavourite))
 	r.write(http.MethodPost, "/recipes/{id}/ingredients/{ing}/toggle", s.user(s.toggleIngredient))
 	r.write(http.MethodPost, "/recipes/{id}/ingredients/restore", s.user(s.restoreIngredients))

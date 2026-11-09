@@ -1,0 +1,108 @@
+package ui
+
+import "github.com/raphi011/mise/internal/i18n"
+
+// CookPage is cook mode: full screen, always dark, one step at a time.
+// Every step is rendered; app.js switches between them in place (so
+// timers keep running), keeps the screen awake and runs the timers.
+// Without JavaScript previous and next are links to ?step=.
+templ CookPage(p Page, v CookView) {
+	@document(p) {
+		<div
+			class="cook"
+			data-cook={ v.ID }
+			data-cook-start={ i18n.T(ctx, "cook.timer.start", "{t}") }
+			data-cook-pause={ i18n.T(ctx, "cook.timer.pause", "{t}") }
+			data-cook-resume={ i18n.T(ctx, "cook.timer.resume", "{t}") }
+			data-cook-done={ i18n.T(ctx, "cook.timer.done") }
+			data-cook-alert={ i18n.T(ctx, "cook.timer.alert", "{n}") }
+			data-cook-chip-done={ i18n.T(ctx, "cook.timer.chipDone") }
+		>
+			<header class="cook__head">
+				<a class="cook__exit" href={ templ.SafeURL(v.RecipeBack()) } aria-label={ i18n.T(ctx, "cook.exit") }>
+					@iconClose()
+				</a>
+				<h1 class="cook__name">{ v.Name }</h1>
+				<span class="cook__awake" data-wake hidden>
+					@iconSun()
+					{ i18n.T(ctx, "cook.awake") }
+				</span>
+			</header>
+			<div class="cook__chips" data-cook-chips>
+				for i, st := range v.Steps {
+					if st.TimerSeconds > 0 {
+						<button type="button" class="cook-chip" data-cook-go={ itoa(i) } data-chip={ itoa(i) } hidden>
+							@iconTimer(14)
+							<span>{ i18n.T(ctx, "cook.timer.chip", i+1) }</span>
+							<span class="cook-chip__time" data-chip-time></span>
+						</button>
+					}
+				}
+			</div>
+			for i, st := range v.Steps {
+				<section
+					class={ "cook__step", templ.KV("cook__step--off", i != v.Step) }
+					id={ "cook-step-" + itoa(i) }
+					data-cook-step={ itoa(i) }
+					aria-labelledby={ "cook-count-" + itoa(i) }
+				>
+					<p class="cook__count" id={ "cook-count-" + itoa(i) } tabindex="-1">{ i18n.T(ctx, "cook.stepOf", i+1, len(v.Steps)) }</p>
+					<div class="cook__progress" aria-hidden="true">
+						for j := range v.Steps {
+							<span class={ "cook__seg", templ.KV("cook__seg--on", j <= i) }></span>
+						}
+					</div>
+					<p class="cook__text">
+						for _, part := range st.Parts {
+							if part.Mention {
+								<span class="cook__mention">
+									{ part.Text }
+									if part.Amount != "" {
+										<span class="cook__amount">{ part.Amount }</span>
+									}
+								</span>
+							} else {
+								{ part.Text }
+							}
+						}
+					</p>
+					if st.TimerSeconds > 0 {
+						<div class="cook-timer" data-timer={ itoa(i) } data-seconds={ itoa(st.TimerSeconds) } hidden>
+							<button type="button" class="cook-timer__main" data-timer-toggle>
+								@iconTimer(22)
+								<span data-timer-label>{ i18n.T(ctx, "cook.timer.start", Clock(st.TimerSeconds)) }</span>
+							</button>
+							<button type="button" class="cook-timer__reset" data-timer-reset hidden>{ i18n.T(ctx, "cook.timer.reset") }</button>
+						</div>
+					}
+					<nav class="cook__nav" aria-label={ i18n.T(ctx, "cook.steps") }>
+						if i > 0 {
+							<a class="cook__prev" href={ templ.SafeURL(v.StepHref(i - 1)) } data-cook-go={ itoa(i - 1) } aria-label={ i18n.T(ctx, "cook.prev") }>
+								@iconChevron(true)
+							</a>
+						}
+						if i < len(v.Steps)-1 {
+							<a class="cook__next" href={ templ.SafeURL(v.StepHref(i + 1)) } data-cook-go={ itoa(i + 1) }>
+								{ i18n.T(ctx, "cook.next") }
+								@iconChevron(false)
+							</a>
+						} else {
+							<form class="cook__done" method="post" action={ templ.SafeURL("/recipes/" + v.ID + "/cooked") } data-cook-finish>
+								<input type="hidden" name="back" value={ v.RecipeBack() }/>
+								<button type="submit" class="cook__next">
+									@iconCheck(22)
+									{ i18n.T(ctx, "cook.done") }
+								</button>
+							</form>
+						}
+					</nav>
+				</section>
+			}
+			<div class="visually-hidden" role="alert" data-cook-announce></div>
+		</div>
+	}
+}
+
+templ iconSun() {
+	<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg>
+}

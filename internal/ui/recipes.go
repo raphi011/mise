@@ -1,13 +1,10 @@
 package ui
 
 import (
-	"context"
 	"encoding/json"
 	"hash/fnv"
 	"strconv"
-	"strings"
 
-	"github.com/raphi011/mise/internal/i18n"
 	"github.com/raphi011/mise/internal/images"
 )
 
@@ -164,6 +161,16 @@ type RecipeView struct {
 	Favourite  bool
 	// Gone is set when the recipe was deleted while the page was open.
 	Gone bool
+	// Toast, when set, shows on the page as it loads.
+	Toast *Toast
+}
+
+// CookHref is cook mode at the viewer's servings.
+func (v RecipeView) CookHref() string {
+	if v.Servings == v.Base {
+		return CookHref(v.ID)
+	}
+	return CookHref(v.ID) + "?servings=" + strconv.Itoa(v.Servings)
 }
 
 // ServingsHref is the page at n servings, for the stepper without
@@ -216,8 +223,15 @@ type RecipeEditView struct {
 	Form  Form
 	Photo string
 	Rows  []IngredientRow
-	Steps []string
+	Steps []StepRow
 	Tags  []TagChoice
+}
+
+// StepRow is one step of the editor: its text and its timer in minutes,
+// as typed.
+type StepRow struct {
+	Text  string
+	Timer string
 }
 
 // Action is where the editor posts.
@@ -254,6 +268,11 @@ type TagChoice struct {
 
 // StepError returns the message for step i ("steps.i").
 func (v RecipeEditView) StepError(i int) string { return v.Form.Error("steps." + strconv.Itoa(i)) }
+
+// TimerError returns the message for step i's timer ("steps.i.timer").
+func (v RecipeEditView) TimerError(i int) string {
+	return v.Form.Error("steps." + strconv.Itoa(i) + ".timer")
+}
 
 // withQuery appends an encoded query to path.
 func withQuery(path, query string) string {
@@ -310,19 +329,6 @@ const MaxUploadBytes = images.MaxUploadBytes
 // addRowAction asks the server to parse the typed ingredient line into a
 // row appended to the editor.
 const addRowAction = "$newing.trim() && @get('/recipes/editor/ingredient', {filterSignals: {include: /^newing$/}})"
-
-func joinLines(lines []string) string { return strings.Join(lines, "\n") }
-
-// stepErrors lists the steps' messages for the one-step-per-line field.
-func stepErrors(ctx context.Context, v RecipeEditView) string {
-	var msgs []string
-	for i := range v.Steps {
-		if e := v.StepError(i); e != "" {
-			msgs = append(msgs, i18n.T(ctx, "recipes.edit.stepError", i+1, e))
-		}
-	}
-	return strings.Join(msgs, " ")
-}
 
 // rowLabel names an ingredient row in button labels.
 func rowLabel(r IngredientRow) string {

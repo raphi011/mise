@@ -83,15 +83,10 @@ templ RecipeEdit(p Page, v RecipeEditView) {
 				<section class="editor__method editor-section" aria-labelledby="edit-method-title">
 					<h2 class="recipe-section__title" id="edit-method-title">{ i18n.T(ctx, "recipes.method") }</h2>
 					@fieldError("recipe-steps-error", v.Form.Error("steps"))
-					<div class="only-phone field">
-						<label class="visually-hidden" for="recipe-steps">{ i18n.T(ctx, "recipes.method") }</label>
-						@textarea("recipe-steps", "steps_text", 6, joinLines(v.Steps), stepErrors(ctx, v), "data-steps-text")
-						<span class="field__hint">{ i18n.T(ctx, "recipes.edit.stepsHint") }</span>
-					</div>
-					<div class="only-wide stack" data-steps-fields>
+					<div class="stack" data-steps-fields>
 						<ol id="step-rows" class="step-rows" data-steps>
 							for i, st := range v.Steps {
-								@stepRow(i, st, v.StepError(i))
+								@stepRow(i, st, v.StepError(i), v.TimerError(i))
 							}
 						</ol>
 						<div>
@@ -101,10 +96,9 @@ templ RecipeEdit(p Page, v RecipeEditView) {
 							</button>
 						</div>
 						<template id="step-template">
-							@stepRow(-1, "", "")
+							@stepRow(-1, StepRow{}, "", "")
 						</template>
 					</div>
-					<input type="hidden" name="steps_orig" value={ joinLines(v.Steps) }/>
 					<p class="muted">{ i18n.T(ctx, "recipes.method.highlightHint") }</p>
 				</section>
 				<section class="editor__notes editor-section" id="notes">
@@ -221,26 +215,55 @@ templ IngredientRowItem(row IngredientRow) {
 	</li>
 }
 
-templ stepRow(i int, text, err string) {
+// stepRow is one step of the editor: its text, an optional timer in
+// minutes, and a remove button. app.js renumbers ids and labels (the
+// numbers in them) when rows are added or removed.
+templ stepRow(i int, st StepRow, err, timerErr string) {
 	<li class="step-row" data-step>
 		<span class="step__n" aria-hidden="true" data-step-n>{ itoa(i + 1) }</span>
 		<label class="visually-hidden" for={ "step-" + itoa(i) } data-step-label>{ i18n.T(ctx, "recipes.edit.step", i+1) }</label>
 		<textarea
-			class="input input--area"
+			class="input input--area step-row__text"
 			id={ "step-" + itoa(i) }
 			name="step"
 			rows="2"
 			if err != "" {
 				aria-invalid="true"
 			}
-		>{ text }</textarea>
-		<button type="submit" class="icon-btn" name="action" value={ "step-remove:" + itoa(i) } data-step-remove aria-label={ i18n.T(ctx, "recipes.edit.removeStep", i+1) }>
+		>{ st.Text }</textarea>
+		<button type="submit" class="icon-btn step-row__remove" name="action" value={ "step-remove:" + itoa(i) } data-step-remove aria-label={ i18n.T(ctx, "recipes.edit.removeStep", i+1) }>
 			@iconClose()
 		</button>
+		<span class="step-row__timer">
+			@iconTimer(16)
+			<span class="step-row__timer-label" aria-hidden="true">{ i18n.T(ctx, "recipes.edit.timer") }</span>
+			<label class="visually-hidden" for={ "step-timer-" + itoa(i) } data-step-timer-label>{ i18n.T(ctx, "recipes.edit.timerLabel", i+1) }</label>
+			<input
+				class="input step-row__minutes"
+				id={ "step-timer-" + itoa(i) }
+				name="step_timer"
+				type="text"
+				inputmode="numeric"
+				pattern="[0-9]*"
+				autocomplete="off"
+				value={ st.Timer }
+				if timerErr != "" {
+					aria-invalid="true"
+				}
+			/>
+			<span class="step-row__unit" aria-hidden="true">{ i18n.T(ctx, "recipes.edit.timerUnit") }</span>
+		</span>
 		if err != "" {
 			<span class="field__error step-row__error">{ err }</span>
 		}
+		if timerErr != "" {
+			<span class="field__error step-row__error">{ timerErr }</span>
+		}
 	</li>
+}
+
+templ iconTimer(size int) {
+	<svg width={ size } height={ size } viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l2.5 2M9 2h6"></path></svg>
 }
 
 templ textarea(id, name string, rows int, value, err, marker string) {
