@@ -162,6 +162,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
   font-weight: 600;
 }
 
+.badge--small { padding: 2px 8px; font-size: 11px; }
+
 .nav__link[aria-current="page"] .nav__icon { background: var(--herb-soft); }
 
 .main {
@@ -781,6 +783,7 @@ select.input { padding-right: 10px; }
 
 a.list__link:hover, summary.list__link:hover { color: var(--ink); background: var(--surface-2); border-radius: 16px; }
 .list__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.list__text--inline { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
 .list__label { flex: 1; }
 .chevron { flex-shrink: 0; color: var(--muted); }
 
@@ -1544,11 +1547,10 @@ a.list__link:hover, summary.list__link:hover { color: var(--ink); background: va
 img.tile { object-fit: cover; }
 
 mark {
-  padding: 0 2px;
-  border-radius: 4px;
-  background: var(--amber-soft);
-  color: var(--amber-ink);
-  font-weight: 600;
+  padding: 0 1px;
+  border-radius: 3px;
+  background: var(--herb-soft);
+  color: var(--ink);
 }
 
 .empty--center { align-items: center; text-align: center; }

@@ -67,10 +67,10 @@ templ tagRow(v TagsView, t TagRow) {
 	<li class="list__row">
 		<details class="disclosure" open?={ v.EditID == t.ID }>
 			<summary class="list__link" aria-label={ i18n.T(ctx, "tags.options", t.Name) }>
-				<span class="list__text">
+				<span class="list__text list__text--inline">
 					<span>{ t.Name }</span>
 					if t.Pinned {
-						<span class="role-label role-label--pending">{ i18n.T(ctx, "tags.quickFilter") }</span>
+						<span class="badge badge--small">{ i18n.T(ctx, "tags.quickFilter") }</span>
 					}
 				</span>
 				<span class="role-label">{ itoa(t.Count) }</span>

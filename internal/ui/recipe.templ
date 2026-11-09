@@ -236,7 +236,7 @@ templ ingredientRow(v RecipeView, ing IngredientView) {
 // RecipeMenuSheet is the ⋯ menu as a bottom sheet / dialog.
 templ RecipeMenuSheet(v RecipeMenuView) {
 	<div id="sheet">
-		<dialog class="sheet-dialog" aria-labelledby="menu-title" data-init="el.open || el.showModal()" data-on:close="el.remove()">
+		<dialog id="recipe-menu" class="sheet-dialog" aria-labelledby="menu-title" data-init="el.open || el.showModal()" data-on:close="el.remove()">
 			@recipeMenu(v, true)
 		</dialog>
 	</div>
@@ -312,7 +312,7 @@ templ recipeMenu(v RecipeMenuView, modal bool) {
 // DeleteRecipeDialog asks before deleting a recipe, as a modal dialog.
 templ DeleteRecipeDialog(v DeleteRecipeView) {
 	<div id="sheet">
-		<dialog class="confirm-dialog" role="alertdialog" aria-labelledby="delete-title" aria-describedby="delete-body" data-init="el.open || el.showModal()" data-on:close="el.remove()">
+		<dialog id="recipe-delete" class="confirm-dialog" role="alertdialog" aria-labelledby="delete-title" aria-describedby="delete-body" data-init="el.open || el.showModal()" data-on:close="el.remove()">
 			@deleteRecipeBody(v, true)
 		</dialog>
 	</div>

@@ -91,8 +91,10 @@ type FilterSheetView struct {
 
 // FilterOption is one checkbox of the filter sheet.
 type FilterOption struct {
-	Value   string
-	Label   string
+	Value string
+	Label string
+	// Initial is a person's avatar letter; Label may read "You".
+	Initial string
 	Color   string
 	Checked bool
 }

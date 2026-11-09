@@ -1617,6 +1617,11 @@ func ToastRegion(t Toast) templ.Component {
 }
 
 // EmptySheet closes the sheet.
+//
+// Every dialog patched into #sheet has its own id: Datastar morphs a
+// same-tag element without an id into the new one, and morphing an open
+// modal dialog into another strips its open attribute while it stays
+// modal, which hides it and leaves the page inert.
 func EmptySheet() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -1660,7 +1665,7 @@ func EntryEditSheet(v EntryEditView) templ.Component {
 		}
 		ctx = templ.InitializeContext(ctx)
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 141, "<div id=\"sheet\"><dialog class=\"sheet-dialog\" aria-labelledby=\"sheet-title\" data-init=\"el.open || el.showModal()\" data-on:close=\"el.remove()\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 141, "<div id=\"sheet\"><dialog id=\"entry-sheet\" class=\"sheet-dialog\" aria-labelledby=\"sheet-title\" data-init=\"el.open || el.showModal()\" data-on:close=\"el.remove()\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1792,7 +1797,7 @@ func entryEditForm(v EntryEditView, modal bool) templ.Component {
 		var templ_7745c5c3_Var96 string
 		templ_7745c5c3_Var96, templ_7745c5c3_Err = templ.JoinStringErrs(Initial(v.ItemName))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 302, Col: 83}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 307, Col: 83}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var96))
 		if templ_7745c5c3_Err != nil {
@@ -1805,7 +1810,7 @@ func entryEditForm(v EntryEditView, modal bool) templ.Component {
 		var templ_7745c5c3_Var97 string
 		templ_7745c5c3_Var97, templ_7745c5c3_Err = templ.JoinStringErrs(v.ItemName)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 303, Col: 56}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 308, Col: 56}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var97))
 		if templ_7745c5c3_Err != nil {
@@ -1823,7 +1828,7 @@ func entryEditForm(v EntryEditView, modal bool) templ.Component {
 			var templ_7745c5c3_Var98 string
 			templ_7745c5c3_Var98, templ_7745c5c3_Err = templruntime.NewAttributeExpression(i18n.T(ctx, "groceries.edit.close")).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 305, Col: 90}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 310, Col: 90}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var98)
 			if templ_7745c5c3_Err != nil {
@@ -1849,7 +1854,7 @@ func entryEditForm(v EntryEditView, modal bool) templ.Component {
 		var templ_7745c5c3_Var99 string
 		templ_7745c5c3_Var99, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL("/groceries/entries/" + v.ID + "/edit")).ResolveURL(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 314, Col: 64}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 319, Col: 64}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var99)
 		if templ_7745c5c3_Err != nil {
@@ -1862,7 +1867,7 @@ func entryEditForm(v EntryEditView, modal bool) templ.Component {
 		var templ_7745c5c3_Var100 string
 		templ_7745c5c3_Var100, templ_7745c5c3_Err = templruntime.NewAttributeExpression(postForm("/groceries/entries/" + v.ID + "/edit")).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 315, Col: 67}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 320, Col: 67}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var100)
 		if templ_7745c5c3_Err != nil {
@@ -1891,7 +1896,7 @@ func entryEditForm(v EntryEditView, modal bool) templ.Component {
 		var templ_7745c5c3_Var101 string
 		templ_7745c5c3_Var101, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "groceries.edit.category"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 322, Col: 72}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 327, Col: 72}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var101))
 		if templ_7745c5c3_Err != nil {
@@ -1909,7 +1914,7 @@ func entryEditForm(v EntryEditView, modal bool) templ.Component {
 			var templ_7745c5c3_Var102 string
 			templ_7745c5c3_Var102, templ_7745c5c3_Err = templruntime.NewAttributeExpression(o.Value).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 326, Col: 57}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 331, Col: 57}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var102)
 			if templ_7745c5c3_Err != nil {
@@ -1932,7 +1937,7 @@ func entryEditForm(v EntryEditView, modal bool) templ.Component {
 			var templ_7745c5c3_Var103 string
 			templ_7745c5c3_Var103, templ_7745c5c3_Err = templ.JoinStringErrs(o.Label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 327, Col: 21}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 332, Col: 21}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var103))
 			if templ_7745c5c3_Err != nil {
@@ -1958,7 +1963,7 @@ func entryEditForm(v EntryEditView, modal bool) templ.Component {
 		var templ_7745c5c3_Var104 string
 		templ_7745c5c3_Var104, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "groceries.edit.categoryHint", v.ItemName))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 332, Col: 85}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 337, Col: 85}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var104))
 		if templ_7745c5c3_Err != nil {
@@ -1979,7 +1984,7 @@ func entryEditForm(v EntryEditView, modal bool) templ.Component {
 		var templ_7745c5c3_Var105 string
 		templ_7745c5c3_Var105, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "groceries.edit.list"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 336, Col: 83}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 341, Col: 83}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var105))
 		if templ_7745c5c3_Err != nil {
@@ -1997,7 +2002,7 @@ func entryEditForm(v EntryEditView, modal bool) templ.Component {
 			var templ_7745c5c3_Var106 string
 			templ_7745c5c3_Var106, templ_7745c5c3_Err = templruntime.NewAttributeExpression(o.Value).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 339, Col: 28}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 344, Col: 28}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var106)
 			if templ_7745c5c3_Err != nil {
@@ -2020,7 +2025,7 @@ func entryEditForm(v EntryEditView, modal bool) templ.Component {
 			var templ_7745c5c3_Var107 string
 			templ_7745c5c3_Var107, templ_7745c5c3_Err = templ.JoinStringErrs(o.Label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 339, Col: 86}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 344, Col: 86}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var107))
 			if templ_7745c5c3_Err != nil {
@@ -2054,7 +2059,7 @@ func entryEditForm(v EntryEditView, modal bool) templ.Component {
 		var templ_7745c5c3_Var108 string
 		templ_7745c5c3_Var108, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "groceries.edit.remove"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 347, Col: 42}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 352, Col: 42}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var108))
 		if templ_7745c5c3_Err != nil {
@@ -2067,7 +2072,7 @@ func entryEditForm(v EntryEditView, modal bool) templ.Component {
 		var templ_7745c5c3_Var109 string
 		templ_7745c5c3_Var109, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "form.save"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 349, Col: 88}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 354, Col: 88}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var109))
 		if templ_7745c5c3_Err != nil {
@@ -2080,7 +2085,7 @@ func entryEditForm(v EntryEditView, modal bool) templ.Component {
 		var templ_7745c5c3_Var110 string
 		templ_7745c5c3_Var110, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL("/groceries/entries/" + v.ID + "/remove")).ResolveURL(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 355, Col: 66}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 360, Col: 66}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var110)
 		if templ_7745c5c3_Err != nil {
@@ -2093,7 +2098,7 @@ func entryEditForm(v EntryEditView, modal bool) templ.Component {
 		var templ_7745c5c3_Var111 string
 		templ_7745c5c3_Var111, templ_7745c5c3_Err = templruntime.NewAttributeExpression(postForm("/groceries/entries/" + v.ID + "/remove")).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 356, Col: 69}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 361, Col: 69}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var111)
 		if templ_7745c5c3_Err != nil {
@@ -2111,7 +2116,7 @@ func entryEditForm(v EntryEditView, modal bool) templ.Component {
 			var templ_7745c5c3_Var112 string
 			templ_7745c5c3_Var112, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL("/groceries/lists/" + v.ListID)).ResolveURL(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 359, Col: 60}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 364, Col: 60}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var112)
 			if templ_7745c5c3_Err != nil {
@@ -2124,7 +2129,7 @@ func entryEditForm(v EntryEditView, modal bool) templ.Component {
 			var templ_7745c5c3_Var113 string
 			templ_7745c5c3_Var113, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "groceries.backToList"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 359, Col: 100}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 364, Col: 100}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var113))
 			if templ_7745c5c3_Err != nil {
@@ -2157,7 +2162,7 @@ func ClearCartDialog(v ClearCartView) templ.Component {
 		}
 		ctx = templ.InitializeContext(ctx)
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 184, "<div id=\"sheet\"><dialog class=\"confirm-dialog\" role=\"alertdialog\" aria-labelledby=\"clear-title\" data-init=\"el.open || el.showModal()\" data-on:close=\"el.remove()\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 184, "<div id=\"sheet\"><dialog id=\"clear-cart-dialog\" class=\"confirm-dialog\" role=\"alertdialog\" aria-labelledby=\"clear-title\" data-init=\"el.open || el.showModal()\" data-on:close=\"el.remove()\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -2257,7 +2262,7 @@ func clearCartBody(v ClearCartView, modal bool) templ.Component {
 		var templ_7745c5c3_Var118 string
 		templ_7745c5c3_Var118, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "groceries.clear.title"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 385, Col: 81}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 390, Col: 81}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var118))
 		if templ_7745c5c3_Err != nil {
@@ -2275,7 +2280,7 @@ func clearCartBody(v ClearCartView, modal bool) templ.Component {
 			var templ_7745c5c3_Var119 string
 			templ_7745c5c3_Var119, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "groceries.clear.empty"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 387, Col: 56}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 392, Col: 56}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var119))
 			if templ_7745c5c3_Err != nil {
@@ -2293,7 +2298,7 @@ func clearCartBody(v ClearCartView, modal bool) templ.Component {
 			var templ_7745c5c3_Var120 string
 			templ_7745c5c3_Var120, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "groceries.clear.body", v.ListName))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 389, Col: 83}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 394, Col: 83}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var120))
 			if templ_7745c5c3_Err != nil {
@@ -2306,7 +2311,7 @@ func clearCartBody(v ClearCartView, modal bool) templ.Component {
 			var templ_7745c5c3_Var121 string
 			templ_7745c5c3_Var121, templ_7745c5c3_Err = templruntime.NewAttributeExpression(i18n.T(ctx, "groceries.clear.items")).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 390, Col: 69}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 395, Col: 69}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var121)
 			if templ_7745c5c3_Err != nil {
@@ -2324,7 +2329,7 @@ func clearCartBody(v ClearCartView, modal bool) templ.Component {
 				var templ_7745c5c3_Var122 string
 				templ_7745c5c3_Var122, templ_7745c5c3_Err = templ.JoinStringErrs(name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 392, Col: 40}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 397, Col: 40}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var122))
 				if templ_7745c5c3_Err != nil {
@@ -2342,7 +2347,7 @@ func clearCartBody(v ClearCartView, modal bool) templ.Component {
 			var templ_7745c5c3_Var123 string
 			templ_7745c5c3_Var123, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "groceries.clear.note"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 395, Col: 56}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 400, Col: 56}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var123))
 			if templ_7745c5c3_Err != nil {
@@ -2365,7 +2370,7 @@ func clearCartBody(v ClearCartView, modal bool) templ.Component {
 			var templ_7745c5c3_Var124 string
 			templ_7745c5c3_Var124, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL("/groceries/lists/" + v.ListID + "/clear")).ResolveURL(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 399, Col: 88}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 404, Col: 88}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var124)
 			if templ_7745c5c3_Err != nil {
@@ -2378,7 +2383,7 @@ func clearCartBody(v ClearCartView, modal bool) templ.Component {
 			var templ_7745c5c3_Var125 string
 			templ_7745c5c3_Var125, templ_7745c5c3_Err = templruntime.NewAttributeExpression(postForm("/groceries/lists/" + v.ListID + "/clear")).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 399, Col: 159}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 404, Col: 159}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var125)
 			if templ_7745c5c3_Err != nil {
@@ -2391,7 +2396,7 @@ func clearCartBody(v ClearCartView, modal bool) templ.Component {
 			var templ_7745c5c3_Var126 string
 			templ_7745c5c3_Var126, templ_7745c5c3_Err = templ.JoinStringErrs(plural(ctx, len(v.Items), "groceries.clear.confirmOne", "groceries.clear.confirm"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 400, Col: 155}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 405, Col: 155}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var126))
 			if templ_7745c5c3_Err != nil {
@@ -2410,7 +2415,7 @@ func clearCartBody(v ClearCartView, modal bool) templ.Component {
 			var templ_7745c5c3_Var127 string
 			templ_7745c5c3_Var127, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "groceries.clear.keep"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 404, Col: 155}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 409, Col: 155}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var127))
 			if templ_7745c5c3_Err != nil {
@@ -2428,7 +2433,7 @@ func clearCartBody(v ClearCartView, modal bool) templ.Component {
 			var templ_7745c5c3_Var128 string
 			templ_7745c5c3_Var128, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL("/groceries/lists/" + v.ListID)).ResolveURL(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 406, Col: 106}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 411, Col: 106}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var128)
 			if templ_7745c5c3_Err != nil {
@@ -2441,7 +2446,7 @@ func clearCartBody(v ClearCartView, modal bool) templ.Component {
 			var templ_7745c5c3_Var129 string
 			templ_7745c5c3_Var129, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "groceries.clear.keep"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 406, Col: 146}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 411, Col: 146}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var129))
 			if templ_7745c5c3_Err != nil {
@@ -2484,7 +2489,7 @@ func iconPlus(size int) templ.Component {
 		var templ_7745c5c3_Var131 string
 		templ_7745c5c3_Var131, templ_7745c5c3_Err = templruntime.NewAttributeExpression(size).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 412, Col: 18}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 417, Col: 18}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var131)
 		if templ_7745c5c3_Err != nil {
@@ -2497,7 +2502,7 @@ func iconPlus(size int) templ.Component {
 		var templ_7745c5c3_Var132 string
 		templ_7745c5c3_Var132, templ_7745c5c3_Err = templruntime.NewAttributeExpression(size).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 412, Col: 34}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 417, Col: 34}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var132)
 		if templ_7745c5c3_Err != nil {
@@ -2535,7 +2540,7 @@ func iconCheck(size int) templ.Component {
 		var templ_7745c5c3_Var134 string
 		templ_7745c5c3_Var134, templ_7745c5c3_Err = templruntime.NewAttributeExpression(size).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 416, Col: 18}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 421, Col: 18}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var134)
 		if templ_7745c5c3_Err != nil {
@@ -2548,7 +2553,7 @@ func iconCheck(size int) templ.Component {
 		var templ_7745c5c3_Var135 string
 		templ_7745c5c3_Var135, templ_7745c5c3_Err = templruntime.NewAttributeExpression(size).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 416, Col: 34}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/groceries.templ`, Line: 421, Col: 34}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var135)
 		if templ_7745c5c3_Err != nil {

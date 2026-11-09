@@ -171,7 +171,7 @@ templ recipeCard(c RecipeCard) {
 // FilterSheet is the filter sheet as a modal dialog.
 templ FilterSheet(v FilterSheetView) {
 	<div id="sheet">
-		<dialog class="sheet-dialog" aria-labelledby="filter-title" data-init="el.open || el.showModal()" data-on:close="el.remove()">
+		<dialog id="filter-sheet" class="sheet-dialog" aria-labelledby="filter-title" data-init="el.open || el.showModal()" data-on:close="el.remove()">
 			@filterForm(v, true)
 		</dialog>
 	</div>
@@ -204,7 +204,7 @@ templ filterForm(v FilterSheetView, modal bool) {
 					for _, o := range v.People {
 						<label class="chip chip--radio chip--person">
 							<input type="checkbox" name="by" value={ o.Value } checked?={ o.Checked }/>
-							<span class={ avatarClass(o.Color, "chip") } aria-hidden="true">{ Initial(o.Label) }</span>
+							<span class={ avatarClass(o.Color, "chip") } aria-hidden="true">{ o.Initial }</span>
 							<span>{ o.Label }</span>
 						</label>
 					}
@@ -366,12 +366,15 @@ templ hitSection(id, title string, hits []SearchHit, ingredient bool) {
 	</section>
 }
 
+// marked is h's name with the match highlighted. It stays on one line:
+// templ puts a space between elements on separate lines, which would split
+// the word at the highlight.
 templ marked(h SearchHit) {
-	{ h.Pre }
-	if h.Hit != "" {
-		<mark>{ h.Hit }</mark>
+	if h.Hit == "" {
+		{ h.Pre }
+	} else {
+		{ h.Pre }<mark>{ h.Hit }</mark>{ h.Post }
 	}
-	{ h.Post }
 }
 
 templ iconSearch(size int) {

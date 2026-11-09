@@ -1575,7 +1575,7 @@ func RecipeMenuSheet(v RecipeMenuView) templ.Component {
 		}
 		ctx = templ.InitializeContext(ctx)
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 132, "<div id=\"sheet\"><dialog class=\"sheet-dialog\" aria-labelledby=\"menu-title\" data-init=\"el.open || el.showModal()\" data-on:close=\"el.remove()\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 132, "<div id=\"sheet\"><dialog id=\"recipe-menu\" class=\"sheet-dialog\" aria-labelledby=\"menu-title\" data-init=\"el.open || el.showModal()\" data-on:close=\"el.remove()\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1942,7 +1942,7 @@ func DeleteRecipeDialog(v DeleteRecipeView) templ.Component {
 		}
 		ctx = templ.InitializeContext(ctx)
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 160, "<div id=\"sheet\"><dialog class=\"confirm-dialog\" role=\"alertdialog\" aria-labelledby=\"delete-title\" aria-describedby=\"delete-body\" data-init=\"el.open || el.showModal()\" data-on:close=\"el.remove()\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 160, "<div id=\"sheet\"><dialog id=\"recipe-delete\" class=\"confirm-dialog\" role=\"alertdialog\" aria-labelledby=\"delete-title\" aria-describedby=\"delete-body\" data-init=\"el.open || el.showModal()\" data-on:close=\"el.remove()\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

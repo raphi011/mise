@@ -275,6 +275,11 @@ templ ToastRegion(t Toast) {
 }
 
 // EmptySheet closes the sheet.
+//
+// Every dialog patched into #sheet has its own id: Datastar morphs a
+// same-tag element without an id into the new one, and morphing an open
+// modal dialog into another strips its open attribute while it stays
+// modal, which hides it and leaves the page inert.
 templ EmptySheet() {
 	<div id="sheet"></div>
 }
@@ -282,7 +287,7 @@ templ EmptySheet() {
 // EntryEditSheet is the edit sheet as a modal dialog.
 templ EntryEditSheet(v EntryEditView) {
 	<div id="sheet">
-		<dialog class="sheet-dialog" aria-labelledby="sheet-title" data-init="el.open || el.showModal()" data-on:close="el.remove()">
+		<dialog id="entry-sheet" class="sheet-dialog" aria-labelledby="sheet-title" data-init="el.open || el.showModal()" data-on:close="el.remove()">
 			@entryEditForm(v, true)
 		</dialog>
 	</div>
@@ -363,7 +368,7 @@ templ entryEditForm(v EntryEditView, modal bool) {
 // ClearCartDialog asks before clearing the cart, as a modal dialog.
 templ ClearCartDialog(v ClearCartView) {
 	<div id="sheet">
-		<dialog class="confirm-dialog" role="alertdialog" aria-labelledby="clear-title" data-init="el.open || el.showModal()" data-on:close="el.remove()">
+		<dialog id="clear-cart-dialog" class="confirm-dialog" role="alertdialog" aria-labelledby="clear-title" data-init="el.open || el.showModal()" data-on:close="el.remove()">
 			@clearCartBody(v, true)
 		</dialog>
 	</div>

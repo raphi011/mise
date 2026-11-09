@@ -203,6 +203,17 @@ func TestRecipePagesWithoutJavaScript(t *testing.T) {
 	if none := anna.get("/recipes/search?q=bibimbap").body; !strings.Contains(none, "No “bibimbap” yet") || !strings.Contains(none, `href="/recipes/new"`) {
 		t.Errorf("empty search:\n%.3000s", none)
 	}
+	// The highlight sits inside the word, with no space after it.
+	if mid := anna.get("/recipes/search?q=sauc").body; !strings.Contains(mid, "sauc</mark>e") {
+		t.Errorf("highlight splits the word:\n%.3000s", mid)
+	}
+	// The menu and the delete confirm are different dialogs, so the second
+	// replaces the first instead of morphing the open one.
+	menu := anna.datastar(http.MethodGet, "/recipes/"+id+"/menu", nil).body
+	del := anna.datastar(http.MethodGet, "/recipes/"+id+"/delete", nil).body
+	if !strings.Contains(menu, `<dialog id="recipe-menu"`) || !strings.Contains(del, `<dialog id="recipe-delete"`) {
+		t.Errorf("sheet dialogs need their own ids:\n%.1000s\n%.1000s", menu, del)
+	}
 	// Markup in a search is text.
 	if xss := anna.get("/recipes/search?q=" + url.QueryEscape("<b>soy")).body; strings.Contains(xss, "<b>soy") {
 		t.Error("search echoes markup")

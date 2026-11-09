@@ -263,7 +263,7 @@ func (s *Server) filterView(ctx context.Context, sc store.Scoped, id *auth.Ident
 		if m.UserID == id.UserID {
 			label = i18n.T(ctx, "recipes.youCap")
 		}
-		v.People = append(v.People, ui.FilterOption{Value: m.UserID.String(), Label: label, Color: m.AvatarColor, Checked: slices.Contains(f.AddedBy, m.UserID)})
+		v.People = append(v.People, ui.FilterOption{Value: m.UserID.String(), Label: label, Initial: ui.Initial(m.Name), Color: m.AvatarColor, Checked: slices.Contains(f.AddedBy, m.UserID)})
 	}
 	for _, t := range tags {
 		v.Tags = append(v.Tags, ui.FilterOption{Value: t.ID.String(), Label: t.Name, Checked: slices.Contains(f.Tags, t.ID)})
