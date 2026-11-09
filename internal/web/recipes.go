@@ -252,7 +252,12 @@ func (s *Server) filterView(ctx context.Context, sc store.Scoped, id *auth.Ident
 	if err != nil {
 		return ui.FilterSheetView{}, err
 	}
+	cards, err := s.recipes.Library(ctx, sc, id.UserID, f)
+	if err != nil {
+		return ui.FilterSheetView{}, err
+	}
 	v := ui.FilterSheetView{
+		Count: len(cards),
 		Query: encodeFilter(f), Favourites: f.Favourites, Stale: f.NotCookedRecently, Never: f.NeverCooked, Sort: string(f.Sort),
 	}
 	if f.MaxMinutes > 0 {
@@ -293,6 +298,23 @@ func (s *Server) filterPage(w http.ResponseWriter, r *http.Request) {
 	p := s.page(r, i18n.T(ctx, "recipes.filter.title"), ui.NavRecipes)
 	p.BackHref, p.BackLabel = libraryHref(parseFilter(r.URL.Query())), i18n.T(ctx, "recipes.back")
 	s.render(w, r, http.StatusOK, ui.FilterPage(p, v))
+}
+
+// filterCount patches the filter sheet's submit button with how many
+// recipes the posted choices show.
+func (s *Server) filterCount(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	sc, err := s.db.Scope(ctx)
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	cards, err := s.recipes.Library(ctx, sc, identity(r).UserID, parseFilter(r.URL.Query()))
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	s.sendPatches(w, r, patchTempl(ui.FilterSubmit(len(cards))))
 }
 
 // ---- Search ----

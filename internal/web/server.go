@@ -234,6 +234,7 @@ func (s *Server) routes(r *router) {
 	r.read("/{$}", s.user(http.RedirectHandler("/groceries", http.StatusFound).ServeHTTP))
 	r.read("/recipes", s.user(s.libraryPage))
 	r.read("/recipes/filters", s.user(s.filterPage))
+	r.read("/recipes/filters/count", s.user(s.filterCount))
 	r.read("/recipes/search", s.user(s.searchPage))
 	r.read("/recipes/search/results", s.user(s.searchResults))
 	r.read("/recipes/new", s.user(s.newRecipePage))

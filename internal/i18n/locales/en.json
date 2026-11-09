@@ -344,6 +344,8 @@
   "recipes.filter.never": "Never cooked yet",
   "recipes.filter.sort": "Sort by",
   "recipes.filter.show": "Show recipes",
+  "recipes.filter.showOne": "Show 1 recipe",
+  "recipes.filter.showCount": "Show %d recipes",
   "recipes.search.title": "Search recipes",
   "recipes.search.label": "Search recipes by name or ingredient",
   "recipes.search.placeholder": "Recipe or ingredient",

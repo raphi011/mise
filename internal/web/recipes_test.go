@@ -201,7 +201,17 @@ func TestRecipePagesWithoutJavaScript(t *testing.T) {
 	if fav := ben.get("/recipes?fav=1").expect(t, "favourites", http.StatusOK); !strings.Contains(fav.body, "Sticky tofu") {
 		t.Error("favourite not shown under Favourites")
 	}
-	anna.get("/recipes/filters").expect(t, "filter page", http.StatusOK)
+	// The filter page has a generic submit; the sheet counts, live.
+	if fp := anna.get("/recipes/filters").expect(t, "filter page", http.StatusOK).body; !strings.Contains(fp, ">Show recipes<") {
+		t.Errorf("filter page submit:\n%.3000s", fp)
+	}
+	if sheet := anna.datastar(http.MethodGet, "/recipes/filters", nil).body; !strings.Contains(sheet, "Show 1 recipe") ||
+		!strings.Contains(sheet, "/recipes/filters/count") {
+		t.Errorf("filter sheet submit:\n%.3000s", sheet)
+	}
+	if n := anna.datastar(http.MethodGet, "/recipes/filters/count?fav=1&sort=name", nil).body; !strings.Contains(n, "Show 0 recipes") {
+		t.Errorf("filter count:\n%s", n)
+	}
 	search := anna.get("/recipes/search?q=soy").expect(t, "search", http.StatusOK)
 	if !strings.Contains(search.body, "Ingredient matches") || !strings.Contains(search.body, "<mark>Soy</mark>") {
 		t.Errorf("search:\n%.3000s", search.body)

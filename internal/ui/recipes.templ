@@ -196,7 +196,14 @@ templ filterForm(v FilterSheetView, modal bool) {
 			</button>
 		}
 	</div>
-	<form class="stack-lg" method="get" action="/recipes">
+	<form
+		class="stack-lg"
+		method="get"
+		action="/recipes"
+		if modal {
+			data-on:change="@get('/recipes/filters/count', {contentType: 'form'})"
+		}
+	>
 		if len(v.People) > 1 {
 			<fieldset class="choices">
 				<legend class="field__label">{ i18n.T(ctx, "recipes.addedBy") }</legend>
@@ -249,8 +256,26 @@ templ filterForm(v FilterSheetView, modal bool) {
 				}
 			</select>
 		</div>
-		<button type="submit" class="btn btn--primary btn--block">{ i18n.T(ctx, "recipes.filter.show") }</button>
+		if modal {
+			@FilterSubmit(v.Count)
+		} else {
+			<button type="submit" class="btn btn--primary btn--block">{ i18n.T(ctx, "recipes.filter.show") }</button>
+		}
 	</form>
+}
+
+// FilterSubmit is the filter sheet's submit button, naming how many recipes
+// the choices show. The sheet patches it as they change; the page without
+// JavaScript has a generic label instead, as it cannot keep a count
+// current.
+templ FilterSubmit(count int) {
+	<button type="submit" id="filter-submit" class="btn btn--primary btn--block" aria-live="polite">
+		if count == 1 {
+			{ i18n.T(ctx, "recipes.filter.showOne") }
+		} else {
+			{ i18n.T(ctx, "recipes.filter.showCount", count) }
+		}
+	</button>
 }
 
 templ segment(name, value, label string, checked bool) {

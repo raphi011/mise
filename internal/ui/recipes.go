@@ -87,6 +87,8 @@ type FilterSheetView struct {
 	Never      bool
 	Sorts      []Option
 	Sort       string
+	// Count is how many recipes the filter shows.
+	Count int
 }
 
 // FilterOption is one checkbox of the filter sheet.
