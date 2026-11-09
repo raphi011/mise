@@ -32,6 +32,11 @@ above, or a host directory owned by that uid
 | `MISE_TRUSTED_PROXIES` | | CIDRs whose `X-Forwarded-For` is trusted |
 | `MISE_LOG_FORMAT` | `json` | `json` or `text` |
 | `MISE_LOG_LEVEL` | `info` | |
+| `MISE_SMTP_HOST` | | SMTP server; enables invite and password-reset emails |
+| `MISE_SMTP_PORT` | `587` | |
+| `MISE_SMTP_TLS` | `starttls` | `starttls`, `tls` (implicit, usually port 465) or `none` |
+| `MISE_SMTP_USERNAME`, `MISE_SMTP_PASSWORD` | | when the server needs auth |
+| `MISE_SMTP_FROM` | | sender, e.g. `mise <mise@example.com>`; required with a host |
 
 Every variable has a matching flag, e.g. `-db`, `-listen`. `mise-server migrate` applies migrations and exits; `/healthz` and `/readyz` are for health checks.
 

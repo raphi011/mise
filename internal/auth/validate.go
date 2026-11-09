@@ -152,3 +152,11 @@ func truncate(s string, n int) string {
 
 // clean trims surrounding whitespace from form input.
 func clean(s string) string { return strings.TrimSpace(s) }
+
+// ValidEmail reports whether email is a plain address such as
+// name@example.com, as account forms accept it.
+func ValidEmail(email string) bool {
+	errs := FieldErrors{}
+	checkEmail(errs, "email", email)
+	return email != "" && len(errs) == 0
+}

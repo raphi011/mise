@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/raphi011/mise/internal/i18n"
 	"github.com/raphi011/mise/internal/images"
 	"github.com/raphi011/mise/internal/live"
+	"github.com/raphi011/mise/internal/mail"
 	"github.com/raphi011/mise/internal/plan"
 	"github.com/raphi011/mise/internal/recipes"
 	"github.com/raphi011/mise/internal/store"
@@ -47,6 +49,16 @@ const (
 	limiterMaxKeys   = 10_000
 )
 
+// Password-reset request limits: per client IP a burst of 5, then one a
+// minute; per email address a burst of 3, then one every 10 minutes, so an
+// inbox cannot be flooded from many addresses either.
+const (
+	resetIPBurst      = 5
+	resetIPInterval   = time.Minute
+	resetAddrBurst    = 3
+	resetAddrInterval = 10 * time.Minute
+)
+
 // Server holds the dependencies of the HTTP handlers.
 type Server struct {
 	cfg  config.Config
@@ -65,10 +77,17 @@ type Server struct {
 	// heartbeat overrides live.DefaultHeartbeat, for tests.
 	heartbeat time.Duration
 
-	ipLimit       *auth.Limiter
-	pairLimit     *auth.Limiter
-	userLimit     *auth.Limiter
-	passwordLimit *auth.Limiter
+	ipLimit        *auth.Limiter
+	pairLimit      *auth.Limiter
+	userLimit      *auth.Limiter
+	passwordLimit  *auth.Limiter
+	resetIPLimit   *auth.Limiter
+	resetAddrLimit *auth.Limiter
+
+	// mailer sends invite and reset emails; nil without SMTP.
+	mailer mail.Mailer
+	// bg tracks work that outlives its request (reset emails).
+	bg sync.WaitGroup
 
 	// baseURL is the public URL: MISE_BASE_URL, or the one stored by setup.
 	baseURL atomic.Pointer[url.URL]
@@ -79,14 +98,19 @@ type Server struct {
 // base URL stored by first-run setup is known.
 func New(cfg config.Config, db *store.DB, log *slog.Logger) (*Server, error) {
 	s := &Server{
-		cfg:           cfg,
-		db:            db,
-		log:           log,
-		csrf:          http.NewCrossOriginProtection(),
-		ipLimit:       auth.NewLimiter(ipBurst, ipInterval, limiterMaxKeys, nil),
-		pairLimit:     auth.NewLimiter(pairBurst, pairInterval, limiterMaxKeys, nil),
-		userLimit:     auth.NewLimiter(userBurst, userInterval, limiterMaxKeys, nil),
-		passwordLimit: auth.NewLimiter(passwordBurst, passwordInterval, limiterMaxKeys, nil),
+		cfg:            cfg,
+		db:             db,
+		log:            log,
+		csrf:           http.NewCrossOriginProtection(),
+		ipLimit:        auth.NewLimiter(ipBurst, ipInterval, limiterMaxKeys, nil),
+		pairLimit:      auth.NewLimiter(pairBurst, pairInterval, limiterMaxKeys, nil),
+		userLimit:      auth.NewLimiter(userBurst, userInterval, limiterMaxKeys, nil),
+		passwordLimit:  auth.NewLimiter(passwordBurst, passwordInterval, limiterMaxKeys, nil),
+		resetIPLimit:   auth.NewLimiter(resetIPBurst, resetIPInterval, limiterMaxKeys, nil),
+		resetAddrLimit: auth.NewLimiter(resetAddrBurst, resetAddrInterval, limiterMaxKeys, nil),
+	}
+	if cfg.SMTP.Enabled() {
+		s.mailer = mail.NewSMTP(cfg.SMTP)
 	}
 	s.live = live.NewHub()
 	s.groceries = groceries.New(s.live, nil)
@@ -109,6 +133,10 @@ func (s *Server) now() time.Time {
 	}
 	return time.Now()
 }
+
+// Wait blocks until background work started by requests (reset emails)
+// is done. Call it after the HTTP server has shut down.
+func (s *Server) Wait() { s.bg.Wait() }
 
 // Images returns the image store, for the sweep of unreferenced images.
 func (s *Server) Images() *images.Store { return s.images }
@@ -245,6 +273,9 @@ func (s *Server) routes(r *router) {
 	r.read("/signin", http.HandlerFunc(s.signInPage))
 	r.write(http.MethodPost, "/signin", http.HandlerFunc(s.signInSubmit))
 	r.read("/forgot-password", http.HandlerFunc(s.forgotPasswordPage))
+	r.write(http.MethodPost, "/forgot-password", http.HandlerFunc(s.forgotPasswordSubmit))
+	r.read("/reset/{token}", http.HandlerFunc(s.resetPage))
+	r.write(http.MethodPost, "/reset/{token}", http.HandlerFunc(s.resetSubmit))
 	r.read("/invite/{token}", http.HandlerFunc(s.acceptInvitePage))
 	r.write(http.MethodPost, "/invite/{token}", http.HandlerFunc(s.acceptInviteSubmit))
 	r.write(http.MethodPost, "/signout", s.user(s.signOut))

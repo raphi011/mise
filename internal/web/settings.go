@@ -2,6 +2,7 @@ package web
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -366,12 +367,15 @@ func deviceLabel(r *http.Request, ua string) string {
 // ---- Invites ----
 
 func (s *Server) invitePage(w http.ResponseWriter, r *http.Request) {
-	v := ui.InvitePageView{Roles: roleOptions(r), Form: ui.Form{Values: map[string]string{"role": "member"}}}
+	v := ui.InvitePageView{Roles: roleOptions(r), Form: ui.Form{Values: map[string]string{"role": "member"}}, CanEmail: s.mailer != nil}
 	if c, err := r.Cookie(inviteCookie); err == nil && c.Value != "" {
 		if base := s.BaseURL(); base != nil {
 			v.Link = base.String() + "/invite/" + c.Value
 		}
 		s.setInviteCookie(w, r, "", -1)
+		if m := r.URL.Query().Get("mail"); m == "sent" || m == "failed" {
+			v.Mail = m
+		}
 	}
 	s.renderInvitePage(w, r, http.StatusOK, v)
 }
@@ -401,7 +405,7 @@ func (s *Server) createInvite(w http.ResponseWriter, r *http.Request) {
 	}
 	token, err := s.auth.CreateInvite(ctx, sc, identity(r).UserID, auth.Role(f.Value("role")), f.Value("email"))
 	if f, ok := withErrors(ctx, f, err); ok {
-		s.renderInvitePage(w, r, http.StatusUnprocessableEntity, ui.InvitePageView{Form: f, Roles: roleOptions(r)})
+		s.renderInvitePage(w, r, http.StatusUnprocessableEntity, ui.InvitePageView{Form: f, Roles: roleOptions(r), CanEmail: s.mailer != nil})
 		return
 	}
 	if err != nil {
@@ -409,7 +413,18 @@ func (s *Server) createInvite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.setInviteCookie(w, r, token, 600)
-	seeOther(w, r, "/settings/invite")
+	target := "/settings/invite"
+	if email := strings.TrimSpace(f.Value("email")); s.mailer != nil && email != "" {
+		// The link works without the email, so a failed send is reported,
+		// not an error.
+		if err := s.sendInvite(ctx, identity(r), email, token); err != nil {
+			s.log.WarnContext(ctx, "send invite", slog.Any("err", err))
+			target += "?mail=failed"
+		} else {
+			target += "?mail=sent"
+		}
+	}
+	seeOther(w, r, target)
 }
 
 func (s *Server) revokeInvite(w http.ResponseWriter, r *http.Request) {

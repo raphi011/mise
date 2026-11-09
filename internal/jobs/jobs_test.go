@@ -302,3 +302,36 @@ func TestSweepPlannedMeals(t *testing.T) {
 		}
 	})
 }
+
+func TestSweepResets(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		ctx := t.Context()
+		now := time.Date(2026, 11, 9, 12, 0, 0, 0, time.UTC)
+		hh := storetest.NewHousehold(t, db, "home")
+		insert := func(expires time.Time, used *time.Time) {
+			t.Helper()
+			var usedAt any
+			if used != nil {
+				usedAt = store.T(*used)
+			}
+			err := db.System().Tx(ctx, func(ctx context.Context, q store.Querier) error {
+				_, err := q.Exec(ctx, `INSERT INTO password_resets (id, token_hash, user_id, expires_at, used_at, created_at, updated_at)
+					VALUES (?, ?, ?, ?, ?, ?, ?)`, store.NewID(), uuid.NewString(), hh.Admin, store.T(expires), usedAt, store.T(now), store.T(now))
+				return err
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		insert(now.Add(time.Hour), nil)    // valid: stays
+		insert(now.Add(-time.Minute), nil) // expired
+		insert(now.Add(time.Hour), &now)   // used
+		s := NewSweeper(db, slog.New(slog.DiscardHandler), func() time.Time { return now }, 0)
+		if got, err := s.Sweep(ctx); err != nil || got != (Swept{Resets: 2}) {
+			t.Fatalf("sweep: %+v, %v", got, err)
+		}
+		if got, err := s.Sweep(ctx); err != nil || got != (Swept{}) {
+			t.Errorf("second sweep: %+v, %v", got, err)
+		}
+	})
+}

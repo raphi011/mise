@@ -76,21 +76,95 @@ templ SignIn(p Page, v SignInView) {
 	}
 }
 
-templ ForgotPassword(p Page) {
+// ForgotView is the forgot-password page.
+type ForgotView struct {
+	// CanEmail is set when SMTP is configured; otherwise the page sends
+	// people to an admin.
+	CanEmail bool
+	// Sent is set after a request: the page then only says to check the
+	// inbox, whether or not an account matched.
+	Sent bool
+	Form Form
+}
+
+templ ForgotPassword(p Page, v ForgotView) {
 	@AuthLayout(p, defaultPanel()) {
 		@backLink("/signin", i18n.T(ctx, "auth.backToSignIn"))
 		<div class="auth__intro">
 			<h1 class="auth__title">{ i18n.T(ctx, "forgot.title") }</h1>
+			if v.CanEmail && !v.Sent {
+				<p class="auth__lead">{ i18n.T(ctx, "forgot.intro") }</p>
+			}
 		</div>
-		<div class="callout">
-			<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"></circle><path d="M4 20c1.5-3.5 4.5-5 8-5s6.5 1.5 8 5"></path></svg>
-			<span class="callout__body">
-				<span class="callout__title">{ i18n.T(ctx, "forgot.askAdmin.title") }</span>
-				<span>{ i18n.T(ctx, "forgot.askAdmin.body") }</span>
-			</span>
-		</div>
-		<p class="auth__footer"><a href="/signin">{ i18n.T(ctx, "auth.backToSignIn") }</a></p>
+		if !v.CanEmail {
+			<div class="callout">
+				<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"></circle><path d="M4 20c1.5-3.5 4.5-5 8-5s6.5 1.5 8 5"></path></svg>
+				<span class="callout__body">
+					<span class="callout__title">{ i18n.T(ctx, "forgot.askAdmin.title") }</span>
+					<span>{ i18n.T(ctx, "forgot.askAdmin.body") }</span>
+				</span>
+			</div>
+		} else if v.Sent {
+			<div class="callout" role="status">
+				@iconMail()
+				<span class="callout__body">
+					<span class="callout__title">{ i18n.T(ctx, "forgot.sent.title") }</span>
+					<span>{ i18n.T(ctx, "forgot.sent.body") }</span>
+				</span>
+			</div>
+		} else {
+			<form class="stack" method="post" action="/forgot-password" novalidate>
+				@formAlert(v.Form)
+				@textField(Field{ID: "forgot-email", Name: "email", Type: "email", Label: i18n.T(ctx, "field.email"), Autocomplete: "email", Required: true}, v.Form)
+				<button class="btn btn--primary btn--block" type="submit">{ i18n.T(ctx, "forgot.submit") }</button>
+			</form>
+		}
+		if v.CanEmail {
+			<p class="auth__footer">{ i18n.T(ctx, "forgot.noEmail") }</p>
+		} else {
+			<p class="auth__footer"><a href="/signin">{ i18n.T(ctx, "auth.backToSignIn") }</a></p>
+		}
 	}
+}
+
+// ResetView is the page a password-reset link opens.
+type ResetView struct {
+	Token    string
+	Username string
+}
+
+templ ResetPassword(p Page, v ResetView, form Form) {
+	@AuthLayout(p, defaultPanel()) {
+		<div class="auth__intro">
+			<h1 class="auth__title">{ i18n.T(ctx, "reset.title") }</h1>
+			<p class="auth__lead">{ i18n.T(ctx, "reset.intro", v.Username) }</p>
+		</div>
+		<form class="stack" method="post" action={ templ.SafeURL("/reset/" + v.Token) } novalidate>
+			@formAlert(form)
+			// Lets password managers store the new password for the account.
+			<input type="text" name="username" value={ v.Username } autocomplete="username" hidden/>
+			@textField(Field{ID: "reset-password", Name: "password", Type: "password", Label: i18n.T(ctx, "field.newPassword"), Autocomplete: "new-password", Hint: i18n.T(ctx, "field.passwordHint"), Required: true}, form)
+			<button class="btn btn--primary btn--block" type="submit">{ i18n.T(ctx, "reset.submit") }</button>
+		</form>
+	}
+}
+
+templ ResetInvalid(p Page) {
+	@AuthLayout(p, defaultPanel()) {
+		<div class="auth__intro">
+			<span class="auth__phone-logo">
+				@logo(56)
+			</span>
+			<h1 class="auth__title">{ i18n.T(ctx, "reset.invalid.title") }</h1>
+			<p class="auth__lead">{ i18n.T(ctx, "reset.invalid.body") }</p>
+		</div>
+		<a class="btn btn--primary btn--block" href="/forgot-password">{ i18n.T(ctx, "reset.invalid.link") }</a>
+		<a class="btn btn--secondary btn--block" href="/signin">{ i18n.T(ctx, "auth.backToSignIn") }</a>
+	}
+}
+
+templ iconMail() {
+	<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5"></rect><path d="M3.5 7l8.5 6 8.5-6"></path></svg>
 }
 
 // SetupView is the first-run setup form.

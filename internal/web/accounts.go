@@ -224,11 +224,6 @@ func (s *Server) signOut(w http.ResponseWriter, r *http.Request) {
 	seeOther(w, r, "/signin")
 }
 
-func (s *Server) forgotPasswordPage(w http.ResponseWriter, r *http.Request) {
-	p := ui.Page{Title: i18n.T(r.Context(), "forgot.title")}
-	s.render(w, r, http.StatusOK, ui.ForgotPassword(p))
-}
-
 // ---- Accept invite ----
 
 func (s *Server) inviteView(ctx context.Context, token string) (ui.InviteView, auth.InviteInfo, error) {

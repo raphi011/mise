@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/mail"
 	"net/netip"
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -31,7 +33,31 @@ type Config struct {
 	LogFormat string
 	// LogLevel is the minimum log level.
 	LogLevel slog.Level
+	// SMTP configures outgoing email; without a host there is none.
+	SMTP SMTP
 }
+
+// SMTP TLS modes.
+const (
+	TLSStartTLS = "starttls"
+	TLSImplicit = "tls"
+	TLSNone     = "none"
+)
+
+// SMTP is the mail server invites and password resets are sent through.
+type SMTP struct {
+	Host string
+	Port int
+	// TLS is TLSStartTLS, TLSImplicit or TLSNone.
+	TLS      string
+	Username string
+	Password string
+	// From is the sender, e.g. "mise <mise@example.com>".
+	From *mail.Address
+}
+
+// Enabled reports whether email is configured.
+func (s SMTP) Enabled() bool { return s.Host != "" }
 
 // Load parses args (without the program name). Values not given as flags
 // are taken from getenv, then from built-in defaults.
@@ -59,6 +85,12 @@ func load(args []string, getenv func(string) string, out io.Writer) (Config, err
 	proxies := str("trusted-proxies", "MISE_TRUSTED_PROXIES", "", "comma-separated CIDRs of trusted reverse proxies")
 	logFormat := str("log-format", "MISE_LOG_FORMAT", "json", "log format, json or text")
 	logLevel := str("log-level", "MISE_LOG_LEVEL", "info", "log level")
+	smtpHost := str("smtp-host", "MISE_SMTP_HOST", "", "SMTP server for invite and password-reset emails; unset disables email")
+	smtpPort := str("smtp-port", "MISE_SMTP_PORT", "587", "SMTP port")
+	smtpTLS := str("smtp-tls", "MISE_SMTP_TLS", TLSStartTLS, "SMTP TLS mode: starttls, tls (implicit) or none")
+	smtpUser := str("smtp-username", "MISE_SMTP_USERNAME", "", "SMTP username")
+	smtpPass := str("smtp-password", "MISE_SMTP_PASSWORD", "", "SMTP password")
+	smtpFrom := str("smtp-from", "MISE_SMTP_FROM", "", "sender address, e.g. 'mise <mise@example.com>'")
 	if err := fs.Parse(args); err != nil {
 		return Config{}, err
 	}
@@ -121,7 +153,40 @@ func load(args []string, getenv func(string) string, out io.Writer) (Config, err
 	if err := cfg.LogLevel.UnmarshalText([]byte(*logLevel)); err != nil {
 		errs = append(errs, fmt.Errorf("log level: %w", err))
 	}
+	if *smtpHost != "" {
+		smtp, err := parseSMTP(*smtpHost, *smtpPort, *smtpTLS, *smtpUser, *smtpPass, *smtpFrom)
+		errs = append(errs, err)
+		cfg.SMTP = smtp
+	}
 	return cfg, errors.Join(errs...)
+}
+
+// parseSMTP validates the SMTP settings given a host.
+func parseSMTP(host, port, tls, user, pass, from string) (SMTP, error) {
+	s := SMTP{Host: host, TLS: tls, Username: user, Password: pass}
+	var errs []error
+	n, err := strconv.Atoi(port)
+	if err != nil || n < 1 || n > 65535 {
+		errs = append(errs, fmt.Errorf("SMTP port %q: must be 1 to 65535", port))
+	}
+	s.Port = n
+	switch tls {
+	case TLSStartTLS, TLSImplicit, TLSNone:
+	default:
+		errs = append(errs, fmt.Errorf("SMTP TLS %q: must be starttls, tls or none", tls))
+	}
+	if (user == "") != (pass == "") {
+		errs = append(errs, errors.New("SMTP username and password: set both or neither"))
+	}
+	switch a, err := mail.ParseAddress(from); {
+	case from == "":
+		errs = append(errs, errors.New("SMTP from: required with an SMTP host"))
+	case err != nil:
+		errs = append(errs, fmt.Errorf("SMTP from %q: %w", from, err))
+	default:
+		s.From = a
+	}
+	return s, errors.Join(errs...)
 }
 
 // parsePrefix accepts a CIDR or a single address.

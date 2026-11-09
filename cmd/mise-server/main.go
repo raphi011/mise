@@ -122,6 +122,8 @@ func serve(ctx context.Context, cfg config.Config, db *store.DB, log *slog.Logge
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		return fmt.Errorf("shutdown: %w", err)
 	}
+	// Reset emails go out after their response; let them finish.
+	server.Wait()
 	return nil
 }
 

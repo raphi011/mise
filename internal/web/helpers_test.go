@@ -12,6 +12,7 @@ import (
 
 	"github.com/raphi011/mise/internal/auth"
 	"github.com/raphi011/mise/internal/config"
+	"github.com/raphi011/mise/internal/mail/mailtest"
 	"github.com/raphi011/mise/internal/store"
 )
 
@@ -148,6 +149,20 @@ func startServer(t *testing.T, db *store.DB) (*Server, *httptest.Server) {
 	t.Helper()
 	s := newServer(t, config.Config{}, db, slog.New(slog.DiscardHandler))
 	srv := httptest.NewServer(s.Handler())
-	t.Cleanup(srv.Close)
+	t.Cleanup(func() {
+		srv.Close()
+		// Background sends use the database; finish before it closes.
+		s.Wait()
+	})
 	return s, srv
+}
+
+// startMailServer is startServer with a recording mailer, as if SMTP were
+// configured.
+func startMailServer(t *testing.T, db *store.DB) (*Server, *httptest.Server, *mailtest.Recorder) {
+	t.Helper()
+	s, srv := startServer(t, db)
+	rec := mailtest.New()
+	s.mailer = rec
+	return s, srv, rec
 }

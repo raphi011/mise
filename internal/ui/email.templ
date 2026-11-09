@@ -1,0 +1,59 @@
+package ui
+
+// EmailView is the content of an email's HTML part. Every text is already
+// translated; the plain-text part carries the same words.
+type EmailView struct {
+	// Lang is the email's language tag.
+	Lang     string
+	Title    string
+	Greeting string
+	Body     string
+	Button   string
+	Link     string
+	Note     string
+	Fallback string
+	Ignore   string
+}
+
+// Email is the HTML part of mise's emails: one message and one button.
+// Styles are inline, as mail clients drop <style> elements.
+templ Email(v EmailView) {
+	<!DOCTYPE html>
+	<html lang={ v.Lang }>
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>{ v.Title }</title>
+		</head>
+		<body style="margin:0;padding:24px 16px;background:#F6F5F1;color:#1B1F1A;font-family:Inter,system-ui,-apple-system,'Segoe UI',sans-serif;font-size:15px;line-height:1.5">
+			<div style="
+		max-width: 480px;
+		margin: 0 auto;
+		padding: 28px 24px;
+		background: #ffffff;
+		border-radius: 18px;
+	">
+				<p style="margin: 0 0 20px; font-size: 20px; font-weight: 700; color: #2e6a43">mise</p>
+				if v.Greeting != "" {
+					<p style="margin: 0 0 12px">{ v.Greeting }</p>
+				}
+				<p style="margin: 0 0 24px">{ v.Body }</p>
+				<p style="margin: 0 0 24px">
+					<a href={ templ.SafeURL(v.Link) } style="
+		display: inline-block;
+		padding: 14px 22px;
+		border-radius: 999px;
+		background: #2e6a43;
+		color: #ffffff;
+		font-weight: 600;
+		text-decoration: none;
+	">{ v.Button }</a>
+				</p>
+				<p style="margin: 0 0 16px; color: #5e655c; font-size: 14px">{ v.Note }</p>
+				<p style="margin: 0 0 4px; color: #5e655c; font-size: 13px">{ v.Fallback }</p>
+				<p style="margin: 0 0 16px; font-size: 13px; word-break: break-all"><a href={ templ.SafeURL(v.Link) } style="color: #2e6a43">{ v.Link }</a></p>
+				<p style="margin: 0; color: #5e655c; font-size: 13px">{ v.Ignore }</p>
+			</div>
+		</body>
+	</html>
+}

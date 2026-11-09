@@ -318,6 +318,11 @@ type InvitePageView struct {
 	Roles []Option
 	// Link is the invite URL just created, shown once.
 	Link string
+	// CanEmail is set when SMTP is configured: an invite with an address
+	// is also emailed.
+	CanEmail bool
+	// Mail is "sent" or "failed" after emailing the link just created.
+	Mail string
 }
 
 templ InvitePage(p Page, v InvitePageView) {
@@ -336,6 +341,15 @@ templ InvitePage(p Page, v InvitePageView) {
 						>{ i18n.T(ctx, "invite.copy") }</button>
 					</div>
 					<span class="field__hint" id="invite-link-hint">{ i18n.T(ctx, "invite.linkHint") }</span>
+					switch v.Mail {
+						case "sent":
+							<p class="callout" role="status">
+								@iconMail()
+								<span class="callout__body">{ i18n.T(ctx, "invite.mail.sent") }</span>
+							</p>
+						case "failed":
+							<p class="alert" role="alert">{ i18n.T(ctx, "invite.mail.failed") }</p>
+					}
 					<p class="notice" role="status" aria-live="polite" data-copied={ i18n.T(ctx, "invite.copied") } data-text="$copied ? el.dataset.copied : ''"></p>
 					<div class="settings-actions">
 						<a class="btn btn--primary" href="/settings#people">{ i18n.T(ctx, "invite.done") }</a>
@@ -346,7 +360,7 @@ templ InvitePage(p Page, v InvitePageView) {
 				<form class="stack-lg" method="post" action="/settings/invites" novalidate>
 					@formAlert(v.Form)
 					@textField(Field{ID: "invite-email", Name: "email", Label: i18n.T(ctx, "field.email"), Type: "email", Autocomplete: "off",
-						LabelNote: i18n.T(ctx, "field.optional"), Hint: i18n.T(ctx, "invite.emailHint"), Attrs: templ.Attributes{"placeholder": "name@example.com"}}, v.Form)
+						LabelNote: i18n.T(ctx, "field.optional"), Hint: inviteEmailHint(ctx, v.CanEmail), Attrs: templ.Attributes{"placeholder": "name@example.com"}}, v.Form)
 					@roleChoice("invite-role", v.Roles, v.Form)
 					<span class="field__hint">{ i18n.T(ctx, "invite.expiry") }</span>
 					<div>

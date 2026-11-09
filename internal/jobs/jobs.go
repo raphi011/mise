@@ -21,7 +21,8 @@ const DefaultInterval = time.Hour
 // Sweeper hard-deletes rows whose Undo window has passed: list entries
 // removed or cleared, deleted shopping lists (with their entries), removed
 // planned meals and deleted recipes (with their ingredients, steps, tags,
-// favourites, cook history and planned meals) (docs/plan.md, Undo).
+// favourites, cook history and planned meals) (docs/plan.md, Undo). It
+// also deletes password-reset tokens that expired or were used.
 type Sweeper struct {
 	db       *store.DB
 	log      *slog.Logger
@@ -61,6 +62,8 @@ type Swept struct {
 	Meals   int64
 	Recipes int64
 	Images  int64
+	// Resets are expired or used password-reset tokens.
+	Resets int64
 }
 
 // Sweep deletes soft-deleted rows older than groceries.UndoWindow.
@@ -101,7 +104,15 @@ func (s *Sweeper) Sweep(ctx context.Context) (Swept, error) {
 		if err != nil {
 			return err
 		}
-		out.Recipes, err = res.RowsAffected()
+		if out.Recipes, err = res.RowsAffected(); err != nil {
+			return err
+		}
+		// A used token is worthless; an expired one too.
+		res, err = q.Exec(ctx, `DELETE FROM password_resets WHERE used_at IS NOT NULL OR expires_at < ?`, store.T(s.now()))
+		if err != nil {
+			return err
+		}
+		out.Resets, err = res.RowsAffected()
 		return err
 	})
 	if err != nil || s.images == nil {

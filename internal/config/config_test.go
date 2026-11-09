@@ -59,6 +59,11 @@ func TestLoadInvalid(t *testing.T) {
 		"bad proxy":         {"MISE_TRUSTED_PROXIES": "not-an-ip"},
 		"bad log format":    {"MISE_LOG_FORMAT": "xml"},
 		"bad log level":     {"MISE_LOG_LEVEL": "loud"},
+		"smtp without from": {"MISE_SMTP_HOST": "mail.example.com"},
+		"smtp bad port":     {"MISE_SMTP_HOST": "mail.example.com", "MISE_SMTP_FROM": "a@example.com", "MISE_SMTP_PORT": "0"},
+		"smtp bad tls":      {"MISE_SMTP_HOST": "mail.example.com", "MISE_SMTP_FROM": "a@example.com", "MISE_SMTP_TLS": "ssl"},
+		"smtp user only":    {"MISE_SMTP_HOST": "mail.example.com", "MISE_SMTP_FROM": "a@example.com", "MISE_SMTP_USERNAME": "u"},
+		"smtp bad from":     {"MISE_SMTP_HOST": "mail.example.com", "MISE_SMTP_FROM": "not an address"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			if _, err := Load(nil, envMap(env)); err == nil {
@@ -94,5 +99,31 @@ func TestLoadEnvDB(t *testing.T) {
 	cfg, err = Load([]string{"-db", "postgres://flag/db"}, env)
 	if err != nil || cfg.DB != "postgres://flag/db" {
 		t.Errorf("flag should override env, DB = %q, err = %v", cfg.DB, err)
+	}
+}
+
+func TestLoadSMTP(t *testing.T) {
+	cfg, err := Load(nil, envMap(nil))
+	if err != nil || cfg.SMTP.Enabled() {
+		t.Fatalf("SMTP enabled without a host: %+v, %v", cfg.SMTP, err)
+	}
+	env := envMap(map[string]string{
+		"MISE_SMTP_HOST":     "mail.example.com",
+		"MISE_SMTP_FROM":     "mise <mise@example.com>",
+		"MISE_SMTP_USERNAME": "mise",
+		"MISE_SMTP_PASSWORD": "secret",
+	})
+	cfg, err = Load([]string{"-smtp-port", "465", "-smtp-tls", "tls"}, env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := cfg.SMTP
+	if !s.Enabled() || s.Host != "mail.example.com" || s.Port != 465 || s.TLS != TLSImplicit ||
+		s.Username != "mise" || s.Password != "secret" || s.From.Address != "mise@example.com" || s.From.Name != "mise" {
+		t.Errorf("SMTP = %+v", s)
+	}
+	cfg, err = Load(nil, envMap(map[string]string{"MISE_SMTP_HOST": "mail", "MISE_SMTP_FROM": "a@example.com"}))
+	if err != nil || cfg.SMTP.Port != 587 || cfg.SMTP.TLS != TLSStartTLS {
+		t.Errorf("SMTP defaults = %+v, %v", cfg.SMTP, err)
 	}
 }
