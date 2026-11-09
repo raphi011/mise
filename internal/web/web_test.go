@@ -149,6 +149,16 @@ func TestStaticAssets(t *testing.T) {
 	if len(hrefs) < 3 {
 		t.Fatalf("expected css, js and font assets, got %v", hrefs)
 	}
+	// The @font-face rules are CSS in a <style> element, not page text.
+	style := regexp.MustCompile(`<style>(.*?)</style>`).FindStringSubmatch(body)
+	if style == nil {
+		t.Fatalf("no <style> element in the head:\n%s", body)
+	}
+	fonts := regexp.MustCompile(`@font-face\{[^}]*src:url\((/static/fonts/[^)]+)\)`).FindAllStringSubmatch(style[1], -1)
+	if len(fonts) != 2 {
+		t.Errorf("expected two @font-face rules, got %q", style[1])
+	}
+	hrefs = append(hrefs, fonts...)
 	for _, m := range hrefs {
 		res, _ := do(t, h, newReq(t, "GET", m[1], nil))
 		if res.StatusCode != 200 {

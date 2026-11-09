@@ -59,7 +59,7 @@ templ document(p Page) {
 			<title>{ p.Title } · mise</title>
 			<link rel="icon" href={ Asset("img/icon.svg") } type="image/svg+xml"/>
 			<link rel="preload" href={ Asset("fonts/inter-latin.woff2") } as="font" type="font/woff2" crossorigin/>
-			<style>@templ.Raw(fontFaces())</style>
+			@templ.Raw("<style>" + fontFaces() + "</style>")
 			<link rel="stylesheet" href={ Asset("css/app.css") }/>
 			<script type="module" src={ Asset("js/app.js") }></script>
 			<script type="module" src={ Asset("js/datastar.js") }></script>
