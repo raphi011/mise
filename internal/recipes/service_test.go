@@ -566,3 +566,63 @@ func TestConcurrentTagCreate(t *testing.T) {
 		}
 	})
 }
+
+// TestUpdateKeepsRowIDs checks that a save keeps the IDs of ingredient rows
+// it edits and of unchanged steps, so pages that have not refreshed still
+// reach them.
+func TestUpdateKeepsRowIDs(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		ctx := t.Context()
+		e := newEnv(t, db, "home")
+		r := e.create(t, Input{
+			Name:        "Sticky tofu",
+			Ingredients: ings("400 g firm tofu", "3 tbsp soy sauce", "1 thumb ginger"),
+			Steps:       []string{"Press the tofu.", "Fry it.", "Glaze it."},
+		})
+		tofu, soy, ginger := r.Ingredients[0], r.Ingredients[1], r.Ingredients[2]
+
+		// Soy sauce moves up and changes amount, tofu stays, ginger goes,
+		// garlic is new; an ID from another recipe or repeated adds a row.
+		other := e.create(t, Input{Name: "Other", Ingredients: ings("1 lime")})
+		edit := ings("4 tbsp soy sauce", "400 g firm tofu", "2 cloves garlic", "1 lime", "1 tbsp soy sauce")
+		edit[0].ID, edit[1].ID, edit[3].ID, edit[4].ID = soy.ID, tofu.ID, other.Ingredients[0].ID, soy.ID
+		in := Input{Name: "Sticky tofu", Servings: 2, Ingredients: edit,
+			Steps: []string{"Fry it.", "Press the tofu well.", "Glaze it."}}
+		if err := e.s.Update(ctx, e.sc, r.ID, e.hh.Admin, in); err != nil {
+			t.Fatal(err)
+		}
+		u, err := e.s.Get(ctx, e.sc, r.ID, e.hh.Admin)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(u.Ingredients) != 5 {
+			t.Fatalf("ingredients %+v", u.Ingredients)
+		}
+		got := u.Ingredients
+		if got[0].ID != soy.ID || got[0].Amount.Text != "4 tbsp" || got[1].ID != tofu.ID {
+			t.Errorf("kept rows %+v", got[:2])
+		}
+		for _, ing := range got[2:] {
+			if ing.ID == soy.ID || ing.ID == tofu.ID || ing.ID == ginger.ID || ing.ID == other.Ingredients[0].ID {
+				t.Errorf("new row %s reuses ID %s", ing.ItemName, ing.ID)
+			}
+		}
+		if o, _ := e.s.Get(ctx, e.sc, other.ID, e.hh.Admin); len(o.Ingredients) != 1 || o.Ingredients[0].ID != other.Ingredients[0].ID {
+			t.Errorf("other recipe changed: %+v", o.Ingredients)
+		}
+		// The removed row is gone: its toggle reports it missing.
+		if _, err := e.s.ToggleIngredient(ctx, e.sc, e.hh.Admin, r.ID, ginger.ID, 2, true, language.English); !errors.Is(err, ErrNotFound) {
+			t.Errorf("toggle removed row: %v", err)
+		}
+		if _, err := e.s.ToggleIngredient(ctx, e.sc, e.hh.Admin, r.ID, soy.ID, 2, true, language.English); err != nil {
+			t.Errorf("toggle kept row: %v", err)
+		}
+
+		// Steps keep their IDs when their text is unchanged, wherever they
+		// moved; an edited step is a new one.
+		if len(u.Steps) != 3 || u.Steps[0].ID != r.Steps[1].ID || u.Steps[2].ID != r.Steps[2].ID ||
+			u.Steps[1].ID == r.Steps[0].ID || u.Steps[1].Text != "Press the tofu well." {
+			t.Errorf("steps before %+v after %+v", r.Steps, u.Steps)
+		}
+	})
+}

@@ -82,7 +82,8 @@ type Step struct {
 }
 
 // Input is a recipe as the editor submits it. Ingredients, steps and tags
-// replace the recipe's current ones.
+// replace the recipe's current ones; rows that edit an existing ingredient
+// or step keep their IDs.
 type Input struct {
 	Name        string
 	Description string
@@ -103,6 +104,11 @@ type Input struct {
 // when nil, Name names the item: an existing one with the same
 // groceries.NameKey, or a new one.
 type IngredientInput struct {
+	// ID is the row's ID when it edits an existing ingredient of the
+	// recipe, so the row keeps it across saves (detail pages that have not
+	// refreshed still reference it). Zero, or an ID the recipe does not
+	// have, adds a row.
+	ID       uuid.UUID
 	ItemID   *uuid.UUID
 	Name     string
 	Amount   groceries.Amount
@@ -255,7 +261,7 @@ func (s *Service) Create(ctx context.Context, sc store.Scoped, by uuid.UUID, in 
 			return err
 		}
 		var err error
-		newItems, err = s.writeChildren(ctx, q, sc, id, in, now)
+		newItems, err = s.writeChildren(ctx, q, sc, id, in, now, false)
 		return err
 	})
 	if err != nil {
@@ -300,13 +306,11 @@ func (s *Service) Update(ctx context.Context, sc store.Scoped, id, by uuid.UUID,
 			in.Notes, by, now, hh, id); err != nil {
 			return err
 		}
-		for _, table := range []string{"recipe_ingredients", "steps", "recipe_tags"} {
-			if _, err := q.Exec(ctx, `DELETE FROM `+table+` WHERE household_id = ? AND recipe_id = ?`, hh, id); err != nil {
-				return err
-			}
+		if _, err := q.Exec(ctx, `DELETE FROM recipe_tags WHERE household_id = ? AND recipe_id = ?`, hh, id); err != nil {
+			return err
 		}
 		var err error
-		newItems, err = s.writeChildren(ctx, q, sc, id, in, now)
+		newItems, err = s.writeChildren(ctx, q, sc, id, in, now, true)
 		return err
 	})
 	if err != nil {
@@ -320,11 +324,64 @@ func (s *Service) Update(ctx context.Context, sc store.Scoped, id, by uuid.UUID,
 	return nil
 }
 
-// writeChildren inserts the ingredients, steps and tags of a recipe whose
-// old ones are gone. newItems reports grocery items it created.
-func (s *Service) writeChildren(ctx context.Context, q store.Querier, sc store.Scoped, id uuid.UUID, in Input, now store.Time) (newItems bool, err error) {
+// writeChildren writes the ingredients, steps and tags of a recipe. With
+// existing, the recipe already has ingredients and steps: rows that match
+// one are updated in place, the rest inserted, and the ones left over
+// deleted. Tags must already be gone. newItems reports grocery items it
+// created.
+func (s *Service) writeChildren(ctx context.Context, q store.Querier, sc store.Scoped, id uuid.UUID, in Input, now store.Time, existing bool) (newItems bool, err error) {
+	if newItems, err = s.writeIngredients(ctx, q, sc, id, in.Ingredients, now, existing); err != nil {
+		return false, err
+	}
+	if err := writeSteps(ctx, q, sc, id, in.Steps, now, existing); err != nil {
+		return false, err
+	}
 	hh := sc.HouseholdID()
-	for i, ing := range in.Ingredients {
+	for _, name := range in.Tags {
+		tagID, err := ensureTag(ctx, q, sc, name, now)
+		if err != nil {
+			return false, err
+		}
+		if _, err := q.Exec(ctx, `INSERT INTO recipe_tags (household_id, recipe_id, tag_id, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?)`, hh, id, tagID, now, now); err != nil {
+			return false, err
+		}
+	}
+	return newItems, nil
+}
+
+// childIDs returns the IDs of a recipe's rows in table, in order.
+func childIDs(ctx context.Context, q store.Querier, sc store.Scoped, table string, recipe uuid.UUID) ([]uuid.UUID, error) {
+	var ids []uuid.UUID
+	err := q.Select(ctx, &ids, `SELECT id FROM `+table+` WHERE household_id = ? AND recipe_id = ? ORDER BY position, id`,
+		sc.HouseholdID(), recipe)
+	return ids, err
+}
+
+// deleteChildren deletes the rows of table whose IDs are left in stale.
+func deleteChildren(ctx context.Context, q store.Querier, sc store.Scoped, table string, recipe uuid.UUID, stale map[uuid.UUID]bool) error {
+	for rowID := range stale {
+		if _, err := q.Exec(ctx, `DELETE FROM `+table+` WHERE household_id = ? AND recipe_id = ? AND id = ?`,
+			sc.HouseholdID(), recipe, rowID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Service) writeIngredients(ctx context.Context, q store.Querier, sc store.Scoped, id uuid.UUID, ings []IngredientInput, now store.Time, existing bool) (newItems bool, err error) {
+	hh := sc.HouseholdID()
+	stale := map[uuid.UUID]bool{}
+	if existing {
+		ids, err := childIDs(ctx, q, sc, "recipe_ingredients", id)
+		if err != nil {
+			return false, err
+		}
+		for _, rowID := range ids {
+			stale[rowID] = true
+		}
+	}
+	for i, ing := range ings {
 		var itemID uuid.UUID
 		if ing.ItemID != nil {
 			if err := q.Get(ctx, &itemID, `SELECT id FROM items WHERE household_id = ? AND id = ?`, hh, *ing.ItemID); err != nil {
@@ -340,6 +397,18 @@ func (s *Service) writeChildren(ctx context.Context, q store.Querier, sc store.S
 			}
 			newItems = newItems || created
 		}
+		// A row keeps its ID once; a repeated or unknown ID adds a row.
+		if stale[ing.ID] {
+			delete(stale, ing.ID)
+			if _, err := q.Exec(ctx, `UPDATE recipe_ingredients SET item_id = ?, quantity = ?, unit = ?, amount_text = ?,
+					optional = ?, position = ?, updated_at = ?
+				WHERE household_id = ? AND recipe_id = ? AND id = ?`,
+				itemID, ing.Amount.Quantity, nullable(ing.Amount.Unit), ing.Amount.Text,
+				ing.Optional, i, now, hh, id, ing.ID); err != nil {
+				return false, err
+			}
+			continue
+		}
 		if _, err := q.Exec(ctx, `INSERT INTO recipe_ingredients (id, household_id, recipe_id, item_id, quantity, unit,
 				amount_text, optional, position, created_at, updated_at)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -348,23 +417,47 @@ func (s *Service) writeChildren(ctx context.Context, q store.Querier, sc store.S
 			return false, err
 		}
 	}
-	for i, text := range in.Steps {
+	return newItems, deleteChildren(ctx, q, sc, "recipe_ingredients", id, stale)
+}
+
+// writeSteps keeps the ID of every step whose text is unchanged, wherever
+// it moved; the editor posts steps as plain text, so an edited step is a
+// new one.
+func writeSteps(ctx context.Context, q store.Querier, sc store.Scoped, id uuid.UUID, steps []string, now store.Time, existing bool) error {
+	hh := sc.HouseholdID()
+	byText := map[string][]uuid.UUID{}
+	stale := map[uuid.UUID]bool{}
+	if existing {
+		var old []struct {
+			ID   uuid.UUID
+			Text string
+		}
+		if err := q.Select(ctx, &old, `SELECT id, text FROM steps WHERE household_id = ? AND recipe_id = ? ORDER BY position, id`,
+			hh, id); err != nil {
+			return err
+		}
+		for _, st := range old {
+			byText[st.Text] = append(byText[st.Text], st.ID)
+			stale[st.ID] = true
+		}
+	}
+	for i, text := range steps {
+		if ids := byText[text]; len(ids) > 0 {
+			byText[text] = ids[1:]
+			delete(stale, ids[0])
+			if _, err := q.Exec(ctx, `UPDATE steps SET position = ?, updated_at = ?
+				WHERE household_id = ? AND recipe_id = ? AND id = ? AND position <> ?`,
+				i, now, hh, id, ids[0], i); err != nil {
+				return err
+			}
+			continue
+		}
 		if _, err := q.Exec(ctx, `INSERT INTO steps (id, household_id, recipe_id, position, text, created_at, updated_at)
 			VALUES (?, ?, ?, ?, ?, ?, ?)`, store.NewID(), hh, id, i, text, now, now); err != nil {
-			return false, err
+			return err
 		}
 	}
-	for _, name := range in.Tags {
-		tagID, err := ensureTag(ctx, q, sc, name, now)
-		if err != nil {
-			return false, err
-		}
-		if _, err := q.Exec(ctx, `INSERT INTO recipe_tags (household_id, recipe_id, tag_id, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?)`, hh, id, tagID, now, now); err != nil {
-			return false, err
-		}
-	}
-	return newItems, nil
+	return deleteChildren(ctx, q, sc, "steps", id, stale)
 }
 
 type recipeRow struct {

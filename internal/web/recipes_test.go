@@ -247,6 +247,35 @@ func TestRecipePagesWithoutJavaScript(t *testing.T) {
 	}
 }
 
+// TestEditKeepsIngredientIDs checks that saving the editor keeps the IDs
+// of the rows it had, so a +/✓ tap from a recipe page opened before the
+// save still works.
+func TestEditKeepsIngredientIDs(t *testing.T) {
+	_, srv := startServer(t, storetest.SQLite(t))
+	anna, _ := household(t, srv)
+	id := createRecipe(t, anna, stickyTofu())
+	soy := toggleFor(t, anna.get("/recipes/"+id).body, "Soy sauce")
+
+	edit := anna.get("/recipes/"+id+"/edit").expect(t, "editor", http.StatusOK)
+	var keys []string
+	for _, m := range regexp.MustCompile(`name="ing_key" value="([^"]+)"`).FindAllStringSubmatch(edit.body, -1) {
+		keys = append(keys, m[1])
+	}
+	if len(keys) != 2 {
+		t.Fatalf("editor keys %v", keys)
+	}
+	form := stickyTofu()
+	form["ing_key"] = []string{keys[1], keys[0], "nnew"}
+	form["ing_amount"] = []string{"4 tbsp", "400 g", "1 thumb"}
+	form["ing_name"] = []string{"Soy sauce", "Firm tofu", "Ginger"}
+	anna.post("/recipes/"+id+"/edit", form).expect(t, "edit", http.StatusSeeOther, "/recipes/"+id)
+
+	anna.post(soy, url.Values{"on": {"true"}}).expect(t, "stale toggle", http.StatusSeeOther, "/recipes/"+id+"#ingredients")
+	if page := anna.get("/recipes/" + id).body; toggleFor(t, page, "Soy sauce") != soy || !strings.Contains(page, "1 of 3 on") {
+		t.Errorf("after edit:\n%.3000s", page)
+	}
+}
+
 // TestRecipeWritesNotOnGET checks that GET never changes a recipe.
 func TestRecipeWritesNotOnGET(t *testing.T) {
 	_, srv := startServer(t, storetest.SQLite(t))

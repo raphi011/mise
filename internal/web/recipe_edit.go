@@ -191,6 +191,24 @@ func nonBlank(steps []string) []string {
 
 func newRowKey() string { return "n" + strings.ReplaceAll(store.NewID().String(), "-", "")[20:] }
 
+// savedRowKey is the editor key of an ingredient row the recipe has. It
+// carries the row's ID, so a save keeps it (see rowID).
+func savedRowKey(id uuid.UUID) string { return "r" + id.String() }
+
+// rowID returns the ingredient ID a row key carries, or zero for a new row.
+// The domain ignores IDs the recipe does not have.
+func rowID(key string) uuid.UUID {
+	rest, ok := strings.CutPrefix(key, "r")
+	if !ok {
+		return uuid.Nil
+	}
+	id, err := uuid.Parse(rest)
+	if err != nil {
+		return uuid.Nil
+	}
+	return id
+}
+
 // parsedRow turns a typed line ("2 tbsp soy sauce") into an editor row.
 func parsedRow(ctx context.Context, line string) (ui.IngredientRow, bool) {
 	in := recipes.ParseIngredient(line, i18n.Locale(ctx))
@@ -280,7 +298,7 @@ func (st *editorState) input(ctx context.Context) (recipes.Input, []int, map[str
 		}
 		rowOf = append(rowOf, i)
 		in.Ingredients = append(in.Ingredients, recipes.IngredientInput{
-			Name: row.Name, Amount: groceries.ParseAmount(row.Amount, lang), Optional: row.Optional,
+			ID: rowID(row.Key), Name: row.Name, Amount: groceries.ParseAmount(row.Amount, lang), Optional: row.Optional,
 		})
 	}
 	st.steps = nonBlank(st.steps)
@@ -364,12 +382,12 @@ func (s *Server) editRecipePage(w http.ResponseWriter, r *http.Request) {
 	for _, t := range rec.Tags {
 		st.vals.Add("tags", t.Name)
 	}
-	for i, ing := range rec.Ingredients {
+	for _, ing := range rec.Ingredients {
 		amount := ing.Amount.Text
 		if amount == "" {
 			amount = recipes.DisplayAmount(ing.Amount, lang)
 		}
-		st.rows = append(st.rows, ui.IngredientRow{Key: "r" + strconv.Itoa(i), Name: ing.ItemName, Amount: amount, Optional: ing.Optional})
+		st.rows = append(st.rows, ui.IngredientRow{Key: savedRowKey(ing.ID), Name: ing.ItemName, Amount: amount, Optional: ing.Optional})
 	}
 	for _, step := range rec.Steps {
 		st.steps = append(st.steps, step.Text)
