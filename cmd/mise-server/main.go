@@ -96,7 +96,9 @@ func runBackup(ctx context.Context, dir string, args []string, getenv func(strin
 	}
 	log := newLogger(cfg, stderr)
 
-	db, err := store.Open(ctx, cfg.DB)
+	// A missing SQLite file means a wrong MISE_DB or MISE_DATA_DIR; creating
+	// it would back up an empty database and exit 0.
+	db, err := store.OpenExisting(ctx, cfg.DB)
 	if err != nil {
 		return err
 	}

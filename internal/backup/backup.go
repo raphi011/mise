@@ -25,6 +25,9 @@ import (
 // name in the data directory.
 const DatabaseName = "mise.db"
 
+// ErrNoSchema is returned by Write when the database holds no mise schema.
+var ErrNoSchema = errors.New("backup: the database has no mise schema (wrong MISE_DB or MISE_DATA_DIR?)")
+
 // Result describes a written archive.
 type Result struct {
 	// Path is the archive's path.
@@ -40,7 +43,16 @@ type Result struct {
 // temporary name and renamed when complete, so a failed or interrupted
 // backup never leaves a truncated archive under the final name. It is
 // readable by the owner only: it holds password hashes.
+//
+// Write fails on a database that was never migrated: a backup tool pointed
+// at the wrong database must not report success with an empty archive.
 func Write(ctx context.Context, db *store.DB, dataDir, outDir string, now time.Time) (res Result, err error) {
+	switch ok, err := db.HasSchema(ctx); {
+	case err != nil:
+		return Result{}, fmt.Errorf("backup: %w", err)
+	case !ok:
+		return Result{}, ErrNoSchema
+	}
 	if err := os.MkdirAll(outDir, 0o750); err != nil {
 		return Result{}, fmt.Errorf("backup: create %s: %w", outDir, err)
 	}

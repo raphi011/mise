@@ -62,3 +62,23 @@ func (db *DB) MigrationsPending(ctx context.Context) (bool, error) {
 	}
 	return p.HasPending(ctx)
 }
+
+// HasSchema reports whether migrations have ever run on this database, i.e.
+// whether goose's version table exists. A false result on a database a tool
+// expects to hold data means it was pointed at the wrong one.
+func (db *DB) HasSchema(ctx context.Context) (bool, error) {
+	var q string
+	switch db.dialect {
+	case SQLite:
+		q = `SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = '` + goose.DefaultTablename + `')`
+	case Postgres:
+		q = `SELECT to_regclass('` + goose.DefaultTablename + `') IS NOT NULL`
+	default:
+		return false, fmt.Errorf("store: no schema check for %s", db.dialect)
+	}
+	var ok bool
+	if err := db.r.QueryRowContext(ctx, q).Scan(&ok); err != nil {
+		return false, fmt.Errorf("store: check schema: %w", err)
+	}
+	return ok, nil
+}

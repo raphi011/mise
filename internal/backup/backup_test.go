@@ -170,3 +170,19 @@ func TestWriteRefusesToOverwrite(t *testing.T) {
 		t.Errorf("existing archive changed: %q", got)
 	}
 }
+
+func TestWriteRefusesUnmigratedDatabase(t *testing.T) {
+	ctx := context.Background()
+	db, err := store.Open(ctx, "sqlite://"+filepath.Join(t.TempDir(), "mise.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+	outDir := t.TempDir()
+	if _, err := backup.Write(ctx, db, t.TempDir(), outDir, at); !errors.Is(err, backup.ErrNoSchema) {
+		t.Fatalf("Write = %v, want ErrNoSchema", err)
+	}
+	if left, _ := os.ReadDir(outDir); len(left) > 0 {
+		t.Errorf("files left in %s: %v", outDir, left)
+	}
+}

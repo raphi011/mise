@@ -4,6 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"io/fs"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -211,4 +214,44 @@ func TestMigrated(t *testing.T) {
 	if !db.Migrated() {
 		t.Error("not Migrated after Migrate")
 	}
+}
+
+func TestOpenExisting(t *testing.T) {
+	ctx := context.Background()
+	dir := filepath.Join(t.TempDir(), "missing")
+	path := filepath.Join(dir, "mise.db")
+	if _, err := store.OpenExisting(ctx, "sqlite://"+path); !errors.Is(err, store.ErrNoDatabase) {
+		t.Fatalf("OpenExisting on a missing file: %v, want ErrNoDatabase", err)
+	}
+	if _, err := os.Stat(dir); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("OpenExisting created %s: %v", dir, err)
+	}
+
+	db, err := store.Open(ctx, "sqlite://"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = db.Close()
+	db, err = store.OpenExisting(ctx, "sqlite://"+path)
+	if err != nil {
+		t.Fatalf("OpenExisting on an existing file: %v", err)
+	}
+	_ = db.Close()
+}
+
+func TestHasSchema(t *testing.T) {
+	ctx := context.Background()
+	db, err := store.Open(ctx, "sqlite://"+t.TempDir()+"/mise.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+	if ok, err := db.HasSchema(ctx); err != nil || ok {
+		t.Errorf("HasSchema on a new database = %v, %v", ok, err)
+	}
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		if ok, err := db.HasSchema(ctx); err != nil || !ok {
+			t.Errorf("HasSchema on a migrated database = %v, %v", ok, err)
+		}
+	})
 }

@@ -12,6 +12,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -59,6 +60,28 @@ func Open(ctx context.Context, dsn string) (*DB, error) {
 	default:
 		return nil, fmt.Errorf("store: unsupported database URL %q (want sqlite:// or postgres://)", redact(dsn))
 	}
+}
+
+// ErrNoDatabase is returned by OpenExisting when the SQLite file does not
+// exist.
+var ErrNoDatabase = errors.New("store: database does not exist")
+
+// OpenExisting is Open for tools that must find an existing database, such
+// as backup: on SQLite it fails with ErrNoDatabase instead of creating the
+// file and its directory. It does not check the schema; see HasSchema.
+func OpenExisting(ctx context.Context, dsn string) (*DB, error) {
+	if path, ok := strings.CutPrefix(dsn, "sqlite://"); ok && path != "" {
+		info, err := os.Stat(path)
+		switch {
+		case errors.Is(err, fs.ErrNotExist):
+			return nil, fmt.Errorf("%w: %s", ErrNoDatabase, path)
+		case err != nil:
+			return nil, fmt.Errorf("store: %w", err)
+		case !info.Mode().IsRegular():
+			return nil, fmt.Errorf("store: %s is not a regular file", path)
+		}
+	}
+	return Open(ctx, dsn)
 }
 
 // sqlitePragmas are applied to every connection via the DSN.
