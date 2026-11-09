@@ -34,6 +34,10 @@ const (
 	// RecipesChanged: recipes were added, deleted or restored, or tags
 	// changed, which affects the library and its filters.
 	RecipesChanged Kind = "recipes.changed"
+	// TagsChanged: recipe tags were added, renamed, merged, pinned or
+	// deleted, which affects every recipe page showing them. It comes with
+	// RecipesChanged.
+	TagsChanged Kind = "tags.changed"
 	// SessionsChanged: sessions of UserID ended (sign-out, revoke, password
 	// change, removal). Streams of that user re-check their session.
 	SessionsChanged Kind = "sessions.changed"

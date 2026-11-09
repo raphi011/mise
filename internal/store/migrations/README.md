@@ -39,3 +39,10 @@ because migrations run on the writer pool (`SetMaxOpenConns(1)`, no idle or
 lifetime limit). If a statement fails, the migration stops with the
 transaction open and foreign keys off; `serve`/`migrate` then exit, which
 closes the connection and rolls back.
+
+goose records a `NO TRANSACTION` migration's version only after the script's
+own `COMMIT`. A crash between the two leaves the rebuild applied but
+unrecorded, and the next start fails on the migration's first statement.
+Recover by checking the schema matches the migration and inserting its row
+into `goose_db_version` by hand. Keep such migrations to the rebuild alone so
+that check stays simple.

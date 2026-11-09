@@ -9,7 +9,9 @@ import (
 	"image/color"
 	"image/jpeg"
 	"image/png"
+	"os"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -128,10 +130,13 @@ func TestSmallPNGKeepsSize(t *testing.T) {
 
 // pngHeader is a PNG signature and IHDR claiming the dimensions, enough
 // for DecodeConfig.
-func pngHeader(w, h uint32) []byte {
+func pngHeader(w, h uint32) []byte { return pngHeaderDepth(w, h, 8) }
+
+// pngHeaderDepth is the start of an RGBA PNG with depth bits per sample.
+func pngHeaderDepth(w, h uint32, depth byte) []byte {
 	ihdr := binary.BigEndian.AppendUint32(nil, w)
 	ihdr = binary.BigEndian.AppendUint32(ihdr, h)
-	ihdr = append(ihdr, 8, 6, 0, 0, 0)
+	ihdr = append(ihdr, depth, 6, 0, 0, 0)
 	chunk := append([]byte("IHDR"), ihdr...)
 	out := []byte("\x89PNG\r\n\x1a\n")
 	out = binary.BigEndian.AppendUint32(out, uint32(len(ihdr)))
@@ -151,6 +156,7 @@ func TestRejects(t *testing.T) {
 		"text":       {[]byte("hello, not an image"), ErrUnsupported},
 		"gif":        {[]byte("GIF89a\x01\x00\x01\x00"), ErrUnsupported},
 		"huge":       {pngHeader(8000, 6000), ErrTooManyPx},
+		"16-bit":     {pngHeaderDepth(6000, 5000, 16), ErrTooManyPx},
 		"broken png": {pngHeader(10, 10), ErrUnsupported},
 		"too large":  {make([]byte, MaxUploadBytes+1), ErrTooLarge},
 	} {
@@ -172,5 +178,54 @@ func TestExifOrientationMalformed(t *testing.T) {
 		if got := exifOrientation(b); got != 1 {
 			t.Errorf("exifOrientation(%x) = %d", b, got)
 		}
+	}
+}
+
+// TestSaveStoredAndSweepable checks the "already stored" shortcut: it needs
+// both sizes, and it marks them as fresh for the orphan sweep.
+func TestSaveStoredAndSweepable(t *testing.T) {
+	s := New(t.TempDir())
+	hh := uuid.New()
+	data := encodeJPEG(t, 800, 600)
+	hash, err := s.Save(t.Context(), hh, bytes.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// A save that lost its full size is redone, not taken as stored.
+	if err := os.Remove(s.path(hh, hash, Full)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Save(t.Context(), hh, bytes.NewReader(data)); err != nil {
+		t.Fatal(err)
+	}
+	if f, err := s.Open(hh, hash, Full); err != nil {
+		t.Fatalf("full size not rewritten: %v", err)
+	} else {
+		_ = f.Close()
+	}
+
+	// Saving again refreshes the files' time.
+	old := time.Now().Add(-48 * time.Hour)
+	for _, size := range []Size{Full, Thumb} {
+		if err := os.Chtimes(s.path(hh, hash, size), old, old); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := s.Save(t.Context(), hh, bytes.NewReader(data)); err != nil {
+		t.Fatal(err)
+	}
+	list, err := s.List(hh)
+	if err != nil || len(list) != 1 || !list[0].ModTime.After(old.Add(time.Hour)) {
+		t.Fatalf("list after re-save: %+v, %v", list, err)
+	}
+
+	// A full size without its thumbnail is still listed, so the sweep
+	// can remove it.
+	if err := os.Remove(s.path(hh, hash, Thumb)); err != nil {
+		t.Fatal(err)
+	}
+	if list, err := s.List(hh); err != nil || len(list) != 1 || list[0].Hash != hash {
+		t.Errorf("orphan full size not listed: %+v, %v", list, err)
 	}
 }

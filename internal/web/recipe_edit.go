@@ -100,6 +100,7 @@ func (s *Server) readEditor(w http.ResponseWriter, r *http.Request) (editorState
 var errBadForm = errors.New("web: malformed form")
 
 func (s *Server) readParts(ctx context.Context, mr *multipart.Reader, hh uuid.UUID, st *editorState) error {
+	photoSeen := false
 	for {
 		part, err := mr.NextPart()
 		if errors.Is(err, io.EOF) {
@@ -118,6 +119,11 @@ func (s *Server) readParts(ctx context.Context, mr *multipart.Reader, hh uuid.UU
 			if part.FileName() == "" {
 				continue
 			}
+			// The editor sends one photo; more would each cost a decode.
+			if photoSeen {
+				return errBadForm
+			}
+			photoSeen = true
 			hash, err := s.images.Save(ctx, hh, part)
 			if errors.As(err, &tooBig) {
 				st.photoErr = "recipes.photo.tooLarge"

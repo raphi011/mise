@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"image/color"
 	"image/jpeg"
 	_ "image/png" // register decoder
 	"io"
@@ -32,6 +33,10 @@ const (
 	MaxUploadBytes = 15 << 20
 	// MaxPixels caps an upload's dimensions before it is decoded.
 	MaxPixels = 40_000_000
+	// maxDecodeBytes caps the memory a decoded upload may take: 40
+	// megapixels at 8-bit RGBA. A 16-bit image of that size would take
+	// twice as much and is rejected.
+	maxDecodeBytes = 4 * MaxPixels
 	// FullEdge and ThumbEdge are the long edges of the stored sizes.
 	FullEdge  = 2400
 	ThumbEdge = 600
@@ -64,7 +69,7 @@ func ValidHash(s string) bool { return hashRE.MatchString(s) }
 // Store saves and opens images under a directory.
 type Store struct {
 	dir string
-	// sem bounds concurrent decodes: a 40-megapixel image takes 160 MB.
+	// sem bounds concurrent decodes: each takes up to maxDecodeBytes.
 	sem chan struct{}
 }
 
@@ -92,8 +97,8 @@ func (s *Store) Save(ctx context.Context, hh uuid.UUID, r io.Reader) (string, er
 	}
 	sum := sha256.Sum256(data)
 	hash := hex.EncodeToString(sum[:])
-	if _, err := os.Stat(s.path(hh, hash, Thumb)); err == nil {
-		return hash, nil
+	if stored, err := s.touch(hh, hash); err != nil || stored {
+		return hash, err
 	}
 
 	switch {
@@ -106,7 +111,8 @@ func (s *Store) Save(ctx context.Context, hh uuid.UUID, r io.Reader) (string, er
 	if err != nil {
 		return "", ErrUnsupported
 	}
-	if cfg.Width <= 0 || cfg.Height <= 0 || int64(cfg.Width)*int64(cfg.Height) > MaxPixels {
+	px := int64(cfg.Width) * int64(cfg.Height)
+	if cfg.Width <= 0 || cfg.Height <= 0 || px > MaxPixels || px*bytesPerPixel(cfg.ColorModel) > maxDecodeBytes {
 		return "", ErrTooManyPx
 	}
 
@@ -131,12 +137,51 @@ func (s *Store) Save(ctx context.Context, hh uuid.UUID, r io.Reader) (string, er
 	if err := os.MkdirAll(s.householdDir(hh), 0o750); err != nil {
 		return "", err
 	}
-	for size, img := range map[Size]image.Image{Full: full, Thumb: thumb} {
-		if err := writeJPEG(s.path(hh, hash, size), img); err != nil {
-			return "", err
-		}
+	// Full first: a thumbnail marks the image as stored (see touch and
+	// List), so it must not exist without the full size.
+	if err := writeJPEG(s.path(hh, hash, Full), full); err != nil {
+		return "", err
+	}
+	if err := writeJPEG(s.path(hh, hash, Thumb), thumb); err != nil {
+		return "", err
 	}
 	return hash, nil
+}
+
+// touch reports whether both sizes of hash are stored and, if so, marks
+// them as just written: the orphan sweep only deletes images unreferenced
+// for a while, and one uploaded again is about to be referenced.
+func (s *Store) touch(hh uuid.UUID, hash string) (bool, error) {
+	now := time.Now()
+	for _, size := range []Size{Full, Thumb} {
+		err := os.Chtimes(s.path(hh, hash, size), now, now)
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		if err != nil {
+			return false, err
+		}
+	}
+	return true, nil
+}
+
+// bytesPerPixel is roughly what decoding an image of model m takes per
+// pixel.
+func bytesPerPixel(m color.Model) int64 {
+	switch m {
+	case color.RGBA64Model, color.NRGBA64Model:
+		return 8
+	case color.Gray16Model:
+		return 2
+	case color.GrayModel, color.AlphaModel:
+		return 1
+	case color.YCbCrModel, color.CMYKModel:
+		return 4
+	}
+	if _, ok := m.(color.Palette); ok {
+		return 1
+	}
+	return 4
 }
 
 // Open opens a stored image of the household.
@@ -176,7 +221,8 @@ func (s *Store) Households() ([]uuid.UUID, error) {
 }
 
 // List returns the images stored for a household, one per hash, with the
-// time its thumbnail was written.
+// time its newest file was written. A full size left without its
+// thumbnail by a failed save is listed too, so the sweep removes it.
 func (s *Store) List(hh uuid.UUID) ([]Stored, error) {
 	entries, err := os.ReadDir(s.householdDir(hh))
 	if errors.Is(err, os.ErrNotExist) {
@@ -186,15 +232,27 @@ func (s *Store) List(hh uuid.UUID) ([]Stored, error) {
 		return nil, err
 	}
 	var out []Stored
+	seen := map[string]int{}
 	for _, e := range entries {
-		hash, ok := strings.CutSuffix(e.Name(), "-"+string(Thumb)+".jpg")
-		if !ok || !ValidHash(hash) {
+		name, ok := strings.CutSuffix(e.Name(), ".jpg")
+		if !ok {
+			continue
+		}
+		hash, size, ok := strings.Cut(name, "-")
+		if !ok || !ValidHash(hash) || (Size(size) != Full && Size(size) != Thumb) {
 			continue
 		}
 		info, err := e.Info()
 		if err != nil {
 			return nil, err
 		}
+		if i, ok := seen[hash]; ok {
+			if info.ModTime().After(out[i].ModTime) {
+				out[i].ModTime = info.ModTime()
+			}
+			continue
+		}
+		seen[hash] = len(out)
 		out = append(out, Stored{Hash: hash, ModTime: info.ModTime()})
 	}
 	return out, nil

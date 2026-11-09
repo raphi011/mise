@@ -125,6 +125,10 @@ type AddInput struct {
 	RecipeID *uuid.UUID
 	// Lang formats merged amounts.
 	Lang language.Tag
+	// IfAbsent leaves the list as it is when the item already has an open
+	// entry, and returns that entry: a repeated "put it on the list" adds
+	// nothing.
+	IfAbsent bool
 }
 
 // Added describes the result of Add.
@@ -133,6 +137,8 @@ type Added struct {
 	// Merged is true when the amount was added to an entry already on the
 	// list instead of creating a new one.
 	Merged bool
+	// Present is true when IfAbsent found the item already on the list.
+	Present bool
 }
 
 func checkAmount(errs FieldErrors, field string, a Amount) {
@@ -194,6 +200,11 @@ func (s *Service) Add(ctx context.Context, sc store.Scoped, in AddInput) (Added,
 			return err
 		}
 		id := store.NewID()
+		if len(open) == 1 && in.IfAbsent {
+			e, err := getEntry(ctx, q.Reader, sc, open[0].ID)
+			out.Entry, out.Present = e, true
+			return err
+		}
 		if len(open) == 1 {
 			cur := Amount{Quantity: open[0].Quantity, Unit: deref(open[0].Unit), Text: open[0].AmountText}
 			if sum, ok := merge(cur, in.Amount, in.Lang); ok {
@@ -221,7 +232,9 @@ func (s *Service) Add(ctx context.Context, sc store.Scoped, in AddInput) (Added,
 	if err != nil {
 		return Added{}, err
 	}
-	s.publish(sc, listChanged(in.ListID))
+	if !out.Present {
+		s.publish(sc, listChanged(in.ListID))
+	}
 	return out, nil
 }
 

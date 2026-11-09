@@ -679,10 +679,11 @@ func (s *Server) groceriesLive(w http.ResponseWriter, r *http.Request, sc store.
 			return sse.PatchElementTempl(ui.GroceriesRegion(v))
 		},
 		// Every list event is relevant, not only the shown list's: the tabs
-		// show each list's open count.
+		// show each list's open count. Recipe edits are too: entries name
+		// the recipe they come from.
 		Relevant: func(e live.Event) bool {
 			switch e.Kind {
-			case live.ListChanged, live.ListsChanged, live.CatalogChanged:
+			case live.ListChanged, live.ListsChanged, live.CatalogChanged, live.RecipeChanged:
 				return true
 			}
 			return false

@@ -481,7 +481,7 @@ func (s *Server) recipeLive(w http.ResponseWriter, r *http.Request, sc store.Sco
 				return e.RecipeID == recipeID
 			case live.ListChanged:
 				return e.ListID.String() == list
-			case live.ListsChanged, live.CatalogChanged:
+			case live.ListsChanged, live.CatalogChanged, live.TagsChanged:
 				return true
 			}
 			return false

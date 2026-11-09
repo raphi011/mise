@@ -128,6 +128,12 @@ func TestRecipeToList(t *testing.T) {
 		form.Set("name", "Sticky glazed tofu")
 		anna.post("/recipes/"+id+"/edit", form).expect(t, "edit", http.StatusSeeOther, "/recipes/"+id)
 		annaRecipe.next("anna sees the edit", liveDeadline, "Sticky glazed tofu")
+		benList.next("ben's list names the renamed recipe", liveDeadline, `class="entry__recipe">Sticky glazed tofu`)
+
+		// So does a tag renamed in Settings.
+		ids := tagIDs(t, ben) // Asian, Vegan
+		ben.post("/settings/tags/"+ids[1]+"/rename", url.Values{"name": {"Plant-based"}}).expect(t, "rename tag", http.StatusSeeOther)
+		annaRecipe.next("anna sees the renamed tag", liveDeadline, "Plant-based")
 	})
 }
 
@@ -284,6 +290,12 @@ func pngBytes(t *testing.T) []byte {
 // it.
 func (b *browser) postMultipart(path string, form url.Values, filename string, data []byte) page {
 	b.t.Helper()
+	return b.postPhotos(path, form, 1, filename, data)
+}
+
+// postPhotos is postMultipart with n copies of the photo.
+func (b *browser) postPhotos(path string, form url.Values, n int, filename string, data []byte) page {
+	b.t.Helper()
 	var buf bytes.Buffer
 	mw := multipart.NewWriter(&buf)
 	for k, vs := range form {
@@ -293,12 +305,14 @@ func (b *browser) postMultipart(path string, form url.Values, filename string, d
 			}
 		}
 	}
-	fw, err := mw.CreateFormFile("photo_file", filename)
-	if err != nil {
-		b.t.Fatal(err)
-	}
-	if _, err := fw.Write(data); err != nil {
-		b.t.Fatal(err)
+	for range n {
+		fw, err := mw.CreateFormFile("photo_file", filename)
+		if err != nil {
+			b.t.Fatal(err)
+		}
+		if _, err := fw.Write(data); err != nil {
+			b.t.Fatal(err)
+		}
 	}
 	if err := mw.Close(); err != nil {
 		b.t.Fatal(err)
@@ -323,6 +337,9 @@ func TestRecipePhoto(t *testing.T) {
 	if !strings.Contains(res.body, "Convert to JPEG") || !strings.Contains(res.body, `value="Sticky tofu"`) {
 		t.Errorf("heic response:\n%.3000s", res.body)
 	}
+
+	// The editor sends one photo; a post with more is refused.
+	anna.postPhotos("/recipes", stickyTofu(), 2, "tofu.png", pngBytes(t)).expect(t, "two photos", http.StatusBadRequest)
 
 	res = anna.postMultipart("/recipes", stickyTofu(), "tofu.png", pngBytes(t)).expect(t, "with photo", http.StatusSeeOther)
 	id := recipeHrefRe.FindStringSubmatch(res.location)[1]

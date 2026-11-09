@@ -64,8 +64,10 @@ type Toggled struct {
 }
 
 // ToggleIngredient puts one ingredient of a recipe on the default list,
-// scaled to servings, or takes it off when on is false. Taking it off
-// removes every entry of the item on the list that is not in the cart.
+// scaled to servings, or takes it off when on is false. Putting it on
+// leaves an item already on the list as it is, so a repeated tap adds
+// nothing. Taking it off removes every entry of the item on the list that
+// is not in the cart.
 func (s *Service) ToggleIngredient(ctx context.Context, sc store.Scoped, by, recipeID, ingredientID uuid.UUID,
 	servings int, on bool, lang language.Tag,
 ) (Toggled, error) {
@@ -95,10 +97,14 @@ func (s *Service) ToggleIngredient(ctx context.Context, sc store.Scoped, by, rec
 		out.Removed, err = s.groceries.RemoveItem(ctx, sc, list.ID, ing.ItemID)
 		return out, err
 	}
+	if servings < 1 || servings > maxServings {
+		servings = ing.Servings
+	}
 	amount := Scale(groceries.Amount{Quantity: ing.Quantity, Unit: deref(ing.Unit), Text: ing.AmountText},
 		ing.Servings, servings, lang)
 	added, err := s.groceries.Add(ctx, sc, groceries.AddInput{
 		ListID: list.ID, ItemID: &ing.ItemID, Amount: amount, AddedBy: by, RecipeID: &recipeID, Lang: lang,
+		IfAbsent: true,
 	})
 	if err != nil {
 		return Toggled{}, err

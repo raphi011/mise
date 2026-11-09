@@ -193,6 +193,14 @@ func TestCreateGetUpdate(t *testing.T) {
 		if u, _ = e.s.Get(ctx, e.sc, r.ID, e.hh.Admin); u.NotesBy.ID != e.hh.Member {
 			t.Errorf("notes by %v after note change", u.NotesBy.ID)
 		}
+		in.Notes = ""
+		if err := e.s.Update(ctx, e.sc, r.ID, e.hh.Member, in); err != nil {
+			t.Fatal(err)
+		}
+		if u, _ = e.s.Get(ctx, e.sc, r.ID, e.hh.Admin); u.NotesBy != nil || u.NotesAt != nil {
+			t.Errorf("cleared notes keep an author: %+v at %v", u.NotesBy, u.NotesAt)
+		}
+		in.Notes = "Use less glaze"
 
 		if err := e.s.Update(ctx, e.sc, store.NewID(), e.hh.Admin, in); !errors.Is(err, ErrNotFound) {
 			t.Errorf("update missing: %v", err)
@@ -428,9 +436,10 @@ func TestToggleIngredient(t *testing.T) {
 			a.RecipeName != "Dal" || a.AddedBy != e.hh.Member {
 			t.Errorf("added %+v", got.Added)
 		}
-		// Adding again merges into the open entry.
-		if got, _ = e.s.ToggleIngredient(ctx, e.sc, e.hh.Member, r.ID, lentils.ID, 2, true, language.English); got.Added.Amount.Text != "750 g" {
-			t.Errorf("merged %+v", got.Added)
+		// A repeated tap (a double click, or a page that has not caught up)
+		// leaves the entry as it is.
+		if got, _ = e.s.ToggleIngredient(ctx, e.sc, e.hh.Member, r.ID, lentils.ID, 2, true, language.English); got.Added.Amount.Text != "500 g" {
+			t.Errorf("added twice %+v", got.Added)
 		}
 		if _, err := e.s.ToggleIngredient(ctx, e.sc, e.hh.Admin, r.ID, ginger.ID, 4, true, language.English); err != nil {
 			t.Fatal(err)
@@ -468,6 +477,11 @@ func TestToggleIngredient(t *testing.T) {
 					t.Errorf("entry %s still names deleted recipe", en.ItemName)
 				}
 			}
+		}
+		// Servings out of range fall back to the recipe's own.
+		rice := e.create(t, Input{Name: "Rice", Servings: 2, Ingredients: ings("100 g rice")})
+		if got, err := e.s.ToggleIngredient(ctx, e.sc, e.hh.Admin, rice.ID, rice.Ingredients[0].ID, 100000, true, language.English); err != nil || got.Added.Amount.Text != "100 g" {
+			t.Errorf("servings not bounded: %+v, %v", got.Added, err)
 		}
 	})
 }
@@ -520,6 +534,35 @@ func TestDeleteRestoreFavourite(t *testing.T) {
 		e.clk.Add(UndoWindow + time.Second)
 		if err := e.s.Restore(ctx, e.sc, r.ID); !errors.Is(err, ErrNotFound) {
 			t.Errorf("restore after window: %v", err)
+		}
+	})
+}
+
+// TestConcurrentTagCreate checks that racing adds of one name give one tag
+// and the "already exists" error, not a server error.
+func TestConcurrentTagCreate(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		e := newEnv(t, db, "home")
+		const n = 8
+		errs := make([]error, n)
+		var wg sync.WaitGroup
+		for i := range n {
+			wg.Go(func() { _, errs[i] = e.s.CreateTag(t.Context(), e.sc, "Soup") })
+		}
+		wg.Wait()
+		ok := 0
+		for _, err := range errs {
+			var fe FieldErrors
+			switch {
+			case err == nil:
+				ok++
+			case errors.As(err, &fe) && fe["name"] == "recipes.error.tagExists":
+			default:
+				t.Errorf("create: %v", err)
+			}
+		}
+		if ok != 1 {
+			t.Errorf("%d creates succeeded, want 1", ok)
 		}
 	})
 }

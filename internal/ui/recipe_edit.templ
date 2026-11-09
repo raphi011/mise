@@ -131,6 +131,14 @@ templ RecipeEdit(p Page, v RecipeEditView) {
 					</div>
 					<input type="hidden" name="photo" value={ v.Photo }/>
 					<div class="photo-drop__actions">
+						// Before the file input: reading stops at a photo past
+						// the size limit, and a tick after it would be lost.
+						if v.Photo != "" {
+							<label class="toggle-row toggle-row--inline">
+								<input type="checkbox" name="remove_photo" value="1"/>
+								<span>{ i18n.T(ctx, "recipes.edit.removePhoto") }</span>
+							</label>
+						}
 						<label class="btn btn--secondary btn--small photo-drop__pick">
 							if v.Photo != "" {
 								{ i18n.T(ctx, "recipes.edit.changePhoto") }
@@ -148,12 +156,6 @@ templ RecipeEdit(p Page, v RecipeEditView) {
 								aria-describedby="photo-hint photo-error"
 							/>
 						</label>
-						if v.Photo != "" {
-							<label class="toggle-row toggle-row--inline">
-								<input type="checkbox" name="remove_photo" value="1"/>
-								<span>{ i18n.T(ctx, "recipes.edit.removePhoto") }</span>
-							</label>
-						}
 					</div>
 					<span class="field__hint" id="photo-hint">{ i18n.T(ctx, "recipes.edit.photoHint") }</span>
 					<span class="field__error" id="photo-error" role="alert" data-photo-error>{ v.Form.Error("photo") }</span>

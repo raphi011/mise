@@ -282,6 +282,12 @@ func (s *Service) Update(ctx context.Context, sc store.Scoped, id, by uuid.UUID,
 		}
 		hh := sc.HouseholdID()
 		now := s.clock()
+		// Changed notes record who wrote them; cleared notes have no author.
+		var notesBy *uuid.UUID
+		var notesAt *store.Time
+		if in.Notes != "" {
+			notesBy, notesAt = &by, &now
+		}
 		if _, err := q.Exec(ctx, `UPDATE recipes SET name = ?, name_key = ?, description = ?, photo = ?, prep_min = ?,
 				cook_min = ?, servings = ?, source_url = ?,
 				notes_by = CASE WHEN notes = ? THEN notes_by ELSE ? END,
@@ -290,7 +296,7 @@ func (s *Service) Update(ctx context.Context, sc store.Scoped, id, by uuid.UUID,
 			WHERE household_id = ? AND id = ?`,
 			in.Name, groceries.NameKey(in.Name), in.Description, nullable(in.Photo), in.PrepMin,
 			in.CookMin, in.Servings, nullable(in.SourceURL),
-			in.Notes, by, in.Notes, now,
+			in.Notes, notesBy, in.Notes, notesAt,
 			in.Notes, by, now, hh, id); err != nil {
 			return err
 		}

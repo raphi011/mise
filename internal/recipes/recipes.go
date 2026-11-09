@@ -94,6 +94,7 @@ func recipeChanged(id uuid.UUID) live.Event {
 var (
 	recipesChanged = live.Event{Kind: live.RecipesChanged}
 	catalogChanged = live.Event{Kind: live.CatalogChanged}
+	tagsChanged    = live.Event{Kind: live.TagsChanged}
 )
 
 func notFound(err error) error {
