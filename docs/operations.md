@@ -115,11 +115,14 @@ mise.db           SQLite only: a consistent copy, made with VACUUM INTO
 images/...        recipe photos
 ```
 
-With Docker, run it in the container and keep the archive in the volume, or
-mount a second volume for backups:
+Keep the archives off the data directory's disk or volume: a lost volume
+takes them with it, and a restore replaces the volume's contents. With
+Docker, mount a backup directory into the container, writable by uid 65532
+(the user mise runs as), and write there:
 
 ```sh
-docker exec mise /mise-server backup /data/backups
+docker run -d --name mise -v mise-data:/data -v /srv/mise-backups:/backups ...
+docker exec mise /mise-server backup /backups
 ```
 
 A daily cron job that keeps 30 days:
@@ -160,17 +163,47 @@ migrations the backup predates.
    ```
 
    If `MISE_DB` points somewhere other than `$MISE_DATA_DIR/mise.db`, move
-   `mise.db` there.
+   the old database there aside together with its `-wal` and `-shm` files
+   (e.g. `mise.db-wal`, `mise.db-shm`), then move the restored `mise.db` in.
+   A stale `-wal` next to the restored file would be replayed into it.
 4. Start the server.
 
-With Docker the image has no shell; unpack through a throwaway container and
-give the files back to the uid mise runs as:
+With Docker the image has no shell; restore through a throwaway container.
+The archive must be outside the volume. If it is in the volume (an older
+setup kept backups in `/data/backups`), copy it out first; `docker cp`
+works on a stopped container too:
+
+```sh
+docker cp mise:/data/backups/mise-backup-20261109T120000Z.tar.gz /srv/mise-backups/
+```
+
+The script checks the whole archive, unpacks it next to the current data,
+and only then moves the current data into `/data/.old` and the restored
+files into place, giving them back to the uid mise runs as. It stops before
+touching anything if the archive is damaged or a `/data/.old` from an
+earlier restore is still there.
 
 ```sh
 docker stop mise
-docker run --rm -v mise-data:/data -v "$PWD":/backup alpine \
-  sh -c 'rm -rf /data/* && tar -xzf /backup/mise-backup-20261109T120000Z.tar.gz -C /data && chown -R 65532:65532 /data'
+docker run --rm -v mise-data:/data -v /srv/mise-backups:/backup:ro \
+  -e ARCHIVE=mise-backup-20261109T120000Z.tar.gz alpine sh -euc '
+    test ! -e /data/.old
+    tar -tzf "/backup/$ARCHIVE" >/dev/null
+    rm -rf /data/.restore
+    mkdir /data/.restore
+    tar -xzf "/backup/$ARCHIVE" -C /data/.restore
+    mkdir /data/.old
+    find /data -mindepth 1 -maxdepth 1 ! -name .restore ! -name .old -exec mv {} /data/.old/ \;
+    mv /data/.restore/* /data/
+    rmdir /data/.restore
+    chown -R 65532:65532 /data'
 docker start mise
+```
+
+Once the restored data checks out, remove the old copy:
+
+```sh
+docker run --rm -v mise-data:/data alpine rm -rf /data/.old
 ```
 
 ### Postgres
