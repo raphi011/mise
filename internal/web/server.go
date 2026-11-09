@@ -17,7 +17,9 @@ import (
 	"github.com/raphi011/mise/internal/config"
 	"github.com/raphi011/mise/internal/groceries"
 	"github.com/raphi011/mise/internal/i18n"
+	"github.com/raphi011/mise/internal/images"
 	"github.com/raphi011/mise/internal/live"
+	"github.com/raphi011/mise/internal/recipes"
 	"github.com/raphi011/mise/internal/store"
 	"github.com/raphi011/mise/internal/ui"
 )
@@ -54,6 +56,8 @@ type Server struct {
 
 	live      *live.Hub
 	groceries *groceries.Service
+	recipes   *recipes.Service
+	images    *images.Store
 	// heartbeat overrides live.DefaultHeartbeat, for tests.
 	heartbeat time.Duration
 
@@ -82,6 +86,8 @@ func New(cfg config.Config, db *store.DB, log *slog.Logger) (*Server, error) {
 	}
 	s.live = live.NewHub()
 	s.groceries = groceries.New(s.live, nil)
+	s.recipes = recipes.New(s.live, s.groceries, nil)
+	s.images = images.New(cfg.DataDir)
 	s.auth = auth.New(db, auth.Config{Log: log, SecureCookie: s.secureCookie, OnSetup: s.seedHousehold})
 	if cfg.BaseURL != nil {
 		if err := s.setBaseURL(cfg.BaseURL); err != nil {
@@ -90,6 +96,9 @@ func New(cfg config.Config, db *store.DB, log *slog.Logger) (*Server, error) {
 	}
 	return s, nil
 }
+
+// Images returns the image store, for the sweep of unreferenced images.
+func (s *Server) Images() *images.Store { return s.images }
 
 // LoadSettings reads server-wide settings saved by first-run setup. When
 // MISE_BASE_URL is unset, the stored base URL becomes the public URL and a

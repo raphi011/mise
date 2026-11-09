@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/raphi011/mise/internal/groceries"
+	"github.com/raphi011/mise/internal/images"
 	"github.com/raphi011/mise/internal/store"
 )
 
@@ -26,6 +27,19 @@ type Sweeper struct {
 	log      *slog.Logger
 	now      func() time.Time
 	interval time.Duration
+	images   *images.Store
+}
+
+// ImageGrace is how long an image no recipe references is kept: an upload
+// waits in the editor until the recipe is saved.
+const ImageGrace = 24 * time.Hour
+
+// WithImages makes sweeps also delete stored images that no recipe
+// references (deleted recipes in their Undo window included) once they are
+// older than ImageGrace.
+func (s *Sweeper) WithImages(st *images.Store) *Sweeper {
+	s.images = st
+	return s
 }
 
 // NewSweeper returns a Sweeper. now defaults to time.Now and interval to
@@ -45,6 +59,7 @@ type Swept struct {
 	Entries int64
 	Lists   int64
 	Recipes int64
+	Images  int64
 }
 
 // Sweep deletes soft-deleted rows older than groceries.UndoWindow.
@@ -80,7 +95,45 @@ func (s *Sweeper) Sweep(ctx context.Context) (Swept, error) {
 		out.Recipes, err = res.RowsAffected()
 		return err
 	})
+	if err != nil || s.images == nil {
+		return out, err
+	}
+	out.Images, err = s.sweepImages(ctx)
 	return out, err
+}
+
+func (s *Sweeper) sweepImages(ctx context.Context) (int64, error) {
+	households, err := s.images.Households()
+	if err != nil {
+		return 0, err
+	}
+	cutoff := s.now().Add(-ImageGrace)
+	var n int64
+	for _, hh := range households {
+		stored, err := s.images.List(hh)
+		if err != nil {
+			return n, err
+		}
+		var used []string
+		if err := s.db.System().Read().Select(ctx, &used,
+			`SELECT DISTINCT photo FROM recipes WHERE household_id = ? AND photo IS NOT NULL`, hh); err != nil {
+			return n, err
+		}
+		inUse := make(map[string]bool, len(used))
+		for _, h := range used {
+			inUse[h] = true
+		}
+		for _, img := range stored {
+			if inUse[img.Hash] || img.ModTime.After(cutoff) {
+				continue
+			}
+			if err := s.images.Remove(hh, img.Hash); err != nil {
+				return n, err
+			}
+			n++
+		}
+	}
+	return n, nil
 }
 
 // Run sweeps now and then every interval until ctx ends. Failures are
@@ -96,7 +149,7 @@ func (s *Sweeper) Run(ctx context.Context) {
 		case swept != (Swept{}):
 			s.log.InfoContext(ctx, "swept soft-deleted rows",
 				slog.Int64("entries", swept.Entries), slog.Int64("lists", swept.Lists),
-				slog.Int64("recipes", swept.Recipes))
+				slog.Int64("recipes", swept.Recipes), slog.Int64("images", swept.Images))
 		}
 		select {
 		case <-ctx.Done():

@@ -1,8 +1,11 @@
 package jobs
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"image"
+	"image/png"
 	"log/slog"
 	"testing"
 	"time"
@@ -10,6 +13,7 @@ import (
 	"golang.org/x/text/language"
 
 	"github.com/raphi011/mise/internal/groceries"
+	"github.com/raphi011/mise/internal/images"
 	"github.com/raphi011/mise/internal/recipes"
 	"github.com/raphi011/mise/internal/store"
 	"github.com/raphi011/mise/internal/store/storetest"
@@ -176,6 +180,64 @@ func TestSweepRecipes(t *testing.T) {
 		var n int
 		if err := db.System().Read().QueryRow(ctx, `SELECT count(*) FROM recipe_ingredients`).Scan(&n); err != nil || n != 1 {
 			t.Errorf("ingredients left: %d, %v", n, err)
+		}
+	})
+}
+
+func TestSweepImages(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		ctx := t.Context()
+		now := time.Date(2026, 11, 9, 12, 0, 0, 0, time.UTC)
+		clock := func() time.Time { return now }
+		g := groceries.New(nil, clock)
+		r := recipes.New(nil, g, clock)
+		hh := storetest.NewHousehold(t, db, "home")
+		sc := db.ScopeFor(hh.ID)
+		st := images.New(t.TempDir())
+
+		save := func(w int) string {
+			var buf bytes.Buffer
+			if err := png.Encode(&buf, image.NewRGBA(image.Rect(0, 0, w, 10))); err != nil {
+				t.Fatal(err)
+			}
+			h, err := st.Save(ctx, hh.ID, &buf)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return h
+		}
+		used, binned, orphan := save(10), save(11), save(12)
+		if _, err := r.Create(ctx, sc, hh.Admin, recipes.Input{Name: "A", Servings: 1, Photo: used}); err != nil {
+			t.Fatal(err)
+		}
+		id, err := r.Create(ctx, sc, hh.Admin, recipes.Input{Name: "B", Servings: 1, Photo: binned})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := r.Delete(ctx, sc, id); err != nil {
+			t.Fatal(err)
+		}
+
+		s := NewSweeper(db, slog.New(slog.DiscardHandler), clock, 0).WithImages(st)
+		// Files were just written: within the grace period nothing goes.
+		now = time.Now()
+		if got, err := s.Sweep(ctx); err != nil || got.Images != 0 {
+			t.Fatalf("early sweep %+v, %v", got, err)
+		}
+		now = now.Add(ImageGrace + time.Minute)
+		if got, err := s.Sweep(ctx); err != nil || got.Images != 1 {
+			t.Fatalf("sweep %+v, %v", got, err)
+		}
+		if _, err := st.Open(hh.ID, orphan, images.Thumb); !errors.Is(err, images.ErrNotFound) {
+			t.Errorf("orphan kept: %v", err)
+		}
+		for _, h := range []string{used, binned} {
+			f, err := st.Open(hh.ID, h, images.Full)
+			if err != nil {
+				t.Errorf("referenced image swept: %v", err)
+				continue
+			}
+			_ = f.Close()
 		}
 	})
 }

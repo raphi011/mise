@@ -103,7 +103,7 @@ func serve(ctx context.Context, cfg config.Config, db *store.DB, log *slog.Logge
 	srv.RegisterOnShutdown(server.CloseStreams)
 
 	// Periodic maintenance stops with ctx.
-	go jobs.NewSweeper(db, log, nil, 0).Run(ctx)
+	go jobs.NewSweeper(db, log, nil, 0).WithImages(server.Images()).Run(ctx)
 
 	errc := make(chan error, 1)
 	go func() {
