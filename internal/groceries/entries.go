@@ -151,82 +151,10 @@ func checkAmount(errs FieldErrors, field string, a Amount) {
 // in the cart, amounts in the same unit are added up ("2" + "3" lemons is
 // "5"); amounts that cannot be combined make a second entry.
 func (s *Service) Add(ctx context.Context, sc store.Scoped, in AddInput) (Added, error) {
-	errs := FieldErrors{}
-	if in.ItemID == nil {
-		in.Name = CleanName(in.Name)
-		checkName(errs, "text", in.Name)
-	}
-	checkAmount(errs, "text", in.Amount)
-	if err := errs.orNil(); err != nil {
-		return Added{}, err
-	}
 	var out Added
 	err := sc.Tx(ctx, func(ctx context.Context, q store.Querier) error {
-		hh := sc.HouseholdID()
-		if err := lockList(ctx, q, sc, in.ListID); err != nil {
-			return err
-		}
-		now := s.clock()
-		var itemID uuid.UUID
-		if in.ItemID != nil {
-			if err := q.Get(ctx, &itemID, `SELECT id FROM items WHERE household_id = ? AND id = ?`, hh, *in.ItemID); err != nil {
-				return notFound(err)
-			}
-		} else {
-			var err error
-			if itemID, _, err = EnsureItem(ctx, q, sc, in.Name, now); err != nil {
-				return err
-			}
-		}
-		if in.RecipeID != nil {
-			var got uuid.UUID
-			if err := q.Get(ctx, &got, `SELECT id FROM recipes WHERE household_id = ? AND id = ? AND deleted_at IS NULL`,
-				hh, *in.RecipeID); err != nil {
-				return notFound(err)
-			}
-		}
-
-		// Merge into the newest open entry of the item, if the amounts
-		// combine.
-		var open []struct {
-			ID         uuid.UUID
-			Quantity   *float64
-			Unit       *string
-			AmountText string
-		}
-		if err := q.Select(ctx, &open, `SELECT id, quantity, unit, amount_text FROM list_entries
-			WHERE household_id = ? AND list_id = ? AND item_id = ? AND checked_at IS NULL AND deleted_at IS NULL
-			ORDER BY created_at DESC LIMIT 1`, hh, in.ListID, itemID); err != nil {
-			return err
-		}
-		id := store.NewID()
-		if len(open) == 1 && in.IfAbsent {
-			e, err := getEntry(ctx, q.Reader, sc, open[0].ID)
-			out.Entry, out.Present = e, true
-			return err
-		}
-		if len(open) == 1 {
-			cur := Amount{Quantity: open[0].Quantity, Unit: deref(open[0].Unit), Text: open[0].AmountText}
-			if sum, ok := merge(cur, in.Amount, in.Lang); ok {
-				id, out.Merged = open[0].ID, true
-				if _, err := q.Exec(ctx, `UPDATE list_entries SET quantity = ?, unit = ?, amount_text = ?,
-					recipe_id = COALESCE(recipe_id, ?), updated_at = ?
-					WHERE household_id = ? AND id = ?`, sum.Quantity, nullable(sum.Unit), sum.Text, in.RecipeID, now, hh, id); err != nil {
-					return err
-				}
-			}
-		}
-		if !out.Merged {
-			if _, err := q.Exec(ctx, `INSERT INTO list_entries
-				(id, household_id, list_id, item_id, quantity, unit, amount_text, added_by, recipe_id, created_at, updated_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-				id, hh, in.ListID, itemID, in.Amount.Quantity, nullable(in.Amount.Unit), in.Amount.Text, in.AddedBy,
-				in.RecipeID, now, now); err != nil {
-				return err
-			}
-		}
-		e, err := getEntry(ctx, q.Reader, sc, id)
-		out.Entry = e
+		var err error
+		out, err = s.AddTx(ctx, q, sc, in)
 		return err
 	})
 	if err != nil {
@@ -236,6 +164,88 @@ func (s *Service) Add(ctx context.Context, sc store.Scoped, in AddInput) (Added,
 		s.publish(sc, listChanged(in.ListID))
 	}
 	return out, nil
+}
+
+// AddTx is Add inside the caller's transaction, for writes that put items
+// on a list along with their own changes (planning a meal). It does not
+// publish: unless Present, the caller publishes live.ListChanged for the
+// list after commit.
+func (s *Service) AddTx(ctx context.Context, q store.Querier, sc store.Scoped, in AddInput) (Added, error) {
+	errs := FieldErrors{}
+	if in.ItemID == nil {
+		in.Name = CleanName(in.Name)
+		checkName(errs, "text", in.Name)
+	}
+	checkAmount(errs, "text", in.Amount)
+	if err := errs.orNil(); err != nil {
+		return Added{}, err
+	}
+	hh := sc.HouseholdID()
+	if err := lockList(ctx, q, sc, in.ListID); err != nil {
+		return Added{}, err
+	}
+	now := s.clock()
+	var itemID uuid.UUID
+	if in.ItemID != nil {
+		if err := q.Get(ctx, &itemID, `SELECT id FROM items WHERE household_id = ? AND id = ?`, hh, *in.ItemID); err != nil {
+			return Added{}, notFound(err)
+		}
+	} else {
+		var err error
+		if itemID, _, err = EnsureItem(ctx, q, sc, in.Name, now); err != nil {
+			return Added{}, err
+		}
+	}
+	if in.RecipeID != nil {
+		var got uuid.UUID
+		if err := q.Get(ctx, &got, `SELECT id FROM recipes WHERE household_id = ? AND id = ? AND deleted_at IS NULL`,
+			hh, *in.RecipeID); err != nil {
+			return Added{}, notFound(err)
+		}
+	}
+
+	// Merge into the newest open entry of the item, if the amounts
+	// combine.
+	var open []struct {
+		ID         uuid.UUID
+		Quantity   *float64
+		Unit       *string
+		AmountText string
+	}
+	if err := q.Select(ctx, &open, `SELECT id, quantity, unit, amount_text FROM list_entries
+		WHERE household_id = ? AND list_id = ? AND item_id = ? AND checked_at IS NULL AND deleted_at IS NULL
+		ORDER BY created_at DESC LIMIT 1`, hh, in.ListID, itemID); err != nil {
+		return Added{}, err
+	}
+	var out Added
+	id := store.NewID()
+	if len(open) == 1 && in.IfAbsent {
+		e, err := getEntry(ctx, q.Reader, sc, open[0].ID)
+		return Added{Entry: e, Present: true}, err
+	}
+	if len(open) == 1 {
+		cur := Amount{Quantity: open[0].Quantity, Unit: deref(open[0].Unit), Text: open[0].AmountText}
+		if sum, ok := merge(cur, in.Amount, in.Lang); ok {
+			id, out.Merged = open[0].ID, true
+			if _, err := q.Exec(ctx, `UPDATE list_entries SET quantity = ?, unit = ?, amount_text = ?,
+				recipe_id = COALESCE(recipe_id, ?), updated_at = ?
+				WHERE household_id = ? AND id = ?`, sum.Quantity, nullable(sum.Unit), sum.Text, in.RecipeID, now, hh, id); err != nil {
+				return Added{}, err
+			}
+		}
+	}
+	if !out.Merged {
+		if _, err := q.Exec(ctx, `INSERT INTO list_entries
+			(id, household_id, list_id, item_id, quantity, unit, amount_text, added_by, recipe_id, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			id, hh, in.ListID, itemID, in.Amount.Quantity, nullable(in.Amount.Unit), in.Amount.Text, in.AddedBy,
+			in.RecipeID, now, now); err != nil {
+			return Added{}, err
+		}
+	}
+	e, err := getEntry(ctx, q.Reader, sc, id)
+	out.Entry = e
+	return out, err
 }
 
 // EnsureItem returns the catalogue item named name (compared by NameKey),

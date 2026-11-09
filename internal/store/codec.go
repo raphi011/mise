@@ -1,6 +1,7 @@
 package store
 
 import (
+	"cmp"
 	"database/sql/driver"
 	"fmt"
 	"time"
@@ -114,3 +115,40 @@ func (d *Date) parse(s string) error {
 	*d = DateOf(p)
 	return nil
 }
+
+// ParseDate reads a date written 'YYYY-MM-DD'.
+func ParseDate(s string) (Date, error) {
+	var d Date
+	err := d.parse(s)
+	return d, err
+}
+
+// IsZero reports whether d is the zero Date.
+func (d Date) IsZero() bool { return d == Date{} }
+
+// In returns midnight at the start of d in loc.
+func (d Date) In(loc *time.Location) time.Time {
+	return time.Date(d.Year, d.Month, d.Day, 0, 0, 0, 0, loc)
+}
+
+// AddDays returns the date n days after d (before it for negative n).
+func (d Date) AddDays(n int) Date {
+	return DateOf(time.Date(d.Year, d.Month, d.Day+n, 12, 0, 0, 0, time.UTC))
+}
+
+// Weekday returns the day of the week of d.
+func (d Date) Weekday() time.Weekday { return d.In(time.UTC).Weekday() }
+
+// Compare returns -1, 0 or +1 as d is before, equal to or after o.
+func (d Date) Compare(o Date) int {
+	if c := cmp.Compare(d.Year, o.Year); c != 0 {
+		return c
+	}
+	if c := cmp.Compare(d.Month, o.Month); c != 0 {
+		return c
+	}
+	return cmp.Compare(d.Day, o.Day)
+}
+
+// Before reports whether d is before o.
+func (d Date) Before(o Date) bool { return d.Compare(o) < 0 }

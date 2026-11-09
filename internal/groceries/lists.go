@@ -23,8 +23,12 @@ const listColumns = `l.id, l.name, l.position,
 
 // Lists returns the household's lists in order.
 func (s *Service) Lists(ctx context.Context, sc store.Scoped) ([]List, error) {
+	return lists(ctx, sc.Read(), sc)
+}
+
+func lists(ctx context.Context, q store.Reader, sc store.Scoped) ([]List, error) {
 	var rows []List
-	err := sc.Read().Select(ctx, &rows, `SELECT `+listColumns+` FROM shopping_lists l
+	err := q.Select(ctx, &rows, `SELECT `+listColumns+` FROM shopping_lists l
 		WHERE l.household_id = ? AND l.deleted_at IS NULL ORDER BY l.position, l.created_at, l.id`, sc.HouseholdID())
 	return rows, err
 }
@@ -114,14 +118,23 @@ func (s *Service) seed(ctx context.Context, q store.Querier, sc store.Scoped, d 
 // FirstList returns the household's first list (the default list), or
 // ErrNotFound if it has none.
 func (s *Service) FirstList(ctx context.Context, sc store.Scoped) (List, error) {
-	lists, err := s.Lists(ctx, sc)
+	return firstList(ctx, sc.Read(), sc)
+}
+
+// FirstListTx is FirstList inside the caller's transaction.
+func (s *Service) FirstListTx(ctx context.Context, q store.Querier, sc store.Scoped) (List, error) {
+	return firstList(ctx, q.Reader, sc)
+}
+
+func firstList(ctx context.Context, q store.Reader, sc store.Scoped) (List, error) {
+	all, err := lists(ctx, q, sc)
 	if err != nil {
 		return List{}, err
 	}
-	if len(lists) == 0 {
+	if len(all) == 0 {
 		return List{}, ErrNotFound
 	}
-	return lists[0], nil
+	return all[0], nil
 }
 
 func checkListName(name string) (string, error) {

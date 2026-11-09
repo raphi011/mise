@@ -63,6 +63,39 @@ type Toggled struct {
 	Removed []uuid.UUID
 }
 
+// listIngredient is a recipe ingredient as it goes onto a list.
+type listIngredient struct {
+	ItemID     uuid.UUID
+	ItemName   string
+	Quantity   *float64
+	Unit       *string
+	AmountText string
+	Servings   int
+}
+
+// amount is the ingredient's amount for servings (clamped to the recipe's
+// own when out of range).
+func (ing listIngredient) amount(servings int, lang language.Tag) groceries.Amount {
+	if servings < 1 || servings > maxServings {
+		servings = ing.Servings
+	}
+	return Scale(groceries.Amount{Quantity: ing.Quantity, Unit: deref(ing.Unit), Text: ing.AmountText},
+		ing.Servings, servings, lang)
+}
+
+// getListIngredient reads one ingredient of a live recipe, or returns
+// ErrNotFound.
+func getListIngredient(ctx context.Context, q store.Reader, sc store.Scoped, recipeID, ingredientID uuid.UUID) (listIngredient, error) {
+	var ing listIngredient
+	err := q.Get(ctx, &ing, `SELECT ri.item_id, i.name AS item_name, ri.quantity, ri.unit, ri.amount_text, r.servings
+		FROM recipe_ingredients ri
+		JOIN recipes r ON r.household_id = ri.household_id AND r.id = ri.recipe_id
+		JOIN items i ON i.household_id = ri.household_id AND i.id = ri.item_id
+		WHERE ri.household_id = ? AND ri.recipe_id = ? AND ri.id = ? AND r.deleted_at IS NULL`,
+		sc.HouseholdID(), recipeID, ingredientID)
+	return ing, notFound(err)
+}
+
 // ToggleIngredient puts one ingredient of a recipe on the default list,
 // scaled to servings, or takes it off when on is false. Putting it on
 // leaves an item already on the list as it is, so a repeated tap adds
@@ -71,22 +104,9 @@ type Toggled struct {
 func (s *Service) ToggleIngredient(ctx context.Context, sc store.Scoped, by, recipeID, ingredientID uuid.UUID,
 	servings int, on bool, lang language.Tag,
 ) (Toggled, error) {
-	var ing struct {
-		ItemID     uuid.UUID
-		ItemName   string
-		Quantity   *float64
-		Unit       *string
-		AmountText string
-		Servings   int
-	}
-	err := sc.Read().Get(ctx, &ing, `SELECT ri.item_id, i.name AS item_name, ri.quantity, ri.unit, ri.amount_text, r.servings
-		FROM recipe_ingredients ri
-		JOIN recipes r ON r.household_id = ri.household_id AND r.id = ri.recipe_id
-		JOIN items i ON i.household_id = ri.household_id AND i.id = ri.item_id
-		WHERE ri.household_id = ? AND ri.recipe_id = ? AND ri.id = ? AND r.deleted_at IS NULL`,
-		sc.HouseholdID(), recipeID, ingredientID)
+	ing, err := getListIngredient(ctx, sc.Read(), sc, recipeID, ingredientID)
 	if err != nil {
-		return Toggled{}, notFound(err)
+		return Toggled{}, err
 	}
 	list, err := s.groceries.FirstList(ctx, sc)
 	if err != nil {
@@ -97,19 +117,63 @@ func (s *Service) ToggleIngredient(ctx context.Context, sc store.Scoped, by, rec
 		out.Removed, err = s.groceries.RemoveItem(ctx, sc, list.ID, ing.ItemID)
 		return out, err
 	}
-	if servings < 1 || servings > maxServings {
-		servings = ing.Servings
-	}
-	amount := Scale(groceries.Amount{Quantity: ing.Quantity, Unit: deref(ing.Unit), Text: ing.AmountText},
-		ing.Servings, servings, lang)
 	added, err := s.groceries.Add(ctx, sc, groceries.AddInput{
-		ListID: list.ID, ItemID: &ing.ItemID, Amount: amount, AddedBy: by, RecipeID: &recipeID, Lang: lang,
+		ListID: list.ID, ItemID: &ing.ItemID, Amount: ing.amount(servings, lang), AddedBy: by, RecipeID: &recipeID, Lang: lang,
 		IfAbsent: true,
 	})
 	if err != nil {
 		return Toggled{}, err
 	}
 	out.Added = &added.Entry
+	return out, nil
+}
+
+// PutOn describes what PutOnListTx did.
+type PutOn struct {
+	List groceries.List
+	// Added are the entries put on the list; Present names the items that
+	// were already on it and stay as they are.
+	Added   []groceries.Entry
+	Present []string
+}
+
+// PutOnListTx puts ingredients of a recipe on the default list, scaled to
+// servings, inside the caller's transaction (planning a meal with its
+// shopping). Items already on the list stay as they are. It returns
+// ErrNotFound when the recipe is gone or an ingredient is not the
+// recipe's. It does not publish: when Added is not empty, the caller
+// publishes live.ListChanged for List after commit.
+func (s *Service) PutOnListTx(ctx context.Context, q store.Querier, sc store.Scoped, by, recipeID uuid.UUID,
+	ingredientIDs []uuid.UUID, servings int, lang language.Tag,
+) (PutOn, error) {
+	list, err := s.groceries.FirstListTx(ctx, q, sc)
+	if err != nil {
+		return PutOn{}, err
+	}
+	out := PutOn{List: list}
+	seen := map[uuid.UUID]bool{}
+	for _, id := range ingredientIDs {
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		ing, err := getListIngredient(ctx, q.Reader, sc, recipeID, id)
+		if err != nil {
+			return PutOn{}, err
+		}
+		added, err := s.groceries.AddTx(ctx, q, sc, groceries.AddInput{
+			ListID: list.ID, ItemID: &ing.ItemID, Amount: ing.amount(servings, lang), AddedBy: by, RecipeID: &recipeID,
+			Lang: lang, IfAbsent: true,
+		})
+		if err != nil {
+			return PutOn{}, err
+		}
+		if added.Present {
+			out.Present = append(out.Present, ing.ItemName)
+		} else {
+			out.Added = append(out.Added, added.Entry)
+		}
+	}
 	return out, nil
 }
 

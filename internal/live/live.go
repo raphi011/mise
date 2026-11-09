@@ -38,6 +38,10 @@ const (
 	// deleted, which affects every recipe page showing them. It comes with
 	// RecipesChanged.
 	TagsChanged Kind = "tags.changed"
+	// PlanChanged: planned meals were added, moved, changed, removed or
+	// restored, or a cook event was written, which affects the plan views,
+	// their suggestions and the library's "tonight" card.
+	PlanChanged Kind = "plan.changed"
 	// SessionsChanged: sessions of UserID ended (sign-out, revoke, password
 	// change, removal). Streams of that user re-check their session.
 	SessionsChanged Kind = "sessions.changed"

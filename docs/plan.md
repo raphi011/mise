@@ -141,10 +141,13 @@ Derived, not stored: "on a list" per ingredient, times cooked (count of `cook_ev
 
 ### Decisions on the feature doc's open questions
 
-- Meals per day: several allowed; the week view shows the first and a "+1" marker.
-- Recipe ingredients go to the first list.
+- Meals per day: several allowed; the week view shows the first and a "+N" marker. Adding or moving a meal onto a day appends it after the day's meals. Dropping a meal on a day that has meals (or choosing "Swap with …") swaps it with that day's first meal; the day's other meals stay. Moves and swaps return the placements that undo them.
+- Recipe ingredients go to the first list. Planning a meal puts the ingredients picked in the add-to-plan sheet on it, scaled to the meal's servings, in the same transaction; items already on the list stay as they are.
 - Changing servings on a planned meal does not touch amounts already on a list.
-- Times cooked: `cook_events` written by cook mode's last step ("Done") or a manual "I made this"; past planned meals are not counted automatically.
+- Times cooked: `cook_events` written by cook mode's last step ("Done") or a manual "I made this" (recipe menu, and the meal menu of today's and past meals; it records now and can be undone for 24 h); past planned meals are not counted automatically.
+- "Haven't cooked in a while": recipes last cooked more than 3 weeks ago, or never, not planned in the week shown. Recipes cooked before come first, longest ago first, because they are known to be liked; never-cooked ones follow, oldest first. The plan shows three.
+- "Suggested for tonight" on Recipes: today's first planned meal, else the first "haven't cooked in a while" pick not planned this week.
+- A meal whose recipe is deleted is hidden while the recipe is in the bin and comes back if it is restored; it is deleted with the recipe.
 - Editing categories, items, tags, lists: everyone.
 - Live updates: SSE.
 - Amounts: structured quantity (decimal) + unit + original text; scaling acts on the structured part, free text like "1 thumb" is left as is. The parser is locale-aware: decimal comma ("1,5 kg"), fractions ("½", "1/2"), English and German units ("EL", "TL", "Prise", "Bund").
