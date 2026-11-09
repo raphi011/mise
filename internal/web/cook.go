@@ -42,7 +42,7 @@ func (s *Server) cookPage(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, v.RecipeBack(), http.StatusFound)
 		return
 	}
-	for i, parts := range stepParts(rec, scaledAmounts(ctx, rec, servings)) {
+	for i, parts := range stepParts(rec, scaledAmounts(ctx, rec, servings), firstInStep) {
 		st := ui.CookStep{Parts: parts}
 		if t := rec.Steps[i].TimerSeconds; t != nil {
 			st.TimerSeconds = *t

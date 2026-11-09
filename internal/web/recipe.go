@@ -133,7 +133,7 @@ func (s *Server) recipeView(ctx context.Context, sc store.Scoped, id *auth.Ident
 	on, total := st.Count(rec.Ingredients)
 	v.ListStatus = i18n.T(ctx, "recipes.onList", on, total, st.List.Name)
 
-	v.Steps = stepParts(rec, amounts)
+	v.Steps = stepParts(rec, amounts, firstInMethod)
 	return v, nil
 }
 
@@ -147,12 +147,27 @@ func scaledAmounts(ctx context.Context, rec recipes.Recipe, servings int) []stri
 	return amounts
 }
 
+// mentionScope says which mention of an ingredient stepParts highlights.
+type mentionScope int
+
+const (
+	// firstInMethod highlights only the first mention in the whole method,
+	// which the detail page shows as one text.
+	firstInMethod mentionScope = iota
+	// firstInStep highlights the first mention in each step, for cook mode,
+	// which shows one step per screen.
+	firstInStep
+)
+
 // stepParts splits each step into text and ingredient mentions carrying
 // their amounts.
-func stepParts(rec recipes.Recipe, amounts []string) [][]ui.StepPart {
+func stepParts(rec recipes.Recipe, amounts []string, scope mentionScope) [][]ui.StepPart {
 	seen := map[int]bool{}
 	out := make([][]ui.StepPart, 0, len(rec.Steps))
 	for _, step := range rec.Steps {
+		if scope == firstInStep {
+			clear(seen)
+		}
 		var parts []ui.StepPart
 		for _, p := range recipes.Highlight(step.Text, rec.Ingredients, seen) {
 			part := ui.StepPart{Text: p.Text}

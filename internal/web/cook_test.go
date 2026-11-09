@@ -2,11 +2,14 @@ package web
 
 import (
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/raphi011/mise/internal/recipes"
 	"github.com/raphi011/mise/internal/store"
 	"github.com/raphi011/mise/internal/store/storetest"
+	"github.com/raphi011/mise/internal/ui"
 )
 
 // TestCookMode is P4's cook-mode criterion as far as the server goes: a
@@ -94,4 +97,42 @@ func TestStepTimerValidation(t *testing.T) {
 	form := stickyTofu()
 	form["step_timer"] = []string{"10"}
 	anna.post("/recipes", form).expect(t, "mismatched steps", http.StatusBadRequest)
+}
+
+// TestStepPartsMentionScope: the detail page highlights an ingredient once
+// in the method, cook mode once per step, since it shows one step at a
+// time.
+func TestStepPartsMentionScope(t *testing.T) {
+	rec := recipes.Recipe{
+		Ingredients: []recipes.Ingredient{{ItemName: "Tofu"}, {ItemName: "Rice"}},
+		Steps: []recipes.Step{
+			{Text: "Press the tofu."},
+			{Text: "Fry the tofu with the rice. Season the tofu."},
+		},
+	}
+	amounts := []string{"400 g", "200 g"}
+	mentions := func(steps [][]ui.StepPart) []string {
+		var out []string
+		for _, parts := range steps {
+			var got []string
+			for _, p := range parts {
+				if p.Mention {
+					got = append(got, p.Text+" "+p.Amount)
+				}
+			}
+			out = append(out, strings.Join(got, ", "))
+		}
+		return out
+	}
+	for _, tc := range []struct {
+		scope mentionScope
+		want  []string
+	}{
+		{firstInMethod, []string{"tofu 400 g", "rice 200 g"}},
+		{firstInStep, []string{"tofu 400 g", "tofu 400 g, rice 200 g"}},
+	} {
+		if got := mentions(stepParts(rec, amounts, tc.scope)); !slices.Equal(got, tc.want) {
+			t.Errorf("scope %d: mentions %q, want %q", tc.scope, got, tc.want)
+		}
+	}
 }
