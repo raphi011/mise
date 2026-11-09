@@ -214,9 +214,6 @@ func TestSweepImages(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := r.Delete(ctx, sc, id); err != nil {
-			t.Fatal(err)
-		}
 
 		s := NewSweeper(db, slog.New(slog.DiscardHandler), clock, 0).WithImages(st)
 		// Files were just written: within the grace period nothing goes.
@@ -224,7 +221,12 @@ func TestSweepImages(t *testing.T) {
 		if got, err := s.Sweep(ctx); err != nil || got.Images != 0 {
 			t.Fatalf("early sweep %+v, %v", got, err)
 		}
+		// Image files carry the real time, so the deletion is placed after
+		// the grace period: the binned recipe is still in its Undo window.
 		now = now.Add(ImageGrace + time.Minute)
+		if err := r.Delete(ctx, sc, id); err != nil {
+			t.Fatal(err)
+		}
 		if got, err := s.Sweep(ctx); err != nil || got.Images != 1 {
 			t.Fatalf("sweep %+v, %v", got, err)
 		}
