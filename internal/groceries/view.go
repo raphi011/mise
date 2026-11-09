@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/google/uuid"
 
@@ -169,11 +170,41 @@ type Suggestion struct {
 // suggestCandidates bounds the rows ranked per keystroke.
 const suggestCandidates = 200
 
-// Suggest ranks catalogue items whose name contains the name typed: exact
+// Suggest ranks catalogue items whose name contains the name typed (see
+// SearchItems) and adds each one's open entry on the list.
+func (s *Service) Suggest(ctx context.Context, sc store.Scoped, listID uuid.UUID, name string, limit int) ([]Suggestion, error) {
+	out, err := s.SearchItems(ctx, sc, name, limit)
+	if err != nil || len(out) == 0 {
+		return out, err
+	}
+
+	var open []struct {
+		ItemID     uuid.UUID
+		Quantity   *float64
+		Unit       *string
+		AmountText string
+	}
+	if err := sc.Read().Select(ctx, &open, `SELECT item_id, quantity, unit, amount_text FROM list_entries
+		WHERE household_id = ? AND list_id = ? AND checked_at IS NULL AND deleted_at IS NULL`,
+		sc.HouseholdID(), listID); err != nil {
+		return nil, err
+	}
+	for i := range out {
+		for _, o := range open {
+			if o.ItemID == out[i].Item.ID {
+				out[i].OnList = &Amount{Quantity: o.Quantity, Unit: deref(o.Unit), Text: o.AmountText}
+				break
+			}
+		}
+	}
+	return out, nil
+}
+
+// SearchItems ranks catalogue items whose name contains name: exact
 // matches first, then names starting with it, then names with a word
 // starting with it, then the rest; within each, the most bought and most
-// recently bought first.
-func (s *Service) Suggest(ctx context.Context, sc store.Scoped, listID uuid.UUID, name string, limit int) ([]Suggestion, error) {
+// recently bought first. OnList is not set.
+func (s *Service) SearchItems(ctx context.Context, sc store.Scoped, name string, limit int) ([]Suggestion, error) {
 	key := NameKey(name)
 	if key == "" {
 		return nil, nil
@@ -209,29 +240,6 @@ func (s *Service) Suggest(ctx context.Context, sc store.Scoped, listID uuid.UUID
 	if len(out) > limit {
 		out = out[:limit]
 	}
-	if len(out) == 0 {
-		return out, nil
-	}
-
-	var open []struct {
-		ItemID     uuid.UUID
-		Quantity   *float64
-		Unit       *string
-		AmountText string
-	}
-	if err := sc.Read().Select(ctx, &open, `SELECT item_id, quantity, unit, amount_text FROM list_entries
-		WHERE household_id = ? AND list_id = ? AND checked_at IS NULL AND deleted_at IS NULL`,
-		sc.HouseholdID(), listID); err != nil {
-		return nil, err
-	}
-	for i := range out {
-		for _, o := range open {
-			if o.ItemID == out[i].Item.ID {
-				out[i].OnList = &Amount{Quantity: o.Quantity, Unit: deref(o.Unit), Text: o.AmountText}
-				break
-			}
-		}
-	}
 	return out, nil
 }
 
@@ -251,4 +259,48 @@ func compareTimes(a, b *time.Time) int {
 // escapeLike escapes LIKE wildcards for use with ESCAPE '\'.
 func escapeLike(s string) string {
 	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(s)
+}
+
+// ItemsWithin returns the catalogue items whose name appears as whole
+// words in text ("Tofu" in "extra-firm tofu"), longest name first, for
+// matching an imported ingredient to an item. Hyphens count as word
+// breaks.
+func (s *Service) ItemsWithin(ctx context.Context, sc store.Scoped, text string, limit int) ([]Item, error) {
+	key := wordKey(NameKey(text))
+	if key == "" {
+		return nil, nil
+	}
+	var rows []itemRow
+	// The concatenation is portable; LIKE wildcards in names only widen
+	// the candidates, which the word check below narrows again.
+	err := sc.Read().Select(ctx, &rows, itemSelect+` AND ? LIKE '%' || i.name_key || '%' LIMIT ?`,
+		sc.HouseholdID(), NameKey(text), suggestCandidates)
+	if err != nil {
+		return nil, err
+	}
+	var out []Item
+	padded := " " + key + " "
+	for _, r := range rows {
+		if k := wordKey(r.NameKey); k != "" && strings.Contains(padded, " "+k+" ") {
+			out = append(out, r.item())
+		}
+	}
+	slices.SortStableFunc(out, func(a, b Item) int {
+		return cmp.Or(
+			cmp.Compare(len(NameKey(b.Name)), len(NameKey(a.Name))),
+			cmp.Compare(b.PurchaseCount, a.PurchaseCount),
+			strings.Compare(NameKey(a.Name), NameKey(b.Name)),
+		)
+	})
+	if len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
+// wordKey turns punctuation into spaces so words can be compared.
+func wordKey(key string) string {
+	return strings.Join(strings.FieldsFunc(key, func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+	}), " ")
 }

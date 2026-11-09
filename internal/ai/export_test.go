@@ -1,8 +1,13 @@
 package ai
 
 import (
+	"context"
 	"net/netip"
 	"time"
+
+	"golang.org/x/text/language"
+
+	"github.com/raphi011/mise/internal/store"
 )
 
 // PublicAddr exposes the address check.
@@ -16,4 +21,9 @@ func (f *Fetcher) AllowForTest(fn func(netip.AddrPort) bool, timeout time.Durati
 		f.timeout = timeout
 	}
 	return f
+}
+
+// PageDraft exposes the no-model import of a page.
+func (s *Service) PageDraft(ctx context.Context, sc store.Scoped, rawURL string, lang language.Tag) (Draft, Page, error) {
+	return s.pageDraft(ctx, sc, rawURL, lang)
 }

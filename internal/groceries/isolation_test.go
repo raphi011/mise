@@ -109,6 +109,22 @@ func TestHouseholdIsolation(t *testing.T) {
 				}
 			}
 
+			if sug, err := s.SearchItems(ctx, sc, "e", 50); err != nil || len(sug) != 3 {
+				t.Errorf("SearchItems: %d items, %v", len(sug), err)
+			} else {
+				for _, x := range sug {
+					within, err := s.ItemsWithin(ctx, sc, "fresh "+x.Item.Name+", chopped", 50)
+					if err != nil || len(within) == 0 {
+						t.Errorf("ItemsWithin(%s): %v, %v", x.Item.Name, within, err)
+					}
+					for _, w := range within {
+						if w.ID == other.open.ItemID || w.ID == other.inCart.ItemID {
+							t.Errorf("ItemsWithin returned the other household's %s", w.Name)
+						}
+					}
+				}
+			}
+
 			if sug, err := s.Suggest(ctx, sc, other.list.ID, "e", 50); err == nil {
 				for _, x := range sug {
 					if x.Item.ID == other.open.ItemID || x.Item.ID == other.inCart.ItemID || x.OnList != nil {

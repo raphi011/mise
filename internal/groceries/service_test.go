@@ -602,3 +602,41 @@ func TestSuggest(t *testing.T) {
 		}
 	})
 }
+
+func TestItemsWithin(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		ctx := t.Context()
+		e := newEnv(t, db, "home")
+		l, err := e.s.Start(ctx, e.sc, testDefaults)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, name := range []string{"Tofu", "Firm tofu", "Soy sauce", "Oil", "Toffee", "50%_mix"} {
+			e.add(t, l.ID, name)
+		}
+		names := func(text string) []string {
+			items, err := e.s.ItemsWithin(ctx, e.sc, text, 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var out []string
+			for _, it := range items {
+				out = append(out, it.Name)
+			}
+			return out
+		}
+		for text, want := range map[string][]string{
+			"400 g extra-firm tofu":        {"Firm tofu", "Tofu"},
+			"Tamari or soy sauce":          {"Soy sauce"},
+			"2 tbsp olive oil, for frying": {"Oil"},
+			"toffees":                      nil, // not a whole word
+			"boiled water":                 nil,
+			"50x mix":                      nil, // "_" and "%" are no wildcards
+			"":                             nil,
+		} {
+			if got := names(text); !slices.Equal(got, want) {
+				t.Errorf("ItemsWithin(%q) = %v, want %v", text, got, want)
+			}
+		}
+	})
+}
