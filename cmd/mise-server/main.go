@@ -2,6 +2,9 @@
 //
 //	mise-server [serve] [flags]   run migrations and serve HTTP (default)
 //	mise-server migrate [flags]   run migrations and exit
+//	mise-server backup <dir> [flags]
+//	                              archive the SQLite database and the images
+//	                              into <dir> (docs/operations.md)
 //	mise-server version           print the version
 package main
 
@@ -20,6 +23,7 @@ import (
 	"time"
 	_ "time/tzdata" // household time zones must resolve in minimal containers
 
+	"github.com/raphi011/mise/internal/backup"
 	"github.com/raphi011/mise/internal/config"
 	"github.com/raphi011/mise/internal/jobs"
 	"github.com/raphi011/mise/internal/store"
@@ -50,8 +54,14 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 		_, err := fmt.Fprintln(stdout, versionString())
 		return err
 	case "serve", "migrate":
+	case "backup":
+		// config.Load takes only flags: the directory comes first.
+		if len(args) == 0 || args[0] == "" || args[0][0] == '-' {
+			return errors.New("usage: mise-server backup <dir> [flags]")
+		}
+		return runBackup(ctx, args[0], args[1:], getenv, stderr)
 	default:
-		return fmt.Errorf("unknown command %q (want serve, migrate or version)", cmd)
+		return fmt.Errorf("unknown command %q (want serve, migrate, backup or version)", cmd)
 	}
 
 	cfg, err := config.Load(args, getenv)
@@ -75,6 +85,33 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 		return nil
 	}
 	return serve(ctx, cfg, db, log)
+}
+
+// runBackup writes a backup archive into dir. It does not run migrations:
+// the backup holds the database as it is.
+func runBackup(ctx context.Context, dir string, args []string, getenv func(string) string, stderr io.Writer) error {
+	cfg, err := config.Load(args, getenv)
+	if err != nil {
+		return err
+	}
+	log := newLogger(cfg, stderr)
+
+	db, err := store.Open(ctx, cfg.DB)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+
+	res, err := backup.Write(ctx, db, cfg.DataDir, dir, time.Now())
+	if err != nil {
+		return err
+	}
+	log.Info("backup written", slog.String("path", res.Path),
+		slog.Bool("database", res.Database), slog.Int("images", res.Images))
+	if !res.Database {
+		log.Warn("the archive holds only the images: back up the Postgres database with pg_dump, see docs/operations.md")
+	}
+	return nil
 }
 
 func serve(ctx context.Context, cfg config.Config, db *store.DB, log *slog.Logger) error {

@@ -40,6 +40,12 @@ above, or a host directory owned by that uid
 
 Every variable has a matching flag, e.g. `-db`, `-listen`. `mise-server migrate` applies migrations and exits; `/healthz` and `/readyz` are for health checks.
 
+## Operate
+
+`mise-server backup <dir>` archives the SQLite database and the images. See
+[docs/operations.md](docs/operations.md) for reverse proxy setup (SSE,
+HTTP/2, trusted proxies), backup and restore on both engines, and email.
+
 ## Develop
 
 Tools are pinned in `mise.toml`; templ runs via `go tool templ`.
