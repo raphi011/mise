@@ -151,6 +151,11 @@ func (s *Service) MoveCategory(ctx context.Context, sc store.Scoped, id uuid.UUI
 // transaction (docs/plan.md, Multi-tenancy).
 func (s *Service) DeleteCategory(ctx context.Context, sc store.Scoped, id uuid.UUID) error {
 	err := sc.Tx(ctx, func(ctx context.Context, q store.Querier) error {
+		// Ordered against UpdateEntry, which checks the category exists
+		// before pointing an item at it.
+		if err := sc.LockHousehold(ctx, q); err != nil {
+			return err
+		}
 		hh := sc.HouseholdID()
 		if _, err := q.Exec(ctx, `UPDATE items SET category_id = NULL, updated_at = ? WHERE household_id = ? AND category_id = ?`,
 			s.clock(), hh, id); err != nil {

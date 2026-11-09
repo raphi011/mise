@@ -18,8 +18,8 @@ func TestHub(t *testing.T) {
 	h := NewHub()
 	a, b := uuid.New(), uuid.New()
 	ua, ub := uuid.New(), uuid.New()
-	subA := h.Subscribe(a, ua)
-	subB := h.Subscribe(b, ub)
+	subA := h.Subscribe(a, ua, "sa")
+	subB := h.Subscribe(b, ub, "sb")
 	defer subB.Close()
 
 	list := uuid.New()
@@ -62,6 +62,60 @@ func TestHub(t *testing.T) {
 	h.Publish(a, Event{Kind: ListsChanged})
 }
 
+func TestHubLimitsSession(t *testing.T) {
+	h := NewHub()
+	hh, user := uuid.New(), uuid.New()
+	var subs []*Subscription
+	for range MaxPerSession {
+		subs = append(subs, h.Subscribe(hh, user, "phone"))
+	}
+	other := h.Subscribe(hh, user, "laptop")
+	newest := h.Subscribe(hh, user, "phone")
+	select {
+	case <-subs[0].Done():
+	default:
+		t.Fatal("oldest subscription of the session not ended")
+	}
+	for _, s := range append(subs[1:], other, newest) {
+		select {
+		case <-s.Done():
+			t.Fatal("subscription ended although within the limit")
+		default:
+		}
+	}
+	if n := h.Subscribers(hh); n != MaxPerSession+1 {
+		t.Errorf("%d subscribers, want %d", n, MaxPerSession+1)
+	}
+	subs[0].Close() // the stream's deferred Close after eviction
+	if n := h.Subscribers(hh); n != MaxPerSession+1 {
+		t.Errorf("closing an evicted subscription removed another: %d", n)
+	}
+}
+
+func TestHubClose(t *testing.T) {
+	h := NewHub()
+	hh := uuid.New()
+	sub := h.Subscribe(hh, uuid.New(), "s")
+	h.Close()
+	select {
+	case <-sub.Done():
+	default:
+		t.Fatal("subscription not ended by hub Close")
+	}
+	late := h.Subscribe(hh, uuid.New(), "s")
+	select {
+	case <-late.Done():
+	default:
+		t.Fatal("subscription after hub Close not ended")
+	}
+	if n := h.Subscribers(hh); n != 0 {
+		t.Errorf("%d subscribers after Close", n)
+	}
+	sub.Close()
+	late.Close()
+	h.Publish(hh, Event{Kind: ListsChanged})
+}
+
 func TestServe(t *testing.T) {
 	h := NewHub()
 	hh, user := uuid.New(), uuid.New()
@@ -70,7 +124,7 @@ func TestServe(t *testing.T) {
 	list := uuid.New()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		sub := h.Subscribe(hh, user)
+		sub := h.Subscribe(hh, user, "s")
 		defer sub.Close()
 		err := Serve(w, r, sub, Stream{
 			Refresh: func(_ context.Context, sse *datastar.ServerSentEventGenerator) error {
@@ -130,12 +184,59 @@ func TestServe(t *testing.T) {
 	waitFor(`<div id="region">2</div>`)
 	waitFor(": ping")
 
-	// A revoked session ends the stream.
-	alive.Store(0)
-	h.PublishUser(user, Event{Kind: SessionsChanged, UserID: user})
+	// Ending the subscription (hub shutdown, eviction) ends the stream.
+	h.Close()
 	for range lines {
 	}
 	if n := refreshes.Load(); n != 2 {
 		t.Errorf("%d refreshes, want 2", n)
+	}
+}
+
+func TestServeEndsWithSession(t *testing.T) {
+	h := NewHub()
+	hh, user := uuid.New(), uuid.New()
+	var alive atomic.Int32
+	alive.Store(1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sub := h.Subscribe(hh, user, "s")
+		defer sub.Close()
+		err := Serve(w, r, sub, Stream{
+			Refresh: func(_ context.Context, sse *datastar.ServerSentEventGenerator) error {
+				return sse.PatchElementf(`<div id="region"></div>`)
+			},
+			Relevant:  func(Event) bool { return false },
+			Alive:     func(context.Context) (bool, error) { return alive.Load() == 1, nil },
+			Heartbeat: time.Hour,
+		})
+		if err != nil {
+			t.Error(err)
+		}
+	}))
+	defer srv.Close()
+	req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL, nil)
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = res.Body.Close() }()
+	ended := make(chan struct{})
+	go func() {
+		sc := bufio.NewScanner(res.Body)
+		for sc.Scan() {
+		}
+		close(ended)
+	}()
+	for h.Subscribers(hh) == 0 {
+		time.Sleep(time.Millisecond)
+	}
+
+	// A revoked session ends the stream.
+	alive.Store(0)
+	h.PublishUser(user, Event{Kind: SessionsChanged, UserID: user})
+	select {
+	case <-ended:
+	case <-time.After(2 * time.Second):
+		t.Fatal("stream still open after the session ended")
 	}
 }

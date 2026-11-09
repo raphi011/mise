@@ -38,58 +38,25 @@ func (s *Service) List(ctx context.Context, sc store.Scoped, id uuid.UUID) (List
 	return l, notFound(err)
 }
 
-// Defaults is what a household starts with on its first visit to
-// Groceries, in the visitor's language.
+// Defaults is what a household starts with: its first list and categories,
+// in the household's default language. Setup creates them (SeedTx); Start
+// backfills households created before Groceries existed.
 type Defaults struct {
 	ListName   string
 	Categories []NewCategory
 }
 
-// Start returns the household's first list. On the first visit, when the
-// household has never had a list, it creates one from d, and the default
-// categories if it has none.
+// Start makes sure the household has its defaults and returns its first
+// list. It creates the list from d when the household has never had one, and
+// the default categories if it has none. It is idempotent and safe to run
+// concurrently; requests never call it (every GET is read-only), the server
+// runs it at startup for households created before Groceries existed.
 func (s *Service) Start(ctx context.Context, sc store.Scoped, d Defaults) (List, error) {
-	lists, err := s.Lists(ctx, sc)
-	if err != nil {
-		return List{}, err
-	}
-	if len(lists) > 0 {
-		return lists[0], nil
-	}
 	created := false
-	err = sc.Tx(ctx, func(ctx context.Context, q store.Querier) error {
-		if err := sc.LockHousehold(ctx, q); err != nil {
-			return err
-		}
-		hh := sc.HouseholdID()
-		// Deleted lists count: the last list cannot be deleted, so a
-		// household with only deleted lists is never new.
-		var n int
-		if err := q.QueryRow(ctx, `SELECT count(*) FROM shopping_lists WHERE household_id = ?`, hh).Scan(&n); err != nil {
-			return err
-		}
-		if n > 0 {
-			return nil
-		}
-		if _, err := s.insertList(ctx, q, sc, d.ListName); err != nil {
-			return err
-		}
-		if err := q.QueryRow(ctx, `SELECT count(*) FROM categories WHERE household_id = ?`, hh).Scan(&n); err != nil {
-			return err
-		}
-		if n == 0 {
-			for _, c := range d.Categories {
-				c, err := checkCategory(c)
-				if err != nil {
-					return err
-				}
-				if _, err := s.insertCategory(ctx, q, sc, c); err != nil {
-					return err
-				}
-			}
-		}
-		created = true
-		return nil
+	err := sc.Tx(ctx, func(ctx context.Context, q store.Querier) error {
+		var err error
+		created, err = s.seed(ctx, q, sc, d)
+		return err
 	})
 	if err != nil {
 		return List{}, err
@@ -97,7 +64,57 @@ func (s *Service) Start(ctx context.Context, sc store.Scoped, d Defaults) (List,
 	if created {
 		s.publish(sc, listsChanged, catalogChanged)
 	}
-	lists, err = s.Lists(ctx, sc)
+	return s.FirstList(ctx, sc)
+}
+
+// SeedTx creates the household's defaults inside the caller's transaction,
+// e.g. the one creating the household during first-run setup. Like Start it
+// does nothing for a household that already has lists.
+func (s *Service) SeedTx(ctx context.Context, q store.Querier, sc store.Scoped, d Defaults) error {
+	_, err := s.seed(ctx, q, sc, d)
+	return err
+}
+
+// seed creates the defaults under the household lock and reports whether it
+// did.
+func (s *Service) seed(ctx context.Context, q store.Querier, sc store.Scoped, d Defaults) (bool, error) {
+	if err := sc.LockHousehold(ctx, q); err != nil {
+		return false, err
+	}
+	hh := sc.HouseholdID()
+	// Deleted lists count: the last list cannot be deleted, so a household
+	// with only deleted lists is never new.
+	var n int
+	if err := q.QueryRow(ctx, `SELECT count(*) FROM shopping_lists WHERE household_id = ?`, hh).Scan(&n); err != nil {
+		return false, err
+	}
+	if n > 0 {
+		return false, nil
+	}
+	if _, err := s.insertList(ctx, q, sc, d.ListName); err != nil {
+		return false, err
+	}
+	if err := q.QueryRow(ctx, `SELECT count(*) FROM categories WHERE household_id = ?`, hh).Scan(&n); err != nil {
+		return false, err
+	}
+	if n == 0 {
+		for _, c := range d.Categories {
+			c, err := checkCategory(c)
+			if err != nil {
+				return false, err
+			}
+			if _, err := s.insertCategory(ctx, q, sc, c); err != nil {
+				return false, err
+			}
+		}
+	}
+	return true, nil
+}
+
+// FirstList returns the household's first list (the default list), or
+// ErrNotFound if it has none.
+func (s *Service) FirstList(ctx context.Context, sc store.Scoped) (List, error) {
+	lists, err := s.Lists(ctx, sc)
 	if err != nil {
 		return List{}, err
 	}
@@ -220,8 +237,8 @@ func (s *Service) DeleteList(ctx context.Context, sc store.Scoped, id uuid.UUID)
 	return nil
 }
 
-// RestoreList undoes DeleteList. The list goes back to the end of the
-// order.
+// RestoreList undoes DeleteList within UndoWindow. The list goes back to
+// the end of the order.
 func (s *Service) RestoreList(ctx context.Context, sc store.Scoped, id uuid.UUID) error {
 	err := sc.Tx(ctx, func(ctx context.Context, q store.Querier) error {
 		if err := sc.LockHousehold(ctx, q); err != nil {
@@ -234,7 +251,7 @@ func (s *Service) RestoreList(ctx context.Context, sc store.Scoped, id uuid.UUID
 			return err
 		}
 		res, err := q.Exec(ctx, `UPDATE shopping_lists SET deleted_at = NULL, position = ?, updated_at = ?
-			WHERE household_id = ? AND id = ? AND deleted_at IS NOT NULL`, pos, s.clock(), hh, id)
+			WHERE household_id = ? AND id = ? AND deleted_at >= ?`, pos, s.clock(), hh, id, s.undoCutoff())
 		if err != nil {
 			return err
 		}

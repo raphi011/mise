@@ -153,6 +153,11 @@ func (s *Service) Setup(ctx context.Context, in SetupInput) (SetupResult, error)
 		if err := insertMembership(ctx, q, householdID, userID, RoleAdmin, now); err != nil {
 			return err
 		}
+		if s.onSetup != nil {
+			if err := s.onSetup(ctx, q, s.db.ScopeFor(householdID), in.Language); err != nil {
+				return err
+			}
+		}
 		if err := putSetting(ctx, q, settingBaseURL, base.String(), now); err != nil {
 			return err
 		}

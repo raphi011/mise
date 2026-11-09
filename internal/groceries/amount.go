@@ -37,6 +37,11 @@ type unitDef struct {
 	en, de [2]string
 }
 
+// countable lists the units that also name things to buy on their own:
+// "2 cans" or "3 Flaschen" with no other text means two cans, not an amount
+// of nothing. Measures and abbreviations ("2 l", "1 Stk.") never do.
+var countable = map[string]bool{"can": true, "bottle": true, "bunch": true, "pack": true, "clove": true, "slice": true}
+
 // Units are the units the parser knows, by canonical key.
 var Units = []unitDef{
 	{"g", []string{"g", "gr", "gram", "grams", "gramm"}, [2]string{"g", "g"}, [2]string{"g", "g"}},
@@ -245,13 +250,12 @@ func ParseEntry(input string, lang language.Tag) (Amount, string) {
 		return Amount{}, ""
 	}
 	if a, name, ok := leadingAmount(s, lang); ok {
-		if name == "" && a.Unit != "" {
-			// "2 cans": the unit word was the name. "500g" alone has none.
-			i := strings.LastIndexByte(a.Text, ' ')
-			if i < 0 {
-				return a, ""
+		if name == "" && countable[a.Unit] {
+			// "2 cans": the unit word was the name. "2cans", like "500g"
+			// or "2 l" alone, has none.
+			if i := strings.LastIndexByte(a.Text, ' '); i >= 0 {
+				a.Text, name, a.Unit = a.Text[:i], a.Text[i+1:], ""
 			}
-			a.Text, name, a.Unit = a.Text[:i], a.Text[i+1:], ""
 		}
 		return a, name
 	}
@@ -259,11 +263,27 @@ func ParseEntry(input string, lang language.Tag) (Amount, string) {
 	fields := strings.Split(s, " ")
 	for k := min(2, len(fields)-1); k >= 1; k-- {
 		tail := strings.Join(fields[len(fields)-k:], " ")
-		if a, ok := wholeAmount(tail, lang); ok {
+		if a, ok := wholeAmount(tail, lang); ok && !partOfName(a) {
 			return a, strings.Join(fields[:len(fields)-k], " ")
 		}
 	}
 	return Amount{}, s
+}
+
+// partOfName reports whether a trailing bare number of three or more digits
+// belongs to the name, like the flour type in "Mehl 405" or "Weizenmehl Type
+// 550". Trailing counts are small ("Eier 10"); larger trailing amounts need a
+// unit ("Tomaten 500 g").
+func partOfName(a Amount) bool {
+	if a.Unit != "" || len(a.Text) < 3 {
+		return false
+	}
+	for i := range len(a.Text) {
+		if !isDigit(a.Text[i]) {
+			return false
+		}
+	}
+	return true
 }
 
 // ParseAmount parses the amount field of the edit sheet. Text that does not

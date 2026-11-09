@@ -46,10 +46,17 @@ type Publisher interface {
 	Publish(householdID uuid.UUID, events ...Event)
 }
 
+// MaxPerSession bounds the open subscriptions of one session (one browser,
+// any number of tabs). Each costs a connection and a session check per
+// heartbeat; a new one beyond the limit ends the oldest.
+const MaxPerSession = 8
+
 // Hub is an in-process Publisher with subscriptions per household.
 type Hub struct {
-	mu   sync.Mutex
-	subs map[uuid.UUID]map[*Subscription]struct{}
+	mu     sync.Mutex
+	subs   map[uuid.UUID]map[*Subscription]struct{}
+	seq    uint64
+	closed bool
 }
 
 // NewHub returns an empty hub.
@@ -58,18 +65,68 @@ func NewHub() *Hub {
 }
 
 // Subscribe registers a subscription for the household's events, held by the
-// given user. Close it when done.
-func (h *Hub) Subscribe(householdID, userID uuid.UUID) *Subscription {
-	s := &Subscription{hub: h, household: householdID, user: userID, ready: make(chan struct{}, 1)}
+// given user and session. Close it when done. After Close of the hub, the
+// subscription is returned already done.
+func (h *Hub) Subscribe(householdID, userID uuid.UUID, sessionID string) *Subscription {
+	s := &Subscription{
+		hub: h, household: householdID, user: userID, session: sessionID,
+		ready: make(chan struct{}, 1), done: make(chan struct{}),
+	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	if h.closed {
+		s.end()
+		return s
+	}
+	h.seq++
+	s.seq = h.seq
 	set := h.subs[householdID]
 	if set == nil {
 		set = map[*Subscription]struct{}{}
 		h.subs[householdID] = set
 	}
+	h.limitSession(set, sessionID)
 	set[s] = struct{}{}
 	return s
+}
+
+// limitSession ends the session's oldest subscriptions in set until there is
+// room for one more. A session belongs to one household, so set holds all of
+// its subscriptions. The caller holds h.mu.
+func (h *Hub) limitSession(set map[*Subscription]struct{}, sessionID string) {
+	for {
+		var oldest *Subscription
+		n := 0
+		for s := range set {
+			if s.session != sessionID {
+				continue
+			}
+			n++
+			if oldest == nil || s.seq < oldest.seq {
+				oldest = s
+			}
+		}
+		if n < MaxPerSession {
+			return
+		}
+		oldest.end()
+		delete(set, oldest)
+	}
+}
+
+// Close ends every subscription and refuses new ones, so open streams return
+// and graceful shutdown does not wait for them. Register it with
+// http.Server.RegisterOnShutdown.
+func (h *Hub) Close() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.closed = true
+	for _, set := range h.subs {
+		for s := range set {
+			s.end()
+		}
+	}
+	clear(h.subs)
 }
 
 // Publish implements Publisher. It never blocks: events queue on each
@@ -111,7 +168,10 @@ func (h *Hub) Subscribers(householdID uuid.UUID) int {
 func (h *Hub) remove(s *Subscription) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	set := h.subs[s.household]
+	set, ok := h.subs[s.household]
+	if !ok {
+		return
+	}
 	delete(set, s)
 	if len(set) == 0 {
 		delete(h.subs, s.household)
@@ -129,7 +189,12 @@ type Subscription struct {
 	hub       *Hub
 	household uuid.UUID
 	user      uuid.UUID
+	session   string
+	seq       uint64
 	ready     chan struct{}
+	// done is closed when the subscription ends: Close, the hub's Close, or
+	// eviction by a newer subscription of the same session.
+	done chan struct{}
 
 	mu       sync.Mutex
 	pending  []Event
@@ -163,6 +228,21 @@ func (s *Subscription) push(events []Event) {
 	}
 }
 
+// Done is closed when the subscription has ended and its stream must stop.
+func (s *Subscription) Done() <-chan struct{} { return s.done }
+
+// end marks the subscription closed and signals Done. It does not touch the
+// hub's map.
+func (s *Subscription) end() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return
+	}
+	s.closed = true
+	close(s.done)
+}
+
 // Ready is signalled when events are waiting; call Drain to take them.
 func (s *Subscription) Ready() <-chan struct{} { return s.ready }
 
@@ -178,12 +258,6 @@ func (s *Subscription) Drain() (events []Event, overflow bool) {
 
 // Close unregisters the subscription. It is safe to call more than once.
 func (s *Subscription) Close() {
-	s.mu.Lock()
-	if s.closed {
-		s.mu.Unlock()
-		return
-	}
-	s.closed = true
-	s.mu.Unlock()
+	s.end()
 	s.hub.remove(s)
 }

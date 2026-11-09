@@ -121,6 +121,11 @@ func New(pub live.Publisher, now func() time.Time) *Service {
 
 func (s *Service) clock() store.Time { return store.T(s.now()) }
 
+// undoCutoff is the oldest deletion time Undo still restores. The sweep runs
+// periodically, so rows can outlive UndoWindow briefly; restores check the
+// window themselves.
+func (s *Service) undoCutoff() store.Time { return store.T(s.now().Add(-UndoWindow)) }
+
 // publish sends events for the scoped household once a write has
 // committed.
 func (s *Service) publish(sc store.Scoped, events ...live.Event) {

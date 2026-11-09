@@ -85,6 +85,9 @@ func serve(ctx context.Context, cfg config.Config, db *store.DB, log *slog.Logge
 	if err := server.LoadSettings(ctx); err != nil {
 		return err
 	}
+	if err := server.SeedGroceries(ctx); err != nil {
+		return err
+	}
 	srv := &http.Server{
 		Addr:              cfg.Listen,
 		Handler:           server.Handler(),
@@ -95,6 +98,9 @@ func serve(ctx context.Context, cfg config.Config, db *store.DB, log *slog.Logge
 		IdleTimeout:  2 * time.Minute,
 		ErrorLog:     slog.NewLogLogger(log.Handler(), slog.LevelWarn),
 	}
+	// Live streams only end with their request; end them on shutdown so it
+	// does not wait for open tabs.
+	srv.RegisterOnShutdown(server.CloseStreams)
 
 	// Periodic maintenance stops with ctx.
 	go jobs.NewSweeper(db, log, nil, 0).Run(ctx)

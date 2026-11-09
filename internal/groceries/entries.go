@@ -2,6 +2,7 @@ package groceries
 
 import (
 	"context"
+	"database/sql"
 	"time"
 	"unicode/utf8"
 
@@ -142,7 +143,7 @@ func (s *Service) Add(ctx context.Context, sc store.Scoped, in AddInput) (Added,
 	var out Added
 	err := sc.Tx(ctx, func(ctx context.Context, q store.Querier) error {
 		hh := sc.HouseholdID()
-		if err := liveList(ctx, q, sc, in.ListID); err != nil {
+		if err := lockList(ctx, q, sc, in.ListID); err != nil {
 			return err
 		}
 		now := s.clock()
@@ -206,17 +207,24 @@ func (s *Service) Add(ctx context.Context, sc store.Scoped, in AddInput) (Added,
 	return out, nil
 }
 
-// liveList checks that a list exists and is not deleted.
-func liveList(ctx context.Context, q store.Querier, sc store.Scoped, id uuid.UUID) error {
-	var n int
-	if err := q.QueryRow(ctx, `SELECT count(*) FROM shopping_lists WHERE household_id = ? AND id = ? AND deleted_at IS NULL`,
-		sc.HouseholdID(), id).Scan(&n); err != nil {
-		return err
+// lockList checks that a list exists and is not deleted, and locks it for
+// the rest of the transaction, so read-then-write changes to its entries
+// (merging amounts on add, clearing the cart) cannot interleave, and a
+// concurrent DeleteList is ordered before or after them. SQLite transactions
+// already hold the database's write lock; on Postgres the list row is locked.
+func lockList(ctx context.Context, q store.Querier, sc store.Scoped, id uuid.UUID) error {
+	query := `SELECT id FROM shopping_lists WHERE household_id = ? AND id = ? AND deleted_at IS NULL`
+	if q.Dialect() == store.Postgres {
+		query += ` FOR UPDATE`
 	}
-	if n == 0 {
-		return ErrNotFound
-	}
-	return nil
+	var got uuid.UUID
+	return notFound(q.Get(ctx, &got, query, sc.HouseholdID(), id))
+}
+
+// affected reports whether a statement changed any rows.
+func affected(r sql.Result) (bool, error) {
+	n, err := r.RowsAffected()
+	return n > 0, err
 }
 
 // Check puts an entry in the cart and counts a purchase of its item. It is
@@ -233,8 +241,18 @@ func (s *Service) Check(ctx context.Context, sc store.Scoped, id uuid.UUID) (Ent
 		}
 		now := s.clock()
 		hh := sc.HouseholdID()
-		if _, err := q.Exec(ctx, `UPDATE list_entries SET checked_at = ?, updated_at = ? WHERE household_id = ? AND id = ?`,
-			now, now, hh, id); err != nil {
+		// Conditional, so a concurrent Check (a double tap, two shoppers)
+		// counts the purchase once: on Postgres the second update waits for
+		// the first and then finds the entry checked.
+		res, err := q.Exec(ctx, `UPDATE list_entries SET checked_at = ?, updated_at = ?
+			WHERE household_id = ? AND id = ? AND checked_at IS NULL AND deleted_at IS NULL`, now, now, hh, id)
+		if err != nil {
+			return err
+		}
+		if changed, err := affected(res); err != nil || !changed {
+			if err == nil {
+				e, err = getEntry(ctx, q.Reader, sc, id)
+			}
 			return err
 		}
 		if _, err := q.Exec(ctx, `UPDATE items SET purchase_count = purchase_count + 1, last_purchased_at = ?, updated_at = ?
@@ -266,8 +284,17 @@ func (s *Service) Uncheck(ctx context.Context, sc store.Scoped, id uuid.UUID) (E
 		checkedAt := store.T(*e.CheckedAt)
 		now := s.clock()
 		hh := sc.HouseholdID()
-		if _, err := q.Exec(ctx, `UPDATE list_entries SET checked_at = NULL, updated_at = ? WHERE household_id = ? AND id = ?`,
-			now, hh, id); err != nil {
+		// Conditional on the check this read saw, so concurrent Unchecks
+		// take back one purchase.
+		res, err := q.Exec(ctx, `UPDATE list_entries SET checked_at = NULL, updated_at = ?
+			WHERE household_id = ? AND id = ? AND checked_at = ?`, now, hh, id, checkedAt)
+		if err != nil {
+			return err
+		}
+		if changed, err := affected(res); err != nil || !changed {
+			if err == nil {
+				e, err = getEntry(ctx, q.Reader, sc, id)
+			}
 			return err
 		}
 		// The item's last purchase falls back to its latest other checked
@@ -324,16 +351,16 @@ func (s *Service) Remove(ctx context.Context, sc store.Scoped, id uuid.UUID) (En
 	return e, nil
 }
 
-// Restore undoes Remove. It returns ErrNotFound when the entry was not
-// removed, was swept, or its list is deleted.
+// Restore undoes Remove within UndoWindow. It returns ErrNotFound when the
+// entry was not removed, the window has passed, or its list is deleted.
 func (s *Service) Restore(ctx context.Context, sc store.Scoped, id uuid.UUID) (Entry, error) {
 	var e Entry
 	err := sc.Tx(ctx, func(ctx context.Context, q store.Querier) error {
 		res, err := q.Exec(ctx, `UPDATE list_entries SET deleted_at = NULL, updated_at = ?
-			WHERE household_id = ? AND id = ? AND deleted_at IS NOT NULL
+			WHERE household_id = ? AND id = ? AND deleted_at >= ?
 			AND EXISTS (SELECT 1 FROM shopping_lists l
 			            WHERE l.household_id = list_entries.household_id AND l.id = list_entries.list_id AND l.deleted_at IS NULL)`,
-			s.clock(), sc.HouseholdID(), id)
+			s.clock(), sc.HouseholdID(), id, s.undoCutoff())
 		if err != nil {
 			return err
 		}
@@ -362,7 +389,7 @@ type Cleared struct {
 func (s *Service) ClearCart(ctx context.Context, sc store.Scoped, listID uuid.UUID) (Cleared, error) {
 	var out Cleared
 	err := sc.Tx(ctx, func(ctx context.Context, q store.Querier) error {
-		if err := liveList(ctx, q, sc, listID); err != nil {
+		if err := lockList(ctx, q, sc, listID); err != nil {
 			return err
 		}
 		now := s.clock()
@@ -385,17 +412,17 @@ func (s *Service) ClearCart(ctx context.Context, sc store.Scoped, listID uuid.UU
 	return out, nil
 }
 
-// RestoreCart undoes ClearCart: the entries cleared at at go back into the
-// cart. It returns how many came back.
+// RestoreCart undoes ClearCart within UndoWindow: the entries cleared at at
+// go back into the cart. It returns how many came back.
 func (s *Service) RestoreCart(ctx context.Context, sc store.Scoped, listID uuid.UUID, at time.Time) (int, error) {
 	var n int64
 	err := sc.Tx(ctx, func(ctx context.Context, q store.Querier) error {
-		if err := liveList(ctx, q, sc, listID); err != nil {
+		if err := lockList(ctx, q, sc, listID); err != nil {
 			return err
 		}
 		res, err := q.Exec(ctx, `UPDATE list_entries SET deleted_at = NULL, updated_at = ?
-			WHERE household_id = ? AND list_id = ? AND checked_at IS NOT NULL AND deleted_at = ?`,
-			s.clock(), sc.HouseholdID(), listID, store.T(at))
+			WHERE household_id = ? AND list_id = ? AND checked_at IS NOT NULL AND deleted_at = ? AND deleted_at >= ?`,
+			s.clock(), sc.HouseholdID(), listID, store.T(at), s.undoCutoff())
 		if err != nil {
 			return err
 		}
@@ -452,12 +479,18 @@ func (s *Service) UpdateEntry(ctx context.Context, sc store.Scoped, id uuid.UUID
 	var before Entry
 	catalog := false
 	err := sc.Tx(ctx, func(ctx context.Context, q store.Querier) error {
+		// The household lock orders the edit against category changes
+		// (DeleteCategory) and other catalogue edits, so the checks below
+		// hold until commit.
+		if err := sc.LockHousehold(ctx, q); err != nil {
+			return err
+		}
 		var err error
 		if before, err = getEntry(ctx, q.Reader, sc, id); err != nil {
 			return err
 		}
 		if u.ListID != before.ListID {
-			if err := liveList(ctx, q, sc, u.ListID); err != nil {
+			if err := lockList(ctx, q, sc, u.ListID); err != nil {
 				return err
 			}
 		}
@@ -466,9 +499,6 @@ func (s *Service) UpdateEntry(ctx context.Context, sc store.Scoped, id uuid.UUID
 
 		categoryID := u.CategoryID
 		if u.NewCategory.Name != "" {
-			if err := sc.LockHousehold(ctx, q); err != nil {
-				return err
-			}
 			var existing []uuid.UUID
 			if err := q.Select(ctx, &existing, `SELECT id FROM categories WHERE household_id = ? AND name_key = ?`,
 				hh, NameKey(u.NewCategory.Name)); err != nil {
@@ -520,8 +550,14 @@ func (s *Service) UpdateEntry(ctx context.Context, sc store.Scoped, id uuid.UUID
 		}
 		if u.Name != before.ItemName || newCategory != oldCategory {
 			catalog = true
-			if _, err := q.Exec(ctx, `UPDATE items SET name = ?, name_key = ?, category_id = ?, updated_at = ?
-				WHERE household_id = ? AND id = ?`, u.Name, key, categoryID, now, hh, before.ItemID); err != nil {
+			_, err := q.Exec(ctx, `UPDATE items SET name = ?, name_key = ?, category_id = ?, updated_at = ?
+				WHERE household_id = ? AND id = ?`, u.Name, key, categoryID, now, hh, before.ItemID)
+			if store.IsUniqueViolation(err) {
+				// Add created an item with this name after the check above;
+				// Add takes no household lock.
+				return FieldErrors{"name": "groceries.error.itemExists"}
+			}
+			if err != nil {
 				return err
 			}
 		}

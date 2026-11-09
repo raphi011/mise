@@ -4,8 +4,11 @@ package jobs
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/raphi011/mise/internal/groceries"
 	"github.com/raphi011/mise/internal/store"
@@ -85,4 +88,25 @@ func (s *Sweeper) Run(ctx context.Context) {
 		case <-t.C:
 		}
 	}
+}
+
+// SeedGroceries gives every household without shopping lists its grocery
+// defaults, in its default language. Setup seeds new households in its own
+// transaction; this covers households created before Groceries existed.
+// It is idempotent.
+func SeedGroceries(ctx context.Context, db *store.DB, g *groceries.Service, defaults func(lang string) groceries.Defaults) error {
+	var households []struct {
+		ID              uuid.UUID
+		DefaultLanguage string
+	}
+	if err := db.System().Read().Select(ctx, &households, `SELECT h.id, h.default_language FROM households h
+		WHERE NOT EXISTS (SELECT 1 FROM shopping_lists l WHERE l.household_id = h.id)`); err != nil {
+		return err
+	}
+	for _, h := range households {
+		if _, err := g.Start(ctx, db.ScopeFor(h.ID), defaults(h.DefaultLanguage)); err != nil {
+			return fmt.Errorf("seed groceries for household %s: %w", h.ID, err)
+		}
+	}
+	return nil
 }

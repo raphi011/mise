@@ -1,6 +1,7 @@
 package jobs
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"testing"
@@ -77,6 +78,41 @@ func TestSweep(t *testing.T) {
 		var n int
 		if err := db.System().Read().QueryRow(ctx, `SELECT count(*) FROM list_entries`).Scan(&n); err != nil || n != 1 {
 			t.Errorf("entries left: %d, %v", n, err)
+		}
+	})
+}
+
+func TestSeedGroceries(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		ctx := t.Context()
+		g := groceries.New(nil, nil)
+		fresh := storetest.NewHousehold(t, db, "fresh")
+		started := storetest.NewHousehold(t, db, "started")
+		err := db.System().Tx(ctx, func(ctx context.Context, q store.Querier) error {
+			_, err := q.Exec(ctx, `UPDATE households SET default_language = 'de' WHERE id = ?`, fresh.ID)
+			return err
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := g.Start(ctx, db.ScopeFor(started.ID), groceries.Defaults{ListName: "Mine"}); err != nil {
+			t.Fatal(err)
+		}
+		defaults := func(lang string) groceries.Defaults {
+			return groceries.Defaults{ListName: "List " + lang, Categories: []groceries.NewCategory{{Name: "Obst", Color: "herb"}}}
+		}
+		for range 2 { // idempotent
+			if err := SeedGroceries(ctx, db, g, defaults); err != nil {
+				t.Fatal(err)
+			}
+		}
+		lists, err := g.Lists(ctx, db.ScopeFor(fresh.ID))
+		if err != nil || len(lists) != 1 || lists[0].Name != "List de" {
+			t.Errorf("fresh household lists: %+v, %v", lists, err)
+		}
+		lists, err = g.Lists(ctx, db.ScopeFor(started.ID))
+		if err != nil || len(lists) != 1 || lists[0].Name != "Mine" {
+			t.Errorf("started household changed: %+v, %v", lists, err)
 		}
 	})
 }

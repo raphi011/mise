@@ -47,6 +47,13 @@ func TestParseEntry(t *testing.T) {
 		{language.German, "3 Stk. Eier", want{3, "piece", "3 Stk.", "Eier"}},
 		{language.German, "2 Dosen Tomaten", want{2, "can", "2 Dosen", "Tomaten"}},
 		{language.Make("de-AT"), "0,5 l Obers", want{0.5, "l", "0,5 l", "Obers"}},
+		{language.German, "3 Flaschen", want{3, "", "3", "Flaschen"}},
+		{language.German, "Mehl 405", want{-1, "", "", "Mehl 405"}},
+		{language.German, "Weizenmehl Type 550", want{-1, "", "", "Weizenmehl Type 550"}},
+		{language.German, "Eier 10", want{10, "", "10", "Eier"}},
+		{language.German, "Mehl 1000 g", want{1000, "g", "1000 g", "Mehl"}},
+		{language.German, "2 l", want{2, "l", "2 l", ""}},
+		{language.German, "1 Stk.", want{1, "piece", "1 Stk.", ""}},
 	}
 	for _, c := range cases {
 		a, name := ParseEntry(c.input, c.lang)

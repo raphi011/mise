@@ -9,6 +9,7 @@
 package auth
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -121,6 +122,10 @@ type Config struct {
 	// SecureCookie reports whether the session cookie for r must carry the
 	// Secure attribute (base URL or request is https).
 	SecureCookie func(r *http.Request) bool
+	// OnSetup, if set, runs inside the first-run setup transaction after the
+	// household and its admin exist, to create the household's initial data
+	// (e.g. grocery defaults) in its default language. An error aborts setup.
+	OnSetup func(ctx context.Context, q store.Querier, sc store.Scoped, language string) error
 }
 
 // Service implements accounts on top of the store.
@@ -129,6 +134,8 @@ type Service struct {
 	now    func() time.Time
 	log    *slog.Logger
 	secure func(*http.Request) bool
+	// onSetup is Config.OnSetup.
+	onSetup func(ctx context.Context, q store.Querier, sc store.Scoped, language string) error
 	// setupDone caches that a household exists; households are never
 	// deleted, so once true it stays true.
 	setupDone atomic.Bool
@@ -136,7 +143,7 @@ type Service struct {
 
 // New returns a Service using db.
 func New(db *store.DB, cfg Config) *Service {
-	s := &Service{db: db, now: cfg.Now, log: cfg.Log, secure: cfg.SecureCookie}
+	s := &Service{db: db, now: cfg.Now, log: cfg.Log, secure: cfg.SecureCookie, onSetup: cfg.OnSetup}
 	if s.now == nil {
 		s.now = time.Now
 	}

@@ -15,6 +15,7 @@ import (
 	"github.com/raphi011/mise/internal/auth"
 	"github.com/raphi011/mise/internal/groceries"
 	"github.com/raphi011/mise/internal/i18n"
+	"github.com/raphi011/mise/internal/jobs"
 	"github.com/raphi011/mise/internal/live"
 	"github.com/raphi011/mise/internal/store"
 	"github.com/raphi011/mise/internal/ui"
@@ -28,9 +29,10 @@ const suggestLimit = 5
 // redirect, so every page works without JavaScript.
 func isDatastar(r *http.Request) bool { return r.Header.Get("Datastar-Request") != "" }
 
-// groceryDefaults is what a household's first visit creates, in the
-// visitor's language.
-func groceryDefaults(ctx context.Context) groceries.Defaults {
+// groceryDefaults is what a household starts with, in the language lang
+// (the household's default language).
+func groceryDefaults(ctx context.Context, lang string) groceries.Defaults {
+	ctx = i18n.WithLocale(ctx, i18n.Match(lang))
 	return groceries.Defaults{
 		ListName: i18n.T(ctx, "groceries.defaultList"),
 		Categories: []groceries.NewCategory{
@@ -99,8 +101,8 @@ func entryRow(e groceries.Entry, viewer uuid.UUID) ui.EntryRow {
 	return row
 }
 
-// groceriesHome shows the household's first list, creating it on the first
-// visit.
+// groceriesHome shows the household's first list. Setup created it (and
+// SeedGroceries backfilled older households), so the GET stays read-only.
 func (s *Server) groceriesHome(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	sc, err := s.db.Scope(ctx)
@@ -108,7 +110,7 @@ func (s *Server) groceriesHome(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	l, err := s.groceries.Start(ctx, sc, groceryDefaults(ctx))
+	l, err := s.groceries.FirstList(ctx, sc)
 	if err != nil {
 		s.serverError(w, r, err)
 		return
@@ -625,7 +627,7 @@ func (s *Server) saveEntry(w http.ResponseWriter, r *http.Request) {
 // ---- Live ----
 
 // liveStream is the page's SSE stream. It re-renders the list region for
-// this viewer whenever the list, the lists or the catalogue change.
+// this viewer whenever any list, the lists or the catalogue change.
 func (s *Server) liveStream(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	if q.Get("page") != "groceries" {
@@ -644,7 +646,7 @@ func (s *Server) liveStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := identity(r)
-	sub := s.live.Subscribe(id.HouseholdID, id.UserID)
+	sub := s.live.Subscribe(id.HouseholdID, id.UserID, id.SessionID)
 	defer sub.Close()
 	err = live.Serve(w, r, sub, live.Stream{
 		Refresh: func(ctx context.Context, sse *datastar.ServerSentEventGenerator) error {
@@ -654,11 +656,11 @@ func (s *Server) liveStream(w http.ResponseWriter, r *http.Request) {
 			}
 			return sse.PatchElementTempl(ui.GroceriesRegion(v))
 		},
+		// Every list event is relevant, not only the shown list's: the tabs
+		// show each list's open count.
 		Relevant: func(e live.Event) bool {
 			switch e.Kind {
-			case live.ListChanged:
-				return e.ListID == listID
-			case live.ListsChanged, live.CatalogChanged:
+			case live.ListChanged, live.ListsChanged, live.CatalogChanged:
 				return true
 			}
 			return false
@@ -671,6 +673,25 @@ func (s *Server) liveStream(w http.ResponseWriter, r *http.Request) {
 	if err != nil && ctx.Err() == nil {
 		s.log.ErrorContext(ctx, "live stream", slog.Any("err", err))
 	}
+}
+
+// CloseStreams ends every open live stream. Register it with
+// http.Server.RegisterOnShutdown so graceful shutdown does not wait for them.
+func (s *Server) CloseStreams() { s.live.Close() }
+
+// SeedGroceries gives households created before Groceries existed their
+// grocery defaults. Setup seeds new households itself. Call it once before
+// serving.
+func (s *Server) SeedGroceries(ctx context.Context) error {
+	return jobs.SeedGroceries(ctx, s.db, s.groceries, func(lang string) groceries.Defaults {
+		return groceryDefaults(ctx, lang)
+	})
+}
+
+// seedHousehold creates a new household's grocery defaults inside the setup
+// transaction.
+func (s *Server) seedHousehold(ctx context.Context, q store.Querier, sc store.Scoped, lang string) error {
+	return s.groceries.SeedTx(ctx, q, sc, groceryDefaults(ctx, lang))
 }
 
 // sessionsEnded tells the user's open streams to re-check their session.

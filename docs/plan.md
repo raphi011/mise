@@ -125,7 +125,7 @@ All tables also have `household_id` (except `households`, `users`) and `created_
 | password_resets | token_hash, user_id, expires_at (1 hour), used_at |
 | categories | id, name, name_key, color, position; "Uncategorised" is implicit (NULL) and sorts last |
 | items | id, name, name_key, category_id, purchase_count, last_purchased_at |
-| shopping_lists | id, name, position (first = default), deleted_at (Undo for list delete) |
+| shopping_lists | id, name, position (first = default), deleted_at (Undo for list delete). First-run setup creates the default list and categories in the household's language, in its transaction; startup backfills households created before P1b, so every GET stays read-only. |
 | list_entries | id, list_id, item_id, quantity, unit, amount_text, note, added_by, recipe_id (added in P2 with its FK), checked_at, deleted_at |
 | recipes | id, name, description, photo, prep_min, cook_min, servings, source_url, notes, notes_by, draft, created_by, updated_by, deleted_at |
 | recipe_ingredients | id, recipe_id, item_id, quantity, unit, amount_text, optional, position |
@@ -167,12 +167,13 @@ Derived, not stored: "on a list" per ingredient, times cooked (count of `cook_ev
   - Clear the write deadline per stream with `http.ResponseController.SetWriteDeadline(time.Time{})`; the server keeps normal timeouts for other routes.
   - Heartbeat comment every 25 s; `X-Accel-Buffering: no`.
   - Client closes the stream when the tab is hidden (`visibilitychange`) and reopens it with a full refresh of the page region when visible.
-  - Session revocation and sign-out publish a `session.revoked{id}` event that closes that session's streams.
+  - Sign-out, session revocation, password change or reset and member removal publish a per-user `sessions.changed` event; each of that user's streams re-checks its session (also on every heartbeat) and ends when it is no longer valid.
+  - At most 8 streams per session; a newer one ends the oldest. Graceful shutdown ends all streams (`RegisterOnShutdown`) instead of waiting for them.
 - Browsers allow 6 HTTP/1.1 connections per origin; with SSE plus streamed action responses, many tabs on plain HTTP can stall. Docs recommend serving through a TLS reverse proxy (HTTP/2). Single instance only; multi-instance would need Postgres LISTEN/NOTIFY, not planned.
 
 ### Undo
 
-- Remove/clear/check-off set `deleted_at` or `checked_at`; the toast's Undo posts to an endpoint that clears it. A sweep in `internal/jobs` hard-deletes rows soft-deleted more than 24 h ago.
+- Remove/clear/check-off set `deleted_at` or `checked_at`; the toast's Undo posts to an endpoint that clears it. A sweep in `internal/jobs` hard-deletes rows soft-deleted more than 24 h ago; Undo endpoints check the 24 h window themselves, since the sweep runs hourly.
 - Moves (planned meals) return the inverse operation in the toast; Undo posts it.
 - Confirmations only for delete recipe and clear cart, per the design.
 

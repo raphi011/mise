@@ -340,6 +340,46 @@ func TestRemoveRestore(t *testing.T) {
 	})
 }
 
+// TestUndoWindow checks that Undo stops working once UndoWindow has passed,
+// even before the sweep deletes the rows.
+func TestUndoWindow(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		ctx := t.Context()
+		e := newEnv(t, db, "home")
+		l, _ := e.s.Start(ctx, e.sc, testDefaults)
+		spare, err := e.s.CreateList(ctx, e.sc, "Spare")
+		if err != nil {
+			t.Fatal(err)
+		}
+		removed := e.add(t, l.ID, "eggs").Entry
+		if _, err := e.s.Remove(ctx, e.sc, removed.ID); err != nil {
+			t.Fatal(err)
+		}
+		inCart := e.add(t, l.ID, "milk").Entry
+		if _, err := e.s.Check(ctx, e.sc, inCart.ID); err != nil {
+			t.Fatal(err)
+		}
+		cleared, err := e.s.ClearCart(ctx, e.sc, l.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := e.s.DeleteList(ctx, e.sc, spare.ID); err != nil {
+			t.Fatal(err)
+		}
+
+		e.clk.Add(UndoWindow + time.Minute)
+		if _, err := e.s.Restore(ctx, e.sc, removed.ID); !errors.Is(err, ErrNotFound) {
+			t.Errorf("Restore after the window: %v", err)
+		}
+		if n, err := e.s.RestoreCart(ctx, e.sc, l.ID, cleared.At); err != nil || n != 0 {
+			t.Errorf("RestoreCart after the window: %d, %v", n, err)
+		}
+		if err := e.s.RestoreList(ctx, e.sc, spare.ID); !errors.Is(err, ErrNotFound) {
+			t.Errorf("RestoreList after the window: %v", err)
+		}
+	})
+}
+
 func TestUpdateEntry(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db *store.DB) {
 		ctx := t.Context()

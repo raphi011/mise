@@ -30,7 +30,8 @@ type Stream struct {
 }
 
 // Serve streams sub's events to the client until the request ends, the
-// session ends, or a write fails. It clears the server's read and write
+// subscription ends (hub shutdown, or a newer stream of the same session),
+// the session ends, or a write fails. It clears the server's read and write
 // deadlines for this connection only.
 func Serve(w http.ResponseWriter, r *http.Request, sub *Subscription, s Stream) error {
 	ctx := r.Context()
@@ -61,6 +62,8 @@ func Serve(w http.ResponseWriter, r *http.Request, sub *Subscription, s Stream) 
 	for {
 		select {
 		case <-ctx.Done():
+			return nil
+		case <-sub.Done():
 			return nil
 		case <-ticker.C:
 			if ok, err := s.Alive(ctx); err != nil || !ok {

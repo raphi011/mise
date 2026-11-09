@@ -80,9 +80,9 @@ func New(cfg config.Config, db *store.DB, log *slog.Logger) (*Server, error) {
 		userLimit:     auth.NewLimiter(userBurst, userInterval, limiterMaxKeys, nil),
 		passwordLimit: auth.NewLimiter(passwordBurst, passwordInterval, limiterMaxKeys, nil),
 	}
-	s.auth = auth.New(db, auth.Config{Log: log, SecureCookie: s.secureCookie})
 	s.live = live.NewHub()
 	s.groceries = groceries.New(s.live, nil)
+	s.auth = auth.New(db, auth.Config{Log: log, SecureCookie: s.secureCookie, OnSetup: s.seedHousehold})
 	if cfg.BaseURL != nil {
 		if err := s.setBaseURL(cfg.BaseURL); err != nil {
 			return nil, err

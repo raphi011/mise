@@ -109,6 +109,16 @@ func TestHouseholdIsolation(t *testing.T) {
 				}
 			}
 
+			if sug, err := s.Suggest(ctx, sc, other.list.ID, "e", 50); err == nil {
+				for _, x := range sug {
+					if x.Item.ID == other.open.ItemID || x.Item.ID == other.inCart.ItemID || x.OnList != nil {
+						t.Errorf("Suggest(other list) leaked %s (on list %v)", x.Item.Name, x.OnList != nil)
+					}
+				}
+			} else if !errors.Is(err, ErrNotFound) {
+				t.Errorf("Suggest(other list): %v", err)
+			}
+
 			// Writes aimed at the other household fail.
 			notFound("RenameList(other)", s.RenameList(ctx, sc, other.list.ID, "x"))
 			notFound("MoveList(other)", s.MoveList(ctx, sc, other.list.ID, 0))
