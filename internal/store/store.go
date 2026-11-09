@@ -218,6 +218,19 @@ func (s Scoped) Tx(ctx context.Context, fn func(ctx context.Context, q Querier) 
 	return s.db.tx(ctx, fn)
 }
 
+// LockHousehold serialises read-then-write changes within the household,
+// such as last-admin checks or rewriting positions. Call it first inside a
+// Tx. SQLite transactions already hold the single write lock from BEGIN; on
+// Postgres the household row is locked until the transaction ends.
+func (s Scoped) LockHousehold(ctx context.Context, q Querier) error {
+	query := `SELECT id FROM households WHERE id = ?`
+	if q.Dialect() == Postgres {
+		query += ` FOR UPDATE`
+	}
+	var id uuid.UUID
+	return q.Get(ctx, &id, query, s.householdID)
+}
+
 // System is unscoped database access.
 type System struct{ db *DB }
 

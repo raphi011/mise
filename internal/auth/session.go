@@ -149,6 +149,17 @@ func (s *Service) Authenticate(ctx context.Context, token string) (id *Identity,
 	}, refreshed, nil
 }
 
+// SessionActive reports whether a session still exists, has not expired and
+// belongs to an active member. Unlike Authenticate it never writes, so
+// long-lived streams can call it periodically.
+func (s *Service) SessionActive(ctx context.Context, sessionID string) (bool, error) {
+	var n int
+	err := s.db.System().Read().QueryRow(ctx, `SELECT count(*) FROM sessions s
+		JOIN memberships m ON m.household_id = s.household_id AND m.user_id = s.user_id
+		WHERE s.id = ? AND s.expires_at > ? AND m.removed_at IS NULL`, sessionID, s.clock()).Scan(&n)
+	return n > 0, err
+}
+
 // SignOut ends the session.
 func (s *Service) SignOut(ctx context.Context, sessionID string) error {
 	return s.db.System().Tx(ctx, func(ctx context.Context, q store.Querier) error {

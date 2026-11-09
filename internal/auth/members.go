@@ -68,18 +68,6 @@ func (s *Service) Member(ctx context.Context, sc store.Scoped, userID uuid.UUID)
 	return r.member(), nil
 }
 
-// lockHousehold serialises admin changes within one household so the
-// last-admin checks cannot race. SQLite transactions already hold the single
-// write lock from BEGIN; on Postgres the household row is locked.
-func lockHousehold(ctx context.Context, q store.Querier, householdID uuid.UUID) error {
-	query := `SELECT id FROM households WHERE id = ?`
-	if q.Dialect() == store.Postgres {
-		query += ` FOR UPDATE`
-	}
-	var id uuid.UUID
-	return q.Get(ctx, &id, query, householdID)
-}
-
 // activeRole returns the role of an active member, or ErrNotFound.
 func activeRole(ctx context.Context, q store.Querier, sc store.Scoped, userID uuid.UUID) (Role, error) {
 	var role Role
@@ -116,7 +104,7 @@ func (s *Service) SetRole(ctx context.Context, sc store.Scoped, actor, userID uu
 		return FieldErrors{"role": "form.error.choice"}
 	}
 	return sc.Tx(ctx, func(ctx context.Context, q store.Querier) error {
-		if err := lockHousehold(ctx, q, sc.HouseholdID()); err != nil {
+		if err := sc.LockHousehold(ctx, q); err != nil {
 			return err
 		}
 		if err := requireAdmin(ctx, q, sc, actor); err != nil {
@@ -196,7 +184,7 @@ func (s *Service) RemoveMember(ctx context.Context, sc store.Scoped, actor, user
 		return ErrSelf
 	}
 	return sc.Tx(ctx, func(ctx context.Context, q store.Querier) error {
-		if err := lockHousehold(ctx, q, sc.HouseholdID()); err != nil {
+		if err := sc.LockHousehold(ctx, q); err != nil {
 			return err
 		}
 		if err := requireAdmin(ctx, q, sc, actor); err != nil {

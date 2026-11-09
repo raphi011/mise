@@ -80,6 +80,9 @@ func (e FieldErrors) Error() string {
 	return "auth: invalid " + strings.Join(fields, ", ")
 }
 
+// Fields returns the messages by field.
+func (e FieldErrors) Fields() map[string]i18n.Key { return e }
+
 // orNil returns e, or nil when it is empty, so callers can return it as an
 // error directly.
 func (e FieldErrors) orNil() error {

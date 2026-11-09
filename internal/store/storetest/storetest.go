@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/testcontainers/testcontainers-go"
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 
@@ -141,6 +142,47 @@ func startContainer() (u string, err error) {
 	// The container is removed by the testcontainers reaper when the test
 	// process exits.
 	return ctr.ConnectionString(ctx, "sslmode=disable")
+}
+
+// Household is a household with two active members, created directly in the
+// database for tests of household-scoped code.
+type Household struct {
+	ID     uuid.UUID
+	Admin  uuid.UUID
+	Member uuid.UUID
+}
+
+// NewHousehold inserts a household named name with an admin and a member.
+// Usernames are name+"-admin" and name+"-member"; their passwords are not
+// usable for signing in.
+func NewHousehold(t *testing.T, db *store.DB, name string) Household {
+	t.Helper()
+	h := Household{ID: store.NewID(), Admin: store.NewID(), Member: store.NewID()}
+	now := store.Now()
+	err := db.System().Tx(t.Context(), func(ctx context.Context, q store.Querier) error {
+		if _, err := q.Exec(ctx, `INSERT INTO households (id, name, timezone, week_start, default_language, created_at, updated_at)
+			VALUES (?, ?, 'UTC', 'mon', 'en', ?, ?)`, h.ID, name, now, now); err != nil {
+			return err
+		}
+		for _, u := range []struct {
+			id         uuid.UUID
+			name, role string
+		}{{h.Admin, name + "-admin", "admin"}, {h.Member, name + "-member", "member"}} {
+			if _, err := q.Exec(ctx, `INSERT INTO users (id, username, username_key, name, password_hash, avatar_color, theme, created_at, updated_at)
+				VALUES (?, ?, ?, ?, 'unusable', 'amber', 'system', ?, ?)`, u.id, u.name, u.name, u.name, now, now); err != nil {
+				return err
+			}
+			if _, err := q.Exec(ctx, `INSERT INTO memberships (household_id, user_id, role, created_at, updated_at)
+				VALUES (?, ?, ?, ?, ?)`, h.ID, u.id, u.role, now, now); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return h
 }
 
 func randomSuffix() string {
