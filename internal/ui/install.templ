@@ -1,0 +1,42 @@
+package ui
+
+import "github.com/raphi011/mise/internal/i18n"
+
+// InstallHint offers to add mise to the home screen after the first
+// cleared cart. It replaces the closed clear-cart dialog in #sheet and
+// stays closed: app.js opens it only on a phone browser that can install
+// the app and has not shown the hint before, and otherwise removes it. Its
+// data-platform attribute ("ios" or "prompt") picks the variant.
+templ InstallHint() {
+	<div id="sheet">
+		<dialog id="install-hint" class="confirm-dialog install-hint" aria-labelledby="install-title" aria-describedby="install-body" data-init="window.mise?.installHint(el)" data-on:close="el.remove()">
+			<div class="install-hint__head">
+				<span class="install-hint__icon" aria-hidden="true">
+					@logo(56)
+				</span>
+				<div class="install-hint__text">
+					<h2 class="sheet__title" id="install-title">{ i18n.T(ctx, "install.title") }</h2>
+					<p class="confirm-dialog__body" id="install-body">{ i18n.T(ctx, "install.body") }</p>
+				</div>
+			</div>
+			<ol class="install-hint__steps" data-install-only="ios">
+				<li>
+					<span class="install-hint__n" aria-hidden="true">1</span>
+					<span class="install-hint__step">{ i18n.T(ctx, "install.ios.share") }</span>
+					<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4"></path><path d="M6 11v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-8"></path></svg>
+				</li>
+				<li>
+					<span class="install-hint__n" aria-hidden="true">2</span>
+					<span class="install-hint__step">{ i18n.T(ctx, "install.ios.add") }</span>
+					<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"></rect><path d="M12 8v8M8 12h8"></path></svg>
+				</li>
+			</ol>
+			<div class="sheet__actions">
+				<button type="button" class="btn btn--secondary btn--tall install-hint__btn" data-on:click="el.closest('dialog').close()">{ i18n.T(ctx, "install.notNow") }</button>
+				<button type="button" class="btn btn--primary btn--tall install-hint__btn" data-install-only="ios" data-on:click="el.closest('dialog').close()">{ i18n.T(ctx, "install.gotIt") }</button>
+				<button type="button" class="btn btn--primary btn--tall install-hint__btn" data-install-only="prompt" data-install-prompt>{ i18n.T(ctx, "install.install") }</button>
+			</div>
+			<p class="install-hint__note">{ i18n.T(ctx, "install.once") }</p>
+		</dialog>
+	</div>
+}

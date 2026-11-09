@@ -178,7 +178,11 @@ func (s *Server) Handler() http.Handler {
 // isInfra reports whether a path serves assets or probes, which need no
 // session, locale or setup.
 func isInfra(path string) bool {
-	return strings.HasPrefix(path, ui.StaticPrefix) || path == "/healthz" || path == "/readyz" || path == "/favicon.ico"
+	switch path {
+	case "/healthz", "/readyz", "/favicon.ico", "/manifest.webmanifest", "/sw.js":
+		return true
+	}
+	return strings.HasPrefix(path, ui.StaticPrefix)
 }
 
 // skipForInfra applies mw to every request except infrastructure paths, so
@@ -232,6 +236,8 @@ func (s *Server) routes(r *router) {
 	// Browsers request /favicon.ico regardless of <link rel="icon">. The
 	// target is content-hashed, so the redirect must not be cached forever.
 	r.read("/favicon.ico", http.RedirectHandler(ui.Asset("img/icon.svg"), http.StatusFound))
+	r.read("/manifest.webmanifest", http.HandlerFunc(manifest))
+	r.read("/sw.js", http.HandlerFunc(serviceWorker))
 
 	// Signed out.
 	r.read("/setup", http.HandlerFunc(s.setupPage))

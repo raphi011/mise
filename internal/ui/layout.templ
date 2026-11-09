@@ -57,7 +57,19 @@ templ document(p Page) {
 			<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
 			<meta name="color-scheme" content="light dark"/>
 			<title>{ p.Title } · mise</title>
+			switch p.Theme {
+				case "light":
+					<meta name="theme-color" content={ groundLight }/>
+				case "dark":
+					<meta name="theme-color" content={ groundDark }/>
+				default:
+					<meta name="theme-color" media="(prefers-color-scheme: light)" content={ groundLight }/>
+					<meta name="theme-color" media="(prefers-color-scheme: dark)" content={ groundDark }/>
+			}
 			<link rel="icon" href={ Asset("img/icon.svg") } type="image/svg+xml"/>
+			<link rel="apple-touch-icon" href={ Asset("img/apple-touch-icon.png") }/>
+			<link rel="manifest" href="/manifest.webmanifest"/>
+			<meta name="apple-mobile-web-app-title" content="mise"/>
 			<link rel="preload" href={ Asset("fonts/inter-latin.woff2") } as="font" type="font/woff2" crossorigin/>
 			@templ.Raw("<style>" + fontFaces() + "</style>")
 			<link rel="stylesheet" href={ Asset("css/app.css") }/>

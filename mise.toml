@@ -27,3 +27,13 @@ run = "go run ./cmd/mise-server serve"
 description = "Build the mise-server binary"
 depends = ["gen"]
 run = "CGO_ENABLED=0 go build -trimpath -o bin/mise-server ./cmd/mise-server"
+
+[tasks.icons]
+description = "Render the PNG app icons from their SVG sources (needs ImageMagick)"
+dir = "internal/ui"
+run = """
+magick -background none -density 1536 static/img/icon.svg -resize 192x192 -depth 8 -strip static/img/icon-192.png
+magick -background none -density 1536 static/img/icon.svg -resize 512x512 -depth 8 -strip static/img/icon-512.png
+magick -density 1536 icons/maskable.svg -resize 512x512 -depth 8 -strip static/img/icon-maskable-512.png
+magick -density 1536 icons/maskable.svg -resize 180x180 -depth 8 -strip static/img/apple-touch-icon.png
+"""

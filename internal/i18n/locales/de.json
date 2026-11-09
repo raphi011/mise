@@ -589,5 +589,13 @@
   "recipes.menu.cookedNote": "Zählt als heute gekocht",
   "recipes.delete.planned": "Es steht im Plan für %s.",
   "recipes.delete.plannedMore": "%d weitere Tage",
-  "recipes.delete.plannedMoreOne": "1 weiterer Tag"
+  "recipes.delete.plannedMoreOne": "1 weiterer Tag",
+  "install.title": "Erster Einkauf erledigt. mise auf den Home-Bildschirm legen?",
+  "install.body": "Dann öffnen sich deine Listen im Vollbild, wie eine App.",
+  "install.ios.share": "Tippe in Safari auf „Teilen“",
+  "install.ios.add": "Wähle „Zum Home-Bildschirm“",
+  "install.notNow": "Nicht jetzt",
+  "install.gotIt": "Verstanden",
+  "install.install": "Installieren",
+  "install.once": "Wir fragen nur dieses eine Mal."
 }

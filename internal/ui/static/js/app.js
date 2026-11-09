@@ -183,6 +183,77 @@ function setupPhoto() {
   });
 }
 
+// ---- Installing ----
+
+const INSTALL_HINT_KEY = "mise.installHint";
+
+// Chromium fires beforeinstallprompt when the app is installable; keeping
+// the event lets the hint's Install button open the browser's dialog.
+let installPrompt = null;
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  installPrompt = e;
+});
+window.addEventListener("appinstalled", () => {
+  installPrompt = null;
+});
+
+function isStandalone() {
+  return window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+}
+
+function isIOS() {
+  // iPadOS reports itself as a Mac; touch points tell them apart.
+  return /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+
+function hintShown() {
+  try {
+    return localStorage.getItem(INSTALL_HINT_KEY) !== null;
+  } catch {
+    // Without storage the hint could not keep its promise to ask once.
+    return true;
+  }
+}
+
+// installHint opens the add-to-home-screen hint the server sent after a
+// cleared cart, once per device and only on a phone browser that can
+// install the app; otherwise it removes it.
+function installHint(dialog) {
+  let platform = null;
+  if (!isStandalone() && !hintShown()) {
+    if (isIOS()) platform = "ios";
+    else if (installPrompt && window.matchMedia("(pointer: coarse)").matches) platform = "prompt";
+  }
+  if (!platform) {
+    dialog.remove();
+    return;
+  }
+  try {
+    localStorage.setItem(INSTALL_HINT_KEY, new Date().toISOString());
+  } catch {
+    // Checked above; nothing to do.
+  }
+  dialog.dataset.platform = platform;
+  dialog.querySelector("[data-install-prompt]").addEventListener("click", async () => {
+    const prompt = installPrompt;
+    installPrompt = null;
+    dialog.close();
+    if (prompt) await prompt.prompt();
+  });
+  dialog.showModal();
+}
+
+window.mise = { installHint };
+
+function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) return;
+  navigator.serviceWorker.register("/sw.js").catch(() => {
+    // Not installable here (e.g. plain HTTP on a LAN address); the app
+    // works the same.
+  });
+}
+
 // ---- Delegated handlers ----
 
 document.addEventListener("click", async (e) => {
@@ -224,6 +295,7 @@ document.addEventListener("input", (e) => {
 });
 
 function init() {
+  registerServiceWorker();
   renderRecent();
   setupRows();
   setupSteps();

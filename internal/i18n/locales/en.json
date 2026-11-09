@@ -589,5 +589,13 @@
   "recipes.menu.cookedNote": "Counts as cooked today",
   "recipes.delete.planned": "It’s on the plan for %s.",
   "recipes.delete.plannedMore": "%d more days",
-  "recipes.delete.plannedMoreOne": "1 more day"
+  "recipes.delete.plannedMoreOne": "1 more day",
+  "install.title": "First shop done. Keep mise one tap away?",
+  "install.body": "Add it to your home screen and your lists open full screen, like an app.",
+  "install.ios.share": "Tap Share in Safari’s toolbar",
+  "install.ios.add": "Choose Add to Home Screen",
+  "install.notNow": "Not now",
+  "install.gotIt": "Got it",
+  "install.install": "Install",
+  "install.once": "We’ll only ask this once."
 }

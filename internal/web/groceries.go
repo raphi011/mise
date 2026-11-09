@@ -475,10 +475,12 @@ func (s *Server) clearCart(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
+	// The install hint takes the confirm dialog's place; app.js decides
+	// whether this device sees it.
 	extra := []patch{patchTempl(ui.EmptySheet())}
 	if cleared.Count > 0 {
-		extra = append(extra, toast(i18n.T(ctx, "groceries.toast.cleared"),
-			"/groceries/lists/"+listID.String()+"/restore-cart", map[string]string{"at": cleared.At.Format(time.RFC3339Nano)}))
+		extra = []patch{patchTempl(ui.InstallHint()), toast(i18n.T(ctx, "groceries.toast.cleared"),
+			"/groceries/lists/"+listID.String()+"/restore-cart", map[string]string{"at": cleared.At.Format(time.RFC3339Nano)})}
 	}
 	s.respond(w, r, sc, listID, extra...)
 }

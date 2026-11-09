@@ -2319,3 +2319,38 @@ button.menu__item:hover { background: var(--surface-2); }
 .tonight__text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .tonight__name { font-family: var(--font-display); font-size: 22px; font-weight: 700; overflow-wrap: anywhere; }
 .tonight__meta { font-size: 13px; opacity: 0.8; }
+
+/* Add-to-home-screen hint (app.js opens it and sets data-platform). */
+.install-hint__head { display: flex; align-items: flex-start; gap: 14px; }
+.install-hint__icon { flex-shrink: 0; display: flex; }
+.install-hint__icon svg { border-radius: 16px; }
+.install-hint__text { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.install-hint__steps {
+  list-style: none;
+  margin: 0;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-radius: 16px;
+  background: var(--ground);
+}
+.install-hint__steps li { display: flex; align-items: center; gap: 12px; font-size: 14px; }
+.install-hint__n {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  background: var(--ink);
+  color: var(--surface);
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.install-hint__step { flex: 1; }
+.install-hint__btn { flex: 1; }
+.install-hint__note { margin: -4px 0 0; font-size: 12px; color: var(--muted); text-align: center; }
+.install-hint:not([data-platform="ios"]) [data-install-only="ios"],
+.install-hint:not([data-platform="prompt"]) [data-install-only="prompt"] { display: none; }

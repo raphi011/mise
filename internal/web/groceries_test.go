@@ -211,6 +211,11 @@ func TestShoppingTogether(t *testing.T) {
 		if !strings.Contains(res.body, "Cart cleared") || !strings.Contains(res.body, "restore-cart") {
 			t.Errorf("clear response has no Undo:\n%s", res.body)
 		}
+		// The add-to-home-screen hint rides along; app.js decides whether
+		// this device sees it.
+		if !strings.Contains(res.body, `id="install-hint"`) {
+			t.Errorf("clear response has no install hint:\n%s", res.body)
+		}
 		benLive.next("ben sees usually bought", liveDeadline, "Usually bought", "+ Lemons")
 
 		// A list renamed in settings updates the tabs on both phones.
