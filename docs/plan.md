@@ -214,7 +214,7 @@ Recipe import from a link or pasted text. Pages with schema.org `Recipe` JSON-LD
 - **Who:** admins configure; every member imports. Import jobs are per user: the library and job pages show only the viewer's own jobs.
 - **Safe fetcher** for the page (and its photo) and for `fetch_page`, not for the admin-configured provider endpoint (often a LAN Ollama):
   - Custom `net.Dialer.Control` checks the IP actually being dialled, so DNS rebinding cannot slip past a pre-resolve check.
-  - Blocks loopback, private (RFC 1918), link-local, CGNAT `100.64.0.0/10`, IPv6 ULA `fc00::/7`, IPv4-mapped IPv6, `0.0.0.0/8`, multicast; ports 80 and 443 only; no proxy from the environment.
+  - Blocks loopback, private (RFC 1918), link-local, CGNAT `100.64.0.0/10`, IPv6 ULA `fc00::/7`, IPv4-mapped IPv6, `0.0.0.0/8`, multicast, and the other special-purpose ranges (NAT64, 6to4 and Teredo, which embed IPv4 addresses; benchmarking; reserved); ports 80 and 443 only, checked with the address; no proxy from the environment.
   - Re-validates on every redirect (max 5); 5 MB body cap (15 MB for photos); 15 s timeout; `http`/`https` only; pages must be HTML, XHTML or plain text.
 - **Pipeline for a link:**
   1. The server fetches the page (user-initiated, so no permission switch).
