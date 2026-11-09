@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/text/language"
 
 	"github.com/raphi011/mise/internal/groceries"
@@ -240,6 +241,64 @@ func TestSweepImages(t *testing.T) {
 				continue
 			}
 			_ = f.Close()
+		}
+	})
+}
+
+func TestSweepPlannedMeals(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		ctx := t.Context()
+		now := time.Date(2026, 11, 9, 12, 0, 0, 0, time.UTC)
+		clock := func() time.Time { return now }
+		r := recipes.New(nil, groceries.New(nil, clock), clock)
+		hh := storetest.NewHousehold(t, db, "home")
+		sc := db.ScopeFor(hh.ID)
+		kept, err := r.Create(ctx, sc, hh.Admin, recipes.Input{Name: "Dal", Servings: 2})
+		if err != nil {
+			t.Fatal(err)
+		}
+		binned, err := r.Create(ctx, sc, hh.Admin, recipes.Input{Name: "Soup", Servings: 2})
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Planned meals are written by internal/plan; insert them directly.
+		plan := func(recipe uuid.UUID, deleted bool) uuid.UUID {
+			id := store.NewID()
+			var deletedAt *store.Time
+			if deleted {
+				at := store.T(now)
+				deletedAt = &at
+			}
+			err := sc.Tx(ctx, func(ctx context.Context, q store.Querier) error {
+				_, err := q.Exec(ctx, `INSERT INTO planned_meals (id, household_id, date, recipe_id, servings, position,
+						created_by, created_at, updated_at, deleted_at)
+					VALUES (?, ?, ?, ?, 2, 0, ?, ?, ?, ?)`,
+					id, hh.ID, store.DateOf(now), recipe, hh.Admin, store.T(now), store.T(now), deletedAt)
+				return err
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return id
+		}
+		live := plan(kept, false)
+		plan(kept, true)
+		plan(binned, false) // goes with its recipe
+		if err := r.Delete(ctx, sc, binned); err != nil {
+			t.Fatal(err)
+		}
+
+		s := NewSweeper(db, slog.New(slog.DiscardHandler), clock, 0)
+		if got, err := s.Sweep(ctx); err != nil || got != (Swept{}) {
+			t.Fatalf("early sweep: %+v, %v", got, err)
+		}
+		now = now.Add(recipes.UndoWindow + time.Minute)
+		if got, err := s.Sweep(ctx); err != nil || got != (Swept{Meals: 1, Recipes: 1}) {
+			t.Fatalf("sweep: %+v, %v", got, err)
+		}
+		var ids []uuid.UUID
+		if err := db.System().Read().Select(ctx, &ids, `SELECT id FROM planned_meals`); err != nil || len(ids) != 1 || ids[0] != live {
+			t.Errorf("planned meals left: %v, %v (want only %v)", ids, err, live)
 		}
 	})
 }

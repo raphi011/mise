@@ -132,7 +132,7 @@ All tables also have `household_id` (except `households`, `users`) and `created_
 | steps | id, recipe_id, position, text, timer_seconds |
 | tags / recipe_tags | id, name, name_key, pinned / recipe_id, tag_id |
 | favourites | user_id, recipe_id |
-| planned_meals | id, date, recipe_id, servings, position, deleted_at (several per date allowed) |
+| planned_meals | id, date, recipe_id, servings, position (order within the day), created_by, deleted_at (several per date allowed; hidden while their recipe is in the bin, deleted with it) |
 | cook_events | id, recipe_id, user_id, cooked_at (table created in P2 for the library's filters and sorts; written from P3 on) |
 | ai_settings | household_id (PK), enabled, provider, endpoint, model, api_key_enc, tool_permissions |
 | import_jobs | id, user_id, source_url, source_text, status, steps (JSON), draft (JSON), error |

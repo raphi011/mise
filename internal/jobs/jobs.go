@@ -19,9 +19,9 @@ import (
 const DefaultInterval = time.Hour
 
 // Sweeper hard-deletes rows whose Undo window has passed: list entries
-// removed or cleared, deleted shopping lists (with their entries) and
-// deleted recipes (with their ingredients, steps, tags, favourites and cook
-// history) (docs/plan.md, Undo).
+// removed or cleared, deleted shopping lists (with their entries), removed
+// planned meals and deleted recipes (with their ingredients, steps, tags,
+// favourites, cook history and planned meals) (docs/plan.md, Undo).
 type Sweeper struct {
 	db       *store.DB
 	log      *slog.Logger
@@ -58,6 +58,7 @@ func NewSweeper(db *store.DB, log *slog.Logger, now func() time.Time, interval t
 type Swept struct {
 	Entries int64
 	Lists   int64
+	Meals   int64
 	Recipes int64
 	Images  int64
 }
@@ -82,8 +83,16 @@ func (s *Sweeper) Sweep(ctx context.Context) (Swept, error) {
 		if out.Lists, err = res.RowsAffected(); err != nil {
 			return err
 		}
+		res, err = q.Exec(ctx, `DELETE FROM planned_meals WHERE deleted_at < ?`, cutoff)
+		if err != nil {
+			return err
+		}
+		if out.Meals, err = res.RowsAffected(); err != nil {
+			return err
+		}
 		// List entries keep their item but lose the recipe tag; the foreign
 		// key is RESTRICT, see docs/plan.md on composite foreign keys.
+		// Planned meals of the recipe go with it (ON DELETE CASCADE).
 		if _, err := q.Exec(ctx, `UPDATE list_entries SET recipe_id = NULL
 			WHERE recipe_id IN (SELECT id FROM recipes WHERE deleted_at < ?)`, cutoff); err != nil {
 			return err
@@ -148,7 +157,7 @@ func (s *Sweeper) Run(ctx context.Context) {
 			s.log.ErrorContext(ctx, "sweep soft-deleted rows", slog.Any("err", err))
 		case swept != (Swept{}):
 			s.log.InfoContext(ctx, "swept soft-deleted rows",
-				slog.Int64("entries", swept.Entries), slog.Int64("lists", swept.Lists),
+				slog.Int64("entries", swept.Entries), slog.Int64("lists", swept.Lists), slog.Int64("meals", swept.Meals),
 				slog.Int64("recipes", swept.Recipes), slog.Int64("images", swept.Images))
 		}
 		select {
