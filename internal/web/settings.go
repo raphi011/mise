@@ -34,6 +34,7 @@ var notices = map[string]i18n.Key{
 	"listDeleted":     "notice.listDeleted",
 	"listRestored":    "notice.listRestored",
 	"categoryDeleted": "notice.categoryDeleted",
+	"unlinked":        "notice.ssoUnlinked",
 }
 
 func noticeFor(r *http.Request) string {
@@ -228,6 +229,14 @@ func (s *Server) renderAccount(w http.ResponseWriter, r *http.Request, status in
 	}
 	for _, c := range auth.AvatarColors {
 		v.Colors = append(v.Colors, ui.Option{Value: c, Label: colorLabel(r, c)})
+	}
+	if s.sso != nil {
+		linked, err := s.auth.LinkedIdentity(ctx, id.UserID, s.sso.Issuer())
+		if err != nil {
+			s.serverError(w, r, err)
+			return
+		}
+		v.SSO = &ui.SSOLink{Name: s.cfg.OIDC.Name, Linked: linked}
 	}
 	loc := location(id)
 	for _, sess := range sessions {

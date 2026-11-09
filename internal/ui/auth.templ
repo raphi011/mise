@@ -40,6 +40,8 @@ type SignInView struct {
 	Form Form
 	// Next is the local path to return to after signing in.
 	Next string
+	// SSOName labels the single sign-on button; empty hides it.
+	SSOName string
 }
 
 templ SignIn(p Page, v SignInView) {
@@ -72,6 +74,15 @@ templ SignIn(p Page, v SignInView) {
 			</div>
 			<button class="btn btn--primary btn--block" type="submit">{ i18n.T(ctx, "signin.submit") }</button>
 		</form>
+		if v.SSOName != "" {
+			<p class="auth__or">{ i18n.T(ctx, "signin.or") }</p>
+			<form method="post" action="/auth/oidc/start">
+				if v.Next != "" {
+					<input type="hidden" name="next" value={ v.Next }/>
+				}
+				<button class="btn btn--secondary btn--block" type="submit">{ i18n.T(ctx, "signin.sso", v.SSOName) }</button>
+			</form>
+		}
 		<p class="auth__footer">{ i18n.T(ctx, "signin.newHere") }</p>
 	}
 }

@@ -51,20 +51,25 @@ func (s *Service) SignIn(ctx context.Context, username, password, userAgent stri
 
 	var token string
 	err = s.db.System().Tx(ctx, func(ctx context.Context, q store.Querier) error {
-		// The UI exposes one household; pin the oldest active membership.
-		var householdID uuid.UUID
-		err := q.Get(ctx, &householdID, `SELECT household_id FROM memberships
-			WHERE user_id = ? AND removed_at IS NULL ORDER BY created_at LIMIT 1`, u.ID)
-		if errors.Is(err, sql.ErrNoRows) {
-			return ErrInvalidCredentials
-		}
-		if err != nil {
-			return err
-		}
-		token, err = s.createSession(ctx, q, u.ID, householdID, userAgent)
+		token, err = s.signInUser(ctx, q, u.ID, userAgent)
 		return err
 	})
 	return token, err
+}
+
+// signInUser starts a session in the user's oldest active household (the
+// UI exposes one). It returns ErrInvalidCredentials when there is none.
+func (s *Service) signInUser(ctx context.Context, q store.Querier, userID uuid.UUID, userAgent string) (string, error) {
+	var householdID uuid.UUID
+	err := q.Get(ctx, &householdID, `SELECT household_id FROM memberships
+		WHERE user_id = ? AND removed_at IS NULL ORDER BY created_at LIMIT 1`, userID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", ErrInvalidCredentials
+	}
+	if err != nil {
+		return "", err
+	}
+	return s.createSession(ctx, q, userID, householdID, userAgent)
 }
 
 // sessionRow is the joined row Authenticate loads.

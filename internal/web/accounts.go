@@ -132,8 +132,16 @@ func (s *Server) signInPage(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, auth.SafeNext(r.URL.Query().Get("next")), http.StatusFound)
 		return
 	}
-	v := ui.SignInView{Next: r.URL.Query().Get("next")}
-	s.renderSignIn(w, r, http.StatusOK, v)
+	s.renderSignIn(w, r, http.StatusOK, s.signInView(r.URL.Query().Get("next")))
+}
+
+// signInView is the empty sign-in form, with the SSO button when offered.
+func (s *Server) signInView(next string) ui.SignInView {
+	v := ui.SignInView{Next: next}
+	if s.ssoAvailable() {
+		v.SSOName = s.cfg.OIDC.Name
+	}
+	return v
 }
 
 func (s *Server) renderSignIn(w http.ResponseWriter, r *http.Request, status int, v ui.SignInView) {
@@ -144,7 +152,8 @@ func (s *Server) renderSignIn(w http.ResponseWriter, r *http.Request, status int
 func (s *Server) signInSubmit(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	username, password := r.PostFormValue("username"), r.PostFormValue("password")
-	v := ui.SignInView{Form: formOf(r, "username"), Next: r.PostFormValue("next")}
+	v := s.signInView(r.PostFormValue("next"))
+	v.Form = formOf(r, "username")
 	invalid := func() {
 		v.Form.Alert = i18n.T(ctx, "signin.error.invalid")
 		s.renderSignIn(w, r, http.StatusUnauthorized, v)

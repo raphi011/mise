@@ -216,7 +216,13 @@ func (s *Service) RemoveMember(ctx context.Context, sc store.Scoped, actor, user
 		if _, err := q.Exec(ctx, `DELETE FROM sessions WHERE household_id = ? AND user_id = ?`, hh, userID); err != nil {
 			return err
 		}
-		_, err = q.Exec(ctx, `DELETE FROM invites WHERE household_id = ? AND invited_by = ? AND used_at IS NULL`, hh, userID)
+		if _, err := q.Exec(ctx, `DELETE FROM invites WHERE household_id = ? AND invited_by = ? AND used_at IS NULL`, hh, userID); err != nil {
+			return err
+		}
+		// SSO links are account-wide: keep them while another household
+		// still has the account.
+		_, err = q.Exec(ctx, `DELETE FROM user_identities WHERE user_id = ? AND NOT EXISTS (
+			SELECT 1 FROM memberships WHERE user_id = ? AND removed_at IS NULL)`, userID, userID)
 		return err
 	})
 }

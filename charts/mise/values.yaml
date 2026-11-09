@@ -42,6 +42,18 @@ smtp:
     usernameKey: username
     passwordKey: password
 
+oidc:
+  # Empty disables single sign-on. Register <baseURL>/auth/oidc/callback as the
+  # redirect URI at the provider; the button needs baseURL (or one stored at setup).
+  issuer: ""
+  clientId: ""
+  # Label of the "Sign in with ..." button.
+  name: SSO
+  # Secret holding the client secret, mounted as a file (MISE_OIDC_CLIENT_SECRET_FILE).
+  existingSecret:
+    name: ""
+    key: client-secret
+
 # Holds images, the SQLite database and generated secrets. With more than
 # one replica live updates would split; mise is single-instance.
 persistence:

@@ -226,6 +226,14 @@ type AccountView struct {
 	PasswordOpen bool
 	Sessions     []SessionRow
 	Notice       string
+	// SSO is the single sign-on link; nil when SSO is not configured.
+	SSO *SSOLink
+}
+
+// SSOLink is whether the account is linked to the SSO provider.
+type SSOLink struct {
+	Name   string
+	Linked bool
 }
 
 // SessionRow is one signed-in device.
@@ -288,6 +296,25 @@ templ Account(p Page, v AccountView) {
 							</div>
 						</form>
 					</details>
+					if v.SSO != nil {
+						<div class="list__row">
+							<span class="list__link">
+								<span class="list__text">
+									<span>{ i18n.T(ctx, "account.sso.title", v.SSO.Name) }</span>
+									<span class="muted">
+										if v.SSO.Linked {
+											{ i18n.T(ctx, "account.sso.linked") }
+										} else {
+											{ i18n.T(ctx, "account.sso.notLinked") }
+										}
+									</span>
+								</span>
+							</span>
+							if v.SSO.Linked {
+								@postButton("/settings/account/sso/unlink", i18n.T(ctx, "account.sso.unlink"), "btn btn--ghost btn--small", nil)
+							}
+						</div>
+					}
 				</div>
 			</section>
 			<section class="settings-section settings-section--plain" aria-labelledby="devices-title">

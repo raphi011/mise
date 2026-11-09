@@ -27,7 +27,7 @@ A Helm chart lives in [`charts/mise`](charts/mise). There is no published
 image yet: build one for your nodes' architecture, push it to your registry
 and set `image.repository` and `image.tag`. The chart runs one replica with
 `Recreate` (live updates are in-process); see its `values.yaml` for the
-database, SMTP and volume settings.
+database, SMTP, single sign-on and volume settings.
 
 ```sh
 helm install mise ./charts/mise --set image.repository=registry.example.com/mise \
@@ -51,6 +51,10 @@ helm install mise ./charts/mise --set image.repository=registry.example.com/mise
 | `MISE_SMTP_TLS_SKIP_VERIFY` | `false` | accept a self-signed server certificate (trusted-network relays only) |
 | `MISE_SMTP_USERNAME`, `MISE_SMTP_PASSWORD` | | when the server needs auth |
 | `MISE_SMTP_FROM` | | sender, e.g. `mise <mise@example.com>`; required with a host |
+| `MISE_OIDC_ISSUER` | | OpenID Connect issuer URL; enables "Sign in with ..." next to passwords |
+| `MISE_OIDC_CLIENT_ID` | | client ID registered at the provider |
+| `MISE_OIDC_CLIENT_SECRET`, `MISE_OIDC_CLIENT_SECRET_FILE` | | client secret, or a file holding it; set one |
+| `MISE_OIDC_NAME` | `SSO` | provider name on the sign-in button |
 
 Every variable has a matching flag, e.g. `-db`, `-listen`. `mise-server migrate` applies migrations and exits; `/healthz` and `/readyz` are for health checks.
 
@@ -58,7 +62,8 @@ Every variable has a matching flag, e.g. `-db`, `-listen`. `mise-server migrate`
 
 `mise-server backup <dir>` archives the SQLite database and the images. See
 [docs/operations.md](docs/operations.md) for reverse proxy setup (SSE,
-HTTP/2, trusted proxies), backup and restore on both engines, and email.
+HTTP/2, trusted proxies), backup and restore on both engines, email and
+single sign-on.
 
 ## Develop
 

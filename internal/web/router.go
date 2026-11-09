@@ -14,6 +14,8 @@ type router struct {
 	mux *http.ServeMux
 	// patterns lists the registered "METHOD /path" patterns, for tests.
 	patterns []string
+	// callbacks lists the GET routes registered with callback, for tests.
+	callbacks []string
 }
 
 func newRouter() *router { return &router{mux: http.NewServeMux()} }
@@ -34,6 +36,22 @@ func (r *router) write(method, path string, h http.Handler) {
 	}
 	r.mux.Handle(method+" "+path, recordRoute(h))
 	r.patterns = append(r.patterns, method+" "+path)
+}
+
+// oidcCallbackPath is where the OpenID Connect provider sends the browser
+// back after sign-in.
+const oidcCallbackPath = "/auth/oidc/callback"
+
+// callback registers the one GET route that changes state: the OIDC
+// callback, which the provider reaches by redirecting the browser, so it
+// cannot be a POST. CrossOriginProtection does not cover it; the handler
+// checks the state, nonce and PKCE verifier bound to the browser instead.
+func (r *router) callback(path string, h http.Handler) {
+	if path != oidcCallbackPath {
+		panic(fmt.Sprintf("web: %s is not the OIDC callback; state-changing routes must use write", path))
+	}
+	r.read(path, h)
+	r.callbacks = append(r.callbacks, "GET "+path)
 }
 
 // fallback handles every request no other route matches, for any method.

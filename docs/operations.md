@@ -1,7 +1,7 @@
 # Operating mise
 
-Running mise behind a reverse proxy, backing it up and restoring it, and
-sending email. The variables are listed in the [README](../README.md#configuration);
+Running mise behind a reverse proxy, backing it up and restoring it,
+sending email, and single sign-on. The variables are listed in the [README](../README.md#configuration);
 every one has a matching flag.
 
 ## Reverse proxy
@@ -283,3 +283,35 @@ openssl rand -base64 32
 
 Changing the key makes stored API keys unreadable; the settings page then
 asks for them again.
+
+## Single sign-on (OIDC)
+
+People can also sign in through an OpenID Connect provider (Pocket ID,
+Authelia, Keycloak, ...). The password form stays; SSO is an extra
+"Sign in with ..." button. Register mise at the provider as a confidential
+client:
+
+- Redirect URI: `<MISE_BASE_URL>/auth/oidc/callback`, e.g.
+  `https://mise.example.com/auth/oidc/callback`. Without a base URL (set or
+  stored at setup) mise logs a warning and hides the button.
+- Scopes: `openid email profile`. The flow is the authorization code flow
+  with PKCE (S256).
+
+Then set `MISE_OIDC_ISSUER` (exactly the `issuer` of the provider's
+discovery document), `MISE_OIDC_CLIENT_ID`, the secret as
+`MISE_OIDC_CLIENT_SECRET` or in a file named by
+`MISE_OIDC_CLIENT_SECRET_FILE`, and optionally `MISE_OIDC_NAME` for the
+button label. mise loads the discovery document on the first sign-in and
+retries until it succeeds, so it starts while the provider is down; SSO
+sign-ins then show an error and the password form keeps working.
+
+SSO never creates accounts; invites stay the only way in. On someone's
+first SSO sign-in, mise links the provider identity (issuer and subject)
+to the one active account whose email matches the ID token's `email`,
+compared case-insensitively. The provider must send `email_verified: true`,
+otherwise the sign-in is refused: an unverified address would let anyone
+who can register it at the provider take over the account. No match, or
+several accounts with that address, is refused too. Once linked, the
+identity signs in as that account whatever its email becomes. People see
+and remove the link on their Account page (only with a password set, so
+nobody locks themselves out); removing a member removes their links.
