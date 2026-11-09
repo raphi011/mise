@@ -105,7 +105,7 @@ Domain packages own their SQL and business rules; `web` handlers parse requests,
 - **IDs:** SQLite `TEXT`, Postgres `uuid`; codec converts.
 - **Case-insensitive names:** a `name_key` column filled in Go with `cases.Fold` + whitespace normalisation; `UNIQUE (household_id, name_key)` on both engines. Handles umlauts identically everywhere.
 - **Soft-deleted rows and uniqueness:** unique indexes on soft-deletable tables are partial (`WHERE deleted_at IS NULL`).
-- Engine-specific code behind a small `Dialect` interface, limited to recipe search: FTS5 on SQLite, `tsvector` + `pg_trgm` on Postgres.
+- **Search** (recipes by name and ingredient, items in the add field) matches the folded `name_key` with `LIKE '%…%'` within one household, on both engines. Search runs as you type and must match inside words ("ging" finds "Gingerbread" and "fresh ginger"), which word-based full text (FTS5, `tsvector`) does not do. A household holds hundreds of recipes, not millions, so a scan of its rows is fast enough. Ranking (exact, prefix, word start, contains) happens in Go. Revisit with trigram indexes (FTS5 `trigram`, `pg_trgm`) only if a household outgrows this.
 - **SQLite pools:** two `*sql.DB` handles on the same file. Writer: `SetMaxOpenConns(1)`, `_txlock=immediate`. Reader: pool of N, read-only. Pragmas in the DSN so every connection gets them: `_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=synchronous(NORMAL)`. Postgres also uses a writer pool and a reader pool whose connections set `default_transaction_read_only=on`, so writes through `Read()` fail on both engines. `Tx` refuses to nest (`ErrNestedTx`): on SQLite it would deadlock on the single writer.
 - **Tests:** store tests run against both engines: SQLite on a temp file per test (not `:memory:`, which gives each pooled connection its own database), Postgres via testcontainers-go.
 - **SQLite table rebuilds** (anything `ALTER TABLE` can't do) use `-- +goose NO TRANSACTION` with `PRAGMA foreign_keys=OFF` and their own `BEGIN`/`COMMIT`, since the pragma is a no-op inside goose's transaction and `DROP TABLE` would cascade; Postgres uses `ALTER TABLE`. See `internal/store/migrations/README.md`.
@@ -127,13 +127,13 @@ All tables also have `household_id` (except `households`, `users`) and `created_
 | items | id, name, name_key, category_id, purchase_count, last_purchased_at |
 | shopping_lists | id, name, position (first = default), deleted_at (Undo for list delete). First-run setup creates the default list and categories in the household's language, in its transaction; startup backfills households created before P1b, so every GET stays read-only. |
 | list_entries | id, list_id, item_id, quantity, unit, amount_text, note, added_by, recipe_id (added in P2 with its FK), checked_at, deleted_at |
-| recipes | id, name, description, photo, prep_min, cook_min, servings, source_url, notes, notes_by, draft, created_by, updated_by, deleted_at |
+| recipes | id, name, name_key, description, photo, prep_min, cook_min, servings, source_url, notes, notes_by, notes_at, draft, created_by, updated_by, deleted_at |
 | recipe_ingredients | id, recipe_id, item_id, quantity, unit, amount_text, optional, position |
 | steps | id, recipe_id, position, text, timer_seconds |
 | tags / recipe_tags | id, name, name_key, pinned / recipe_id, tag_id |
 | favourites | user_id, recipe_id |
 | planned_meals | id, date, recipe_id, servings, position, deleted_at (several per date allowed) |
-| cook_events | id, recipe_id, user_id, cooked_at |
+| cook_events | id, recipe_id, user_id, cooked_at (table created in P2 for the library's filters and sorts; written from P3 on) |
 | ai_settings | household_id (PK), enabled, provider, endpoint, model, api_key_enc, tool_permissions |
 | import_jobs | id, user_id, source_url, source_text, status, steps (JSON), draft (JSON), error |
 
@@ -279,7 +279,7 @@ Each phase ends with something usable and is merged before the next starts.
 ## Risks
 
 - **R1 Datastar.** v1.0 has shipped; remaining risk is a smaller community than htmx. Usage stays in templ attributes and `internal/live`; htmx + Alpine fallback is a mechanical swap.
-- **R2 Search parity.** FTS5 and Postgres full-text rank differently; tests assert result sets, not order.
+- **R2 Search scale.** Search scans a household's rows with `LIKE`; fine for hundreds of recipes, would need trigram indexes for tens of thousands.
 - **R3 SSE behind proxies and HTTP/1.1.** Buffering proxies break streaming; HTTP/1.1 caps connections per origin. Mitigations in Live updates and Operations.
 - **R4 SQLite write contention.** Single writer with WAL and throttled session writes; fine for a household.
 - **R5 Migration drift between dialects.** Two migration directories; caught by the schema-parity check in CI.
