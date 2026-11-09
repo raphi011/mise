@@ -212,10 +212,13 @@ function setupCook() {
   const steps = [...root.querySelectorAll("[data-cook-step]")];
   const announce = root.querySelector("[data-cook-announce]");
 
-  // Steps.
+  // Steps. The server renders the requested one visible.
+  let current = Math.max(0, steps.findIndex((s) => !s.classList.contains("cook__step--off")));
   const goTo = (i) => {
     if (i < 0 || i >= steps.length) return;
+    current = i;
     steps.forEach((s, j) => s.classList.toggle("cook__step--off", j !== i));
+    render();
     const url = new URL(location.href);
     url.searchParams.set("step", String(i + 1));
     history.replaceState(null, "", url);
@@ -277,8 +280,9 @@ function setupCook() {
       box.querySelector("[data-timer-reset]").hidden = !t || t.done;
       box.classList.toggle("cook-timer--running", !!(t && t.end));
       box.classList.toggle("cook-timer--done", !!(t && t.done));
+      // Chips are for other steps' timers; the current step shows its own.
       const chip = root.querySelector(`[data-chip="${i}"]`);
-      chip.hidden = !t;
+      chip.hidden = !t || Number(i) === current;
       chip.classList.toggle("cook-chip--done", !!(t && t.done));
       chip.querySelector("[data-chip-time]").textContent = t && t.done ? root.dataset.cookChipDone : clock(rest);
     }
