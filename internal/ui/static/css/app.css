@@ -1916,7 +1916,7 @@ a.menu__item:hover { color: var(--ink); background: var(--surface-2); }
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 36px;
+  min-height: var(--target);
   padding: 0 16px;
   border-radius: 10px;
   color: var(--ink-2);
@@ -1964,6 +1964,8 @@ a.menu__item:hover { color: var(--ink); background: var(--surface-2); }
   text-decoration: none;
 }
 
+/* The pill stays small; its hit area grows to the tap target. */
+.plan-day__more::before { content: ""; position: absolute; inset: -8px 0; }
 .plan-day__more:hover { color: var(--on-strong); }
 
 .plan-day__add {
@@ -2125,10 +2127,10 @@ a.menu__item:hover { color: var(--ink); background: var(--surface-2); }
 .month-cal__day--past { color: var(--muted); }
 .month-cal__day--out { color: var(--pending); }
 .month-cal__day--today { background: var(--herb-soft); font-weight: 700; }
-.month-cal__day[aria-current="date"] { background: var(--strong); color: var(--on-strong); font-weight: 700; }
+.month-cal__day[aria-current="page"] { background: var(--strong); color: var(--on-strong); font-weight: 700; }
 .month-cal__dot { width: 6px; height: 6px; border-radius: 3px; }
 .month-cal__dot--on { background: var(--herb); }
-.month-cal__day[aria-current="date"] .month-cal__dot--on { background: var(--toast-action); }
+.month-cal__day[aria-current="page"] .month-cal__dot--on { background: var(--toast-action); }
 
 .month-day { display: flex; flex-direction: column; gap: 8px; }
 .month-day__title { margin: 0; padding: 0 4px; font-size: 15px; font-weight: 600; }

@@ -25,6 +25,8 @@ func TestHouseholdIsolation(t *testing.T) {
 			meal    Meal
 			removed Meal
 			cooked  uuid.UUID
+			// cookedRecipe is the recipe of cooked.
+			cookedRecipe uuid.UUID
 		}
 		setup := func(name string) fixture {
 			e := newEnv(t, db, name)
@@ -37,7 +39,8 @@ func TestHouseholdIsolation(t *testing.T) {
 			// Dal was cooked long ago, so it is suggested; soup just now.
 			e.cooked(t, f.recipe.ID, start.Add(-30*24*time.Hour))
 			var err error
-			if f.cooked, err = e.s.MarkCooked(ctx, e.sc, e.recipe(t, "Soup").ID, e.hh.Admin); err != nil {
+			f.cookedRecipe = e.recipe(t, "Soup").ID
+			if f.cooked, err = e.s.MarkCooked(ctx, e.sc, f.cookedRecipe, e.hh.Admin); err != nil {
 				t.Fatal(err)
 			}
 			return f
@@ -100,7 +103,7 @@ func TestHouseholdIsolation(t *testing.T) {
 			notFound("restore", s.Restore(ctx, sc, other.removed.ID))
 			_, err = s.MarkCooked(ctx, sc, other.recipe.ID, me)
 			notFound("cook other's recipe", err)
-			notFound("undo other's cook event", s.UndoCooked(ctx, sc, other.cooked))
+			notFound("undo other's cook event", s.UndoCooked(ctx, sc, other.cookedRecipe, other.cooked))
 
 			// Swapping onto a day only considers own meals: own meal moves
 			// alone.

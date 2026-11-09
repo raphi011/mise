@@ -101,7 +101,7 @@ func TestPlanWeekByTap(t *testing.T) {
 		// Next week keeps the weekday; the stepper reloads at the new value
 		// with the picks.
 		reload := anna.get("/plan/add?"+url.Values{
-			"recipe": {tofu}, "form": {"1"}, "date": {"2026-11-10"}, "week": {"2026-11-16"},
+			"recipe": {tofu}, "date": {"2026-11-10"}, "week": {"2026-11-16"},
 			"servings": {"2"}, "set_servings": {"4"}, "ingredient": {ings[0][1]},
 		}.Encode()).expect(t, "add sheet reload", http.StatusOK)
 		contains(t, "add sheet reload", reload.body, "16 – 22 Nov", `value="2026-11-17" required checked`,
@@ -157,7 +157,7 @@ func TestPlanWeekByTap(t *testing.T) {
 
 		// The month shows it.
 		month := anna.get("/plan/month?month=2026-11&date=2026-11-12").expect(t, "month", http.StatusOK)
-		contains(t, "month", month.body, "November 2026", "1 meal planned", "Thursday, 12 November, Sticky tofu", `aria-current="date"`)
+		contains(t, "month", month.body, "November 2026", "1 meal planned", "Thursday, 12 November, Sticky tofu", `aria-current="page"`)
 
 		// Unknown meals are not found.
 		anna.get("/plan/meals/00000000-0000-7000-8000-000000000000").expect(t, "unknown meal", http.StatusNotFound)
@@ -286,5 +286,81 @@ func TestCookedAndDeleteConfirm(t *testing.T) {
 		if !found {
 			t.Error("no meal of today or the past offers I made this")
 		}
+	})
+}
+
+func TestLocalPath(t *testing.T) {
+	for raw, want := range map[string]string{
+		"/plan?week=2026-11-09": "/plan?week=2026-11-09",
+		"/recipes/1":            "/recipes/1",
+		"":                      "/fallback",
+		"plan":                  "/fallback",
+		"//evil.example":        "/fallback",
+		"/\\evil.example":       "/fallback",
+		"https://evil.example":  "/fallback",
+		"/\t/evil.example":      "/fallback",
+		"/\r\nSet-Cookie: x=1":  "/fallback",
+	} {
+		if got := localPath(raw, "/fallback"); got != want {
+			t.Errorf("localPath(%q) = %q, want %q", raw, got, want)
+		}
+	}
+}
+
+// TestPlanUndoAndLinks covers what the toasts' Undo leaves open, the links
+// of a week other than this one, and plurals of the "+N" marker and the
+// delete confirmation.
+func TestPlanUndoAndLinks(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		s, srv := startTimedServer(t, db)
+		s.clock = func() time.Time { return planClock }
+		anna, _ := household(t, srv)
+		tofu := createRecipe(t, anna, stickyTofu())
+		dalForm := stickyTofu()
+		dalForm.Set("name", "Red lentil dal")
+		dal := createRecipe(t, anna, dalForm)
+
+		// Next week's suggestions open the add sheet in next week; the
+		// month link of a week across two months does not depend on how
+		// the week was asked for.
+		next := anna.get("/plan?week=2026-11-30").expect(t, "next weeks", http.StatusOK)
+		contains(t, "week across months", next.body, "/plan/add?back=%2Fplan%3Fweek%3D2026-11-30&amp;recipe="+tofu+"&amp;week=2026-11-30",
+			`href="/plan/month?month=2026-11"`)
+		if again := anna.get("/plan?week=2026-12-03").body; !strings.Contains(again, `href="/plan/month?month=2026-11"`) {
+			t.Error("the week's month link depends on the date asked for")
+		}
+		add := anna.get("/plan/add?recipe="+tofu+"&week=2026-11-30").expect(t, "add sheet in next weeks", http.StatusOK)
+		contains(t, "add sheet in next weeks", add.body, `value="2026-11-30" required checked`)
+
+		// Two meals on a day: "+1" names one more meal.
+		anna.post("/plan", url.Values{"recipe": {tofu}, "date": {"2026-11-10"}}).expect(t, "plan tofu", http.StatusSeeOther)
+		anna.post("/plan", url.Values{"recipe": {dal}, "date": {"2026-11-10"}}).expect(t, "plan dal", http.StatusSeeOther)
+		contains(t, "week with +1", anna.get("/plan?week=2026-11-09").body, "1 more meal on Tuesday, 10 November")
+
+		// Undo clears the toast and leaves a sheet opened since alone.
+		meal := mealIDs(t, anna.get("/plan?week=2026-11-09").body)[0]
+		res := anna.datastar(http.MethodPost, "/plan/meals/"+meal+"/remove", url.Values{}).expect(t, "remove", http.StatusOK)
+		contains(t, "remove", res.body, `id="sheet"`, "/restore")
+		res = anna.datastar(http.MethodPost, "/plan/meals/"+meal+"/restore", url.Values{}).expect(t, "restore", http.StatusOK)
+		if strings.Contains(res.body, `id="sheet"`) || !strings.Contains(res.body, `id="toast"`) {
+			t.Errorf("restore should clear the toast only:\n%s", res.body)
+		}
+
+		// An Undo of "I made this" names its recipe.
+		res = anna.datastar(http.MethodPost, "/recipes/"+tofu+"/cooked", url.Values{}).expect(t, "cooked", http.StatusOK)
+		event := regexp.MustCompile(`/cooked/([0-9a-f-]{36})/undo`).FindStringSubmatch(res.body)[1]
+		anna.post("/recipes/"+dal+"/cooked/"+event+"/undo", nil).expect(t, "undo with another recipe", http.StatusNotFound)
+		anna.post("/recipes/"+tofu+"/cooked/"+event+"/undo", nil).expect(t, "undo cooked", http.StatusSeeOther)
+
+		// Planning a deleted recipe says the recipe is gone.
+		anna.post("/recipes/"+dal+"/delete", nil).expect(t, "delete dal", http.StatusSeeOther)
+		res = anna.datastar(http.MethodPost, "/plan", url.Values{"recipe": {dal}, "date": {"2026-11-12"}}).expect(t, "plan deleted", http.StatusOK)
+		contains(t, "plan deleted", res.body, "That recipe no longer exists.")
+
+		// Four planned days: three are named, then one more day.
+		for _, d := range []string{"2026-11-11", "2026-11-12", "2026-11-13"} {
+			anna.post("/plan", url.Values{"recipe": {tofu}, "date": {d}}).expect(t, "plan "+d, http.StatusSeeOther)
+		}
+		contains(t, "delete confirm", anna.get("/recipes/"+tofu+"/delete").body, "and 1 more day")
 	})
 }

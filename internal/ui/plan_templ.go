@@ -770,9 +770,9 @@ func weekDay(d PlanDay) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var44 string
-				templ_7745c5c3_Var44, templ_7745c5c3_Err = templruntime.NewAttributeExpression(i18n.T(ctx, "plan.more", d.More(), d.Label)).Resolve(ctx)
+				templ_7745c5c3_Var44, templ_7745c5c3_Err = templruntime.NewAttributeExpression(moreLabel(ctx, d)).Resolve(ctx)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 128, Col: 122}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 128, Col: 96}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var44)
 				if templ_7745c5c3_Err != nil {
@@ -785,7 +785,7 @@ func weekDay(d PlanDay) templ.Component {
 				var templ_7745c5c3_Var45 string
 				templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.JoinStringErrs("+" + itoa(d.More()))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 128, Col: 147}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 128, Col: 121}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var45))
 				if templ_7745c5c3_Err != nil {
@@ -1303,7 +1303,7 @@ func PlanMonthRegion(v PlanMonthView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					if d.Selected {
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 107, " aria-current=\"date\"")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 107, " aria-current=\"page\"")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -1979,7 +1979,7 @@ func addPlanForm(v AddPlanView, modal bool) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 158, "\"> <input type=\"hidden\" name=\"form\" value=\"1\"> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 158, "\"> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1991,7 +1991,7 @@ func addPlanForm(v AddPlanView, modal bool) templ.Component {
 			var templ_7745c5c3_Var111 string
 			templ_7745c5c3_Var111, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.Back).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 306, Col: 50}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 305, Col: 50}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var111)
 			if templ_7745c5c3_Err != nil {
@@ -2009,7 +2009,7 @@ func addPlanForm(v AddPlanView, modal bool) templ.Component {
 		var templ_7745c5c3_Var112 string
 		templ_7745c5c3_Var112, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "plan.addTo.title"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 310, Col: 82}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 309, Col: 82}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var112))
 		if templ_7745c5c3_Err != nil {
@@ -2022,7 +2022,7 @@ func addPlanForm(v AddPlanView, modal bool) templ.Component {
 		var templ_7745c5c3_Var113 string
 		templ_7745c5c3_Var113, templ_7745c5c3_Err = templ.JoinStringErrs(joinNonEmpty(" · ", v.Name, v.Meta))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 311, Col: 62}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 310, Col: 62}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var113))
 		if templ_7745c5c3_Err != nil {
@@ -2040,7 +2040,7 @@ func addPlanForm(v AddPlanView, modal bool) templ.Component {
 			var templ_7745c5c3_Var114 string
 			templ_7745c5c3_Var114, templ_7745c5c3_Err = templruntime.NewAttributeExpression(i18n.T(ctx, "groceries.edit.close")).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 314, Col: 91}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 313, Col: 91}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var114)
 			if templ_7745c5c3_Err != nil {
@@ -2078,7 +2078,7 @@ func addPlanForm(v AddPlanView, modal bool) templ.Component {
 		var templ_7745c5c3_Var115 string
 		templ_7745c5c3_Var115, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "recipes.servingsLabel"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 322, Col: 97}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 321, Col: 97}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var115))
 		if templ_7745c5c3_Err != nil {
@@ -2099,7 +2099,7 @@ func addPlanForm(v AddPlanView, modal bool) templ.Component {
 		var templ_7745c5c3_Var116 string
 		templ_7745c5c3_Var116, templ_7745c5c3_Err = templruntime.NewAttributeExpression(itoa(v.Servings)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 324, Col: 64}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 323, Col: 64}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var116)
 		if templ_7745c5c3_Err != nil {
@@ -2117,7 +2117,7 @@ func addPlanForm(v AddPlanView, modal bool) templ.Component {
 			var templ_7745c5c3_Var117 string
 			templ_7745c5c3_Var117, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "plan.addTo.list", v.ListName))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 328, Col: 81}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 327, Col: 81}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var117))
 			if templ_7745c5c3_Err != nil {
@@ -2140,7 +2140,7 @@ func addPlanForm(v AddPlanView, modal bool) templ.Component {
 					var templ_7745c5c3_Var118 string
 					templ_7745c5c3_Var118, templ_7745c5c3_Err = templruntime.NewAttributeExpression(c.ID).Resolve(ctx)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 333, Col: 61}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 332, Col: 61}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var118)
 					if templ_7745c5c3_Err != nil {
@@ -2179,7 +2179,7 @@ func addPlanForm(v AddPlanView, modal bool) templ.Component {
 					var templ_7745c5c3_Var119 string
 					templ_7745c5c3_Var119, templ_7745c5c3_Err = templ.JoinStringErrs(c.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 340, Col: 16}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 339, Col: 16}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var119))
 					if templ_7745c5c3_Err != nil {
@@ -2203,7 +2203,7 @@ func addPlanForm(v AddPlanView, modal bool) templ.Component {
 				var templ_7745c5c3_Var120 string
 				templ_7745c5c3_Var120, templ_7745c5c3_Err = templ.JoinStringErrs(v.Already)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 346, Col: 49}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 345, Col: 49}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var120))
 				if templ_7745c5c3_Err != nil {
@@ -2231,7 +2231,7 @@ func addPlanForm(v AddPlanView, modal bool) templ.Component {
 			var templ_7745c5c3_Var121 string
 			templ_7745c5c3_Var121, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL(v.Back)).ResolveURL(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 352, Col: 72}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 351, Col: 72}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var121)
 			if templ_7745c5c3_Err != nil {
@@ -2244,7 +2244,7 @@ func addPlanForm(v AddPlanView, modal bool) templ.Component {
 			var templ_7745c5c3_Var122 string
 			templ_7745c5c3_Var122, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "recipes.menu.cancel"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 352, Col: 111}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 351, Col: 111}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var122))
 			if templ_7745c5c3_Err != nil {
@@ -2293,7 +2293,7 @@ func AddPlanDays(v AddPlanView) templ.Component {
 		var templ_7745c5c3_Var124 string
 		templ_7745c5c3_Var124, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "plan.day"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 363, Col: 59}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 362, Col: 59}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var124))
 		if templ_7745c5c3_Err != nil {
@@ -2306,7 +2306,7 @@ func AddPlanDays(v AddPlanView) templ.Component {
 		var templ_7745c5c3_Var125 string
 		templ_7745c5c3_Var125, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "plan.day"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 365, Col: 78}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 364, Col: 78}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var125))
 		if templ_7745c5c3_Err != nil {
@@ -2319,7 +2319,7 @@ func AddPlanDays(v AddPlanView) templ.Component {
 		var templ_7745c5c3_Var126 string
 		templ_7745c5c3_Var126, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.Days.Prev).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 374, Col: 24}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 373, Col: 24}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var126)
 		if templ_7745c5c3_Err != nil {
@@ -2332,7 +2332,7 @@ func AddPlanDays(v AddPlanView) templ.Component {
 		var templ_7745c5c3_Var127 string
 		templ_7745c5c3_Var127, templ_7745c5c3_Err = templruntime.NewAttributeExpression(i18n.T(ctx, "plan.prevWeek")).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 375, Col: 46}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 374, Col: 46}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var127)
 		if templ_7745c5c3_Err != nil {
@@ -2345,7 +2345,7 @@ func AddPlanDays(v AddPlanView) templ.Component {
 		var templ_7745c5c3_Var128 string
 		templ_7745c5c3_Var128, templ_7745c5c3_Err = templruntime.NewAttributeExpression(addDaysAction(v.RecipeID, v.Days.Prev)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 376, Col: 68}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 375, Col: 68}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var128)
 		if templ_7745c5c3_Err != nil {
@@ -2366,7 +2366,7 @@ func AddPlanDays(v AddPlanView) templ.Component {
 		var templ_7745c5c3_Var129 string
 		templ_7745c5c3_Var129, templ_7745c5c3_Err = templ.JoinStringErrs(v.Days.Range)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 380, Col: 50}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 379, Col: 50}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var129))
 		if templ_7745c5c3_Err != nil {
@@ -2379,7 +2379,7 @@ func AddPlanDays(v AddPlanView) templ.Component {
 		var templ_7745c5c3_Var130 string
 		templ_7745c5c3_Var130, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.Days.Next).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 388, Col: 24}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 387, Col: 24}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var130)
 		if templ_7745c5c3_Err != nil {
@@ -2392,7 +2392,7 @@ func AddPlanDays(v AddPlanView) templ.Component {
 		var templ_7745c5c3_Var131 string
 		templ_7745c5c3_Var131, templ_7745c5c3_Err = templruntime.NewAttributeExpression(i18n.T(ctx, "plan.nextWeek")).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 389, Col: 46}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 388, Col: 46}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var131)
 		if templ_7745c5c3_Err != nil {
@@ -2405,7 +2405,7 @@ func AddPlanDays(v AddPlanView) templ.Component {
 		var templ_7745c5c3_Var132 string
 		templ_7745c5c3_Var132, templ_7745c5c3_Err = templruntime.NewAttributeExpression(addDaysAction(v.RecipeID, v.Days.Next)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 390, Col: 68}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 389, Col: 68}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var132)
 		if templ_7745c5c3_Err != nil {
@@ -2436,7 +2436,7 @@ func AddPlanDays(v AddPlanView) templ.Component {
 		var templ_7745c5c3_Var133 string
 		templ_7745c5c3_Var133, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.Days.lookup(v.Days.Notes, "plandate")).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 401, Col: 105}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 400, Col: 105}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var133)
 		if templ_7745c5c3_Err != nil {
@@ -2449,7 +2449,7 @@ func AddPlanDays(v AddPlanView) templ.Component {
 		var templ_7745c5c3_Var134 string
 		templ_7745c5c3_Var134, templ_7745c5c3_Err = templ.JoinStringErrs(v.Days.note())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 401, Col: 123}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 400, Col: 123}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var134))
 		if templ_7745c5c3_Err != nil {
@@ -2488,7 +2488,7 @@ func AddPlanSubmit(v AddPlanView) templ.Component {
 		var templ_7745c5c3_Var136 string
 		templ_7745c5c3_Var136, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.Days.lookup(v.Days.CTAs, "plandate")).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 407, Col: 131}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 406, Col: 131}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var136)
 		if templ_7745c5c3_Err != nil {
@@ -2501,7 +2501,7 @@ func AddPlanSubmit(v AddPlanView) templ.Component {
 		var templ_7745c5c3_Var137 string
 		templ_7745c5c3_Var137, templ_7745c5c3_Err = templ.JoinStringErrs(v.Days.cta())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 407, Col: 148}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 406, Col: 148}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var137))
 		if templ_7745c5c3_Err != nil {
@@ -2548,7 +2548,7 @@ func pickDay(d PickDay, chosen, signal string, disabled bool) templ.Component {
 			var templ_7745c5c3_Var139 string
 			templ_7745c5c3_Var139, templ_7745c5c3_Err = templruntime.NewAttributeExpression(d.Date).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 416, Col: 17}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 415, Col: 17}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var139)
 			if templ_7745c5c3_Err != nil {
@@ -2591,7 +2591,7 @@ func pickDay(d PickDay, chosen, signal string, disabled bool) templ.Component {
 		var templ_7745c5c3_Var140 string
 		templ_7745c5c3_Var140, templ_7745c5c3_Err = templ.JoinStringErrs(d.Initial)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 422, Col: 60}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 421, Col: 60}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var140))
 		if templ_7745c5c3_Err != nil {
@@ -2604,7 +2604,7 @@ func pickDay(d PickDay, chosen, signal string, disabled bool) templ.Component {
 		var templ_7745c5c3_Var141 string
 		templ_7745c5c3_Var141, templ_7745c5c3_Err = templ.JoinStringErrs(itoa(d.Num))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 423, Col: 62}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 422, Col: 62}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var141))
 		if templ_7745c5c3_Err != nil {
@@ -2622,7 +2622,7 @@ func pickDay(d PickDay, chosen, signal string, disabled bool) templ.Component {
 			var templ_7745c5c3_Var142 string
 			templ_7745c5c3_Var142, templ_7745c5c3_Err = templ.JoinStringErrs(d.Tag)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 425, Col: 57}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 424, Col: 57}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var142))
 			if templ_7745c5c3_Err != nil {
@@ -2681,7 +2681,7 @@ func pickDay(d PickDay, chosen, signal string, disabled bool) templ.Component {
 		var templ_7745c5c3_Var145 string
 		templ_7745c5c3_Var145, templ_7745c5c3_Err = templ.JoinStringErrs(d.Label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 429, Col: 41}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 428, Col: 41}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var145))
 		if templ_7745c5c3_Err != nil {
@@ -2721,7 +2721,7 @@ func planStepper(signal, reload string, n int, labelledBy string) templ.Componen
 		var templ_7745c5c3_Var147 string
 		templ_7745c5c3_Var147, templ_7745c5c3_Err = templruntime.NewAttributeExpression(labelledBy).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 436, Col: 63}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 435, Col: 63}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var147)
 		if templ_7745c5c3_Err != nil {
@@ -2734,7 +2734,7 @@ func planStepper(signal, reload string, n int, labelledBy string) templ.Componen
 		var templ_7745c5c3_Var148 string
 		templ_7745c5c3_Var148, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL(reload)).ResolveURL(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 441, Col: 37}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 440, Col: 37}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var148)
 		if templ_7745c5c3_Err != nil {
@@ -2747,7 +2747,7 @@ func planStepper(signal, reload string, n int, labelledBy string) templ.Componen
 		var templ_7745c5c3_Var149 string
 		templ_7745c5c3_Var149, templ_7745c5c3_Err = templruntime.NewAttributeExpression(itoa(max(n-1, 1))).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 444, Col: 28}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 443, Col: 28}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var149)
 		if templ_7745c5c3_Err != nil {
@@ -2760,7 +2760,7 @@ func planStepper(signal, reload string, n int, labelledBy string) templ.Componen
 		var templ_7745c5c3_Var150 string
 		templ_7745c5c3_Var150, templ_7745c5c3_Err = templruntime.NewAttributeExpression(i18n.T(ctx, "recipes.servingsLess")).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 445, Col: 51}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 444, Col: 51}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var150)
 		if templ_7745c5c3_Err != nil {
@@ -2773,7 +2773,7 @@ func planStepper(signal, reload string, n int, labelledBy string) templ.Componen
 		var templ_7745c5c3_Var151 string
 		templ_7745c5c3_Var151, templ_7745c5c3_Err = templruntime.NewAttributeExpression("$" + signal + " = Math.max(1, $" + signal + " - 1)").Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 446, Col: 80}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 445, Col: 80}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var151)
 		if templ_7745c5c3_Err != nil {
@@ -2796,7 +2796,7 @@ func planStepper(signal, reload string, n int, labelledBy string) templ.Componen
 		var templ_7745c5c3_Var152 string
 		templ_7745c5c3_Var152, templ_7745c5c3_Err = templruntime.NewAttributeExpression("$" + signal + " <= 1").Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 448, Col: 46}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 447, Col: 46}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var152)
 		if templ_7745c5c3_Err != nil {
@@ -2809,7 +2809,7 @@ func planStepper(signal, reload string, n int, labelledBy string) templ.Componen
 		var templ_7745c5c3_Var153 string
 		templ_7745c5c3_Var153, templ_7745c5c3_Err = templruntime.NewAttributeExpression("$" + signal).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 450, Col: 96}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 449, Col: 96}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var153)
 		if templ_7745c5c3_Err != nil {
@@ -2822,7 +2822,7 @@ func planStepper(signal, reload string, n int, labelledBy string) templ.Componen
 		var templ_7745c5c3_Var154 string
 		templ_7745c5c3_Var154, templ_7745c5c3_Err = templ.JoinStringErrs(itoa(n))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 450, Col: 108}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 449, Col: 108}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var154))
 		if templ_7745c5c3_Err != nil {
@@ -2835,7 +2835,7 @@ func planStepper(signal, reload string, n int, labelledBy string) templ.Componen
 		var templ_7745c5c3_Var155 string
 		templ_7745c5c3_Var155, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL(reload)).ResolveURL(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 455, Col: 37}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 454, Col: 37}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var155)
 		if templ_7745c5c3_Err != nil {
@@ -2848,7 +2848,7 @@ func planStepper(signal, reload string, n int, labelledBy string) templ.Componen
 		var templ_7745c5c3_Var156 string
 		templ_7745c5c3_Var156, templ_7745c5c3_Err = templruntime.NewAttributeExpression(itoa(min(n+1, MaxServings))).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 458, Col: 38}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 457, Col: 38}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var156)
 		if templ_7745c5c3_Err != nil {
@@ -2861,7 +2861,7 @@ func planStepper(signal, reload string, n int, labelledBy string) templ.Componen
 		var templ_7745c5c3_Var157 string
 		templ_7745c5c3_Var157, templ_7745c5c3_Err = templruntime.NewAttributeExpression(i18n.T(ctx, "recipes.servingsMore")).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 459, Col: 51}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 458, Col: 51}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var157)
 		if templ_7745c5c3_Err != nil {
@@ -2874,7 +2874,7 @@ func planStepper(signal, reload string, n int, labelledBy string) templ.Componen
 		var templ_7745c5c3_Var158 string
 		templ_7745c5c3_Var158, templ_7745c5c3_Err = templruntime.NewAttributeExpression("$" + signal + " = Math.min(" + itoa(MaxServings) + ", $" + signal + " + 1)").Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 460, Col: 104}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 459, Col: 104}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var158)
 		if templ_7745c5c3_Err != nil {
@@ -2897,7 +2897,7 @@ func planStepper(signal, reload string, n int, labelledBy string) templ.Componen
 		var templ_7745c5c3_Var159 string
 		templ_7745c5c3_Var159, templ_7745c5c3_Err = templruntime.NewAttributeExpression("$" + signal + " >= " + itoa(MaxServings)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 462, Col: 65}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 461, Col: 65}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var159)
 		if templ_7745c5c3_Err != nil {
@@ -2938,7 +2938,7 @@ func PlanPickSheet(v PlanPickView) templ.Component {
 		var templ_7745c5c3_Var161 string
 		templ_7745c5c3_Var161, templ_7745c5c3_Err = templruntime.NewAttributeExpression("{pickq: " + jsString(v.Query) + "}").Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 476, Col: 54}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 475, Col: 54}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var161)
 		if templ_7745c5c3_Err != nil {
@@ -3036,7 +3036,7 @@ func planPick(v PlanPickView, modal bool) templ.Component {
 		var templ_7745c5c3_Var165 string
 		templ_7745c5c3_Var165, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "plan.pick.title"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 497, Col: 81}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 496, Col: 81}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var165))
 		if templ_7745c5c3_Err != nil {
@@ -3049,7 +3049,7 @@ func planPick(v PlanPickView, modal bool) templ.Component {
 		var templ_7745c5c3_Var166 string
 		templ_7745c5c3_Var166, templ_7745c5c3_Err = templ.JoinStringErrs(v.DayLabel)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 498, Col: 35}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 497, Col: 35}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var166))
 		if templ_7745c5c3_Err != nil {
@@ -3067,7 +3067,7 @@ func planPick(v PlanPickView, modal bool) templ.Component {
 			var templ_7745c5c3_Var167 string
 			templ_7745c5c3_Var167, templ_7745c5c3_Err = templruntime.NewAttributeExpression(i18n.T(ctx, "groceries.edit.close")).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 501, Col: 90}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 500, Col: 90}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var167)
 			if templ_7745c5c3_Err != nil {
@@ -3093,7 +3093,7 @@ func planPick(v PlanPickView, modal bool) templ.Component {
 		var templ_7745c5c3_Var168 string
 		templ_7745c5c3_Var168, templ_7745c5c3_Err = templruntime.NewAttributeExpression(pickResultsAction(v.Date)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 506, Col: 144}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 505, Col: 144}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var168)
 		if templ_7745c5c3_Err != nil {
@@ -3114,7 +3114,7 @@ func planPick(v PlanPickView, modal bool) templ.Component {
 		var templ_7745c5c3_Var169 string
 		templ_7745c5c3_Var169, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.Date).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 508, Col: 49}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 507, Col: 49}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var169)
 		if templ_7745c5c3_Err != nil {
@@ -3132,7 +3132,7 @@ func planPick(v PlanPickView, modal bool) templ.Component {
 			var templ_7745c5c3_Var170 string
 			templ_7745c5c3_Var170, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.Back).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 510, Col: 50}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 509, Col: 50}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var170)
 			if templ_7745c5c3_Err != nil {
@@ -3150,7 +3150,7 @@ func planPick(v PlanPickView, modal bool) templ.Component {
 		var templ_7745c5c3_Var171 string
 		templ_7745c5c3_Var171, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "plan.pick.search"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 512, Col: 84}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 511, Col: 84}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var171))
 		if templ_7745c5c3_Err != nil {
@@ -3163,7 +3163,7 @@ func planPick(v PlanPickView, modal bool) templ.Component {
 		var templ_7745c5c3_Var172 string
 		templ_7745c5c3_Var172, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.Query).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 518, Col: 18}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 517, Col: 18}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var172)
 		if templ_7745c5c3_Err != nil {
@@ -3176,7 +3176,7 @@ func planPick(v PlanPickView, modal bool) templ.Component {
 		var templ_7745c5c3_Var173 string
 		templ_7745c5c3_Var173, templ_7745c5c3_Err = templruntime.NewAttributeExpression(i18n.T(ctx, "plan.pick.search")).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 519, Col: 48}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 518, Col: 48}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var173)
 		if templ_7745c5c3_Err != nil {
@@ -3189,7 +3189,7 @@ func planPick(v PlanPickView, modal bool) templ.Component {
 		var templ_7745c5c3_Var174 string
 		templ_7745c5c3_Var174, templ_7745c5c3_Err = templruntime.NewAttributeExpression(pickResultsAction(v.Date)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 522, Col: 60}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 521, Col: 60}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var174)
 		if templ_7745c5c3_Err != nil {
@@ -3211,7 +3211,7 @@ func planPick(v PlanPickView, modal bool) templ.Component {
 			var templ_7745c5c3_Var175 string
 			templ_7745c5c3_Var175, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL(v.Back)).ResolveURL(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 527, Col: 71}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 526, Col: 71}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var175)
 			if templ_7745c5c3_Err != nil {
@@ -3224,7 +3224,7 @@ func planPick(v PlanPickView, modal bool) templ.Component {
 			var templ_7745c5c3_Var176 string
 			templ_7745c5c3_Var176, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "recipes.menu.cancel"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 527, Col: 110}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 526, Col: 110}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var176))
 			if templ_7745c5c3_Err != nil {
@@ -3264,7 +3264,7 @@ func PlanPickResults(v PlanPickView) templ.Component {
 		var templ_7745c5c3_Var178 string
 		templ_7745c5c3_Var178, templ_7745c5c3_Err = templ.JoinStringErrs(v.Status)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 534, Col: 53}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 533, Col: 53}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var178))
 		if templ_7745c5c3_Err != nil {
@@ -3282,7 +3282,7 @@ func PlanPickResults(v PlanPickView) templ.Component {
 			var templ_7745c5c3_Var179 string
 			templ_7745c5c3_Var179, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "plan.stale.title"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 536, Col: 62}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 535, Col: 62}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var179))
 			if templ_7745c5c3_Err != nil {
@@ -3306,7 +3306,7 @@ func PlanPickResults(v PlanPickView) templ.Component {
 				var templ_7745c5c3_Var180 string
 				templ_7745c5c3_Var180, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "plan.pick.results"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 542, Col: 39}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 541, Col: 39}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var180))
 				if templ_7745c5c3_Err != nil {
@@ -3316,7 +3316,7 @@ func PlanPickResults(v PlanPickView) templ.Component {
 				var templ_7745c5c3_Var181 string
 				templ_7745c5c3_Var181, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "plan.pick.all"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 544, Col: 35}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 543, Col: 35}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var181))
 				if templ_7745c5c3_Err != nil {
@@ -3339,7 +3339,7 @@ func PlanPickResults(v PlanPickView) templ.Component {
 			var templ_7745c5c3_Var182 string
 			templ_7745c5c3_Var182, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "plan.pick.none", v.Query))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 549, Col: 60}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 548, Col: 60}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var182))
 			if templ_7745c5c3_Err != nil {
@@ -3387,7 +3387,7 @@ func pickList(rs []PickRecipe) templ.Component {
 			var templ_7745c5c3_Var184 string
 			templ_7745c5c3_Var184, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL(r.Href)).ResolveURL(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 558, Col: 63}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 557, Col: 63}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var184)
 			if templ_7745c5c3_Err != nil {
@@ -3400,7 +3400,7 @@ func pickList(rs []PickRecipe) templ.Component {
 			var templ_7745c5c3_Var185 string
 			templ_7745c5c3_Var185, templ_7745c5c3_Err = templruntime.NewAttributeExpression(getAction(r.Href)).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 558, Col: 108}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 557, Col: 108}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var185)
 			if templ_7745c5c3_Err != nil {
@@ -3421,7 +3421,7 @@ func pickList(rs []PickRecipe) templ.Component {
 			var templ_7745c5c3_Var186 string
 			templ_7745c5c3_Var186, templ_7745c5c3_Err = templ.JoinStringErrs(r.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 561, Col: 43}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 560, Col: 43}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var186))
 			if templ_7745c5c3_Err != nil {
@@ -3439,7 +3439,7 @@ func pickList(rs []PickRecipe) templ.Component {
 				var templ_7745c5c3_Var187 string
 				templ_7745c5c3_Var187, templ_7745c5c3_Err = templ.JoinStringErrs(r.Meta)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 563, Col: 50}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 562, Col: 50}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var187))
 				if templ_7745c5c3_Err != nil {
@@ -3536,7 +3536,7 @@ func pickTile(r PickRecipe) templ.Component {
 			var templ_7745c5c3_Var191 string
 			templ_7745c5c3_Var191, templ_7745c5c3_Err = templruntime.NewAttributeExpression(ImageURL(r.Photo, "thumb")).ResolveURL(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 576, Col: 40}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 575, Col: 40}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var191)
 			if templ_7745c5c3_Err != nil {
@@ -3550,7 +3550,7 @@ func pickTile(r PickRecipe) templ.Component {
 			var templ_7745c5c3_Var192 string
 			templ_7745c5c3_Var192, templ_7745c5c3_Err = templ.JoinStringErrs(Initial(r.Name))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 578, Col: 20}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 577, Col: 20}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var192))
 			if templ_7745c5c3_Err != nil {
@@ -3592,7 +3592,7 @@ func MealMenuSheet(v MealMenuView) templ.Component {
 		var templ_7745c5c3_Var194 string
 		templ_7745c5c3_Var194, templ_7745c5c3_Err = templruntime.NewAttributeExpression("{movedate: '', mealservings: " + itoa(v.Servings) + ", swapq: ''}").Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 592, Col: 85}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 591, Col: 85}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var194)
 		if templ_7745c5c3_Err != nil {
@@ -3743,7 +3743,7 @@ func mealMenuHead(v MealMenuView, modal bool) templ.Component {
 			var templ_7745c5c3_Var200 string
 			templ_7745c5c3_Var200, templ_7745c5c3_Err = templruntime.NewAttributeExpression(ImageURL(v.Photo, "thumb")).ResolveURL(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 616, Col: 41}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 615, Col: 41}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var200)
 			if templ_7745c5c3_Err != nil {
@@ -3757,7 +3757,7 @@ func mealMenuHead(v MealMenuView, modal bool) templ.Component {
 			var templ_7745c5c3_Var201 string
 			templ_7745c5c3_Var201, templ_7745c5c3_Err = templ.JoinStringErrs(Initial(v.Name))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 618, Col: 21}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 617, Col: 21}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var201))
 			if templ_7745c5c3_Err != nil {
@@ -3771,7 +3771,7 @@ func mealMenuHead(v MealMenuView, modal bool) templ.Component {
 		var templ_7745c5c3_Var202 string
 		templ_7745c5c3_Var202, templ_7745c5c3_Err = templ.JoinStringErrs(v.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 622, Col: 52}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 621, Col: 52}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var202))
 		if templ_7745c5c3_Err != nil {
@@ -3784,7 +3784,7 @@ func mealMenuHead(v MealMenuView, modal bool) templ.Component {
 		var templ_7745c5c3_Var203 string
 		templ_7745c5c3_Var203, templ_7745c5c3_Err = templ.JoinStringErrs(v.DayLabel + " · " + plural(ctx, v.Servings, "recipes.servingsOne", "recipes.servings"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 623, Col: 113}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 622, Col: 113}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var203))
 		if templ_7745c5c3_Err != nil {
@@ -3802,7 +3802,7 @@ func mealMenuHead(v MealMenuView, modal bool) templ.Component {
 			var templ_7745c5c3_Var204 string
 			templ_7745c5c3_Var204, templ_7745c5c3_Err = templruntime.NewAttributeExpression(i18n.T(ctx, "groceries.edit.close")).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 626, Col: 90}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 625, Col: 90}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var204)
 			if templ_7745c5c3_Err != nil {
@@ -3905,7 +3905,7 @@ func mealSubhead(v MealMenuView, modal bool, title, note string) templ.Component
 		var templ_7745c5c3_Var207 string
 		templ_7745c5c3_Var207, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL(v.MenuHref(""))).ResolveURL(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 653, Col: 39}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 652, Col: 39}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var207)
 		if templ_7745c5c3_Err != nil {
@@ -3923,7 +3923,7 @@ func mealSubhead(v MealMenuView, modal bool, title, note string) templ.Component
 			var templ_7745c5c3_Var208 string
 			templ_7745c5c3_Var208, templ_7745c5c3_Err = templruntime.NewAttributeExpression(getAction(v.bodyHref(""))).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 655, Col: 54}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 654, Col: 54}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var208)
 			if templ_7745c5c3_Err != nil {
@@ -3941,7 +3941,7 @@ func mealSubhead(v MealMenuView, modal bool, title, note string) templ.Component
 		var templ_7745c5c3_Var209 string
 		templ_7745c5c3_Var209, templ_7745c5c3_Err = templruntime.NewAttributeExpression(i18n.T(ctx, "plan.menu.back")).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 657, Col: 45}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 656, Col: 45}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var209)
 		if templ_7745c5c3_Err != nil {
@@ -3962,7 +3962,7 @@ func mealSubhead(v MealMenuView, modal bool, title, note string) templ.Component
 		var templ_7745c5c3_Var210 string
 		templ_7745c5c3_Var210, templ_7745c5c3_Err = templ.JoinStringErrs(title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 661, Col: 38}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 660, Col: 38}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var210))
 		if templ_7745c5c3_Err != nil {
@@ -3980,7 +3980,7 @@ func mealSubhead(v MealMenuView, modal bool, title, note string) templ.Component
 			var templ_7745c5c3_Var211 string
 			templ_7745c5c3_Var211, templ_7745c5c3_Err = templ.JoinStringErrs(note)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 663, Col: 29}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 662, Col: 29}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var211))
 			if templ_7745c5c3_Err != nil {
@@ -4024,7 +4024,7 @@ func backField(back string) templ.Component {
 			var templ_7745c5c3_Var213 string
 			templ_7745c5c3_Var213, templ_7745c5c3_Err = templruntime.NewAttributeExpression(back).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 670, Col: 47}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 669, Col: 47}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var213)
 			if templ_7745c5c3_Err != nil {
@@ -4063,7 +4063,7 @@ func mealMenu(v MealMenuView, modal bool) templ.Component {
 		var templ_7745c5c3_Var215 string
 		templ_7745c5c3_Var215, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL(RecipeHref(v.RecipeID))).ResolveURL(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 677, Col: 69}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 676, Col: 69}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var215)
 		if templ_7745c5c3_Err != nil {
@@ -4084,7 +4084,7 @@ func mealMenu(v MealMenuView, modal bool) templ.Component {
 		var templ_7745c5c3_Var216 string
 		templ_7745c5c3_Var216, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "plan.menu.open"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 681, Col: 60}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 680, Col: 60}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var216))
 		if templ_7745c5c3_Err != nil {
@@ -4114,7 +4114,7 @@ func mealMenu(v MealMenuView, modal bool) templ.Component {
 			var templ_7745c5c3_Var217 string
 			templ_7745c5c3_Var217, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL("/recipes/" + v.RecipeID + "/cooked")).ResolveURL(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 689, Col: 84}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 688, Col: 84}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var217)
 			if templ_7745c5c3_Err != nil {
@@ -4127,7 +4127,7 @@ func mealMenu(v MealMenuView, modal bool) templ.Component {
 			var templ_7745c5c3_Var218 string
 			templ_7745c5c3_Var218, templ_7745c5c3_Err = templruntime.NewAttributeExpression(postForm("/recipes/" + v.RecipeID + "/cooked")).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 689, Col: 150}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 688, Col: 150}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var218)
 			if templ_7745c5c3_Err != nil {
@@ -4156,7 +4156,7 @@ func mealMenu(v MealMenuView, modal bool) templ.Component {
 			var templ_7745c5c3_Var219 string
 			templ_7745c5c3_Var219, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "plan.menu.cooked"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 695, Col: 64}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 694, Col: 64}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var219))
 			if templ_7745c5c3_Err != nil {
@@ -4174,7 +4174,7 @@ func mealMenu(v MealMenuView, modal bool) templ.Component {
 		var templ_7745c5c3_Var220 string
 		templ_7745c5c3_Var220, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL("/plan/meals/" + v.ID + "/remove")).ResolveURL(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 701, Col: 78}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 700, Col: 78}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var220)
 		if templ_7745c5c3_Err != nil {
@@ -4187,7 +4187,7 @@ func mealMenu(v MealMenuView, modal bool) templ.Component {
 		var templ_7745c5c3_Var221 string
 		templ_7745c5c3_Var221, templ_7745c5c3_Err = templruntime.NewAttributeExpression(postForm("/plan/meals/" + v.ID + "/remove")).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 701, Col: 141}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 700, Col: 141}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var221)
 		if templ_7745c5c3_Err != nil {
@@ -4216,7 +4216,7 @@ func mealMenu(v MealMenuView, modal bool) templ.Component {
 		var templ_7745c5c3_Var222 string
 		templ_7745c5c3_Var222, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "plan.menu.remove"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 706, Col: 43}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 705, Col: 43}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var222))
 		if templ_7745c5c3_Err != nil {
@@ -4229,7 +4229,7 @@ func mealMenu(v MealMenuView, modal bool) templ.Component {
 		var templ_7745c5c3_Var223 string
 		templ_7745c5c3_Var223, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "plan.menu.removeNote"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 707, Col: 78}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 706, Col: 78}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var223))
 		if templ_7745c5c3_Err != nil {
@@ -4247,7 +4247,7 @@ func mealMenu(v MealMenuView, modal bool) templ.Component {
 			var templ_7745c5c3_Var224 string
 			templ_7745c5c3_Var224, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL(v.Back)).ResolveURL(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 712, Col: 71}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 711, Col: 71}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var224)
 			if templ_7745c5c3_Err != nil {
@@ -4260,7 +4260,7 @@ func mealMenu(v MealMenuView, modal bool) templ.Component {
 			var templ_7745c5c3_Var225 string
 			templ_7745c5c3_Var225, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "recipes.menu.cancel"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 712, Col: 110}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 711, Col: 110}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var225))
 			if templ_7745c5c3_Err != nil {
@@ -4299,7 +4299,7 @@ func menuLink(v MealMenuView, modal bool, view, label, value string, icon templ.
 		var templ_7745c5c3_Var227 string
 		templ_7745c5c3_Var227, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL(v.MenuHref(view))).ResolveURL(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 720, Col: 41}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 719, Col: 41}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var227)
 		if templ_7745c5c3_Err != nil {
@@ -4317,7 +4317,7 @@ func menuLink(v MealMenuView, modal bool, view, label, value string, icon templ.
 			var templ_7745c5c3_Var228 string
 			templ_7745c5c3_Var228, templ_7745c5c3_Err = templruntime.NewAttributeExpression(getAction(v.bodyHref(view))).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 722, Col: 56}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 721, Col: 56}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var228)
 			if templ_7745c5c3_Err != nil {
@@ -4343,7 +4343,7 @@ func menuLink(v MealMenuView, modal bool, view, label, value string, icon templ.
 		var templ_7745c5c3_Var229 string
 		templ_7745c5c3_Var229, templ_7745c5c3_Err = templ.JoinStringErrs(label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 728, Col: 35}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 727, Col: 35}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var229))
 		if templ_7745c5c3_Err != nil {
@@ -4361,7 +4361,7 @@ func menuLink(v MealMenuView, modal bool, view, label, value string, icon templ.
 			var templ_7745c5c3_Var230 string
 			templ_7745c5c3_Var230, templ_7745c5c3_Err = templ.JoinStringErrs(value)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 730, Col: 31}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 729, Col: 31}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var230))
 			if templ_7745c5c3_Err != nil {
@@ -4408,7 +4408,7 @@ func mealMove(v MealMenuView, modal bool) templ.Component {
 		var templ_7745c5c3_Var232 string
 		templ_7745c5c3_Var232, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL("/plan/meals/" + v.ID + "/move")).ResolveURL(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 738, Col: 94}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 737, Col: 94}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var232)
 		if templ_7745c5c3_Err != nil {
@@ -4421,7 +4421,7 @@ func mealMove(v MealMenuView, modal bool) templ.Component {
 		var templ_7745c5c3_Var233 string
 		templ_7745c5c3_Var233, templ_7745c5c3_Err = templruntime.NewAttributeExpression(postForm("/plan/meals/" + v.ID + "/move")).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 738, Col: 155}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 737, Col: 155}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var233)
 		if templ_7745c5c3_Err != nil {
@@ -4450,7 +4450,7 @@ func mealMove(v MealMenuView, modal bool) templ.Component {
 		var templ_7745c5c3_Var234 string
 		templ_7745c5c3_Var234, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "plan.day"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 743, Col: 60}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 742, Col: 60}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var234))
 		if templ_7745c5c3_Err != nil {
@@ -4463,7 +4463,7 @@ func mealMove(v MealMenuView, modal bool) templ.Component {
 		var templ_7745c5c3_Var235 string
 		templ_7745c5c3_Var235, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "plan.day"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 745, Col: 79}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 744, Col: 79}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var235))
 		if templ_7745c5c3_Err != nil {
@@ -4476,7 +4476,7 @@ func mealMove(v MealMenuView, modal bool) templ.Component {
 		var templ_7745c5c3_Var236 string
 		templ_7745c5c3_Var236, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL("/plan/meals/" + v.ID)).ResolveURL(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 751, Col: 55}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 750, Col: 55}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var236)
 		if templ_7745c5c3_Err != nil {
@@ -4489,7 +4489,7 @@ func mealMove(v MealMenuView, modal bool) templ.Component {
 		var templ_7745c5c3_Var237 string
 		templ_7745c5c3_Var237, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.Move.Prev).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 754, Col: 25}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 753, Col: 25}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var237)
 		if templ_7745c5c3_Err != nil {
@@ -4502,7 +4502,7 @@ func mealMove(v MealMenuView, modal bool) templ.Component {
 		var templ_7745c5c3_Var238 string
 		templ_7745c5c3_Var238, templ_7745c5c3_Err = templruntime.NewAttributeExpression(i18n.T(ctx, "plan.prevWeek")).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 755, Col: 47}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 754, Col: 47}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var238)
 		if templ_7745c5c3_Err != nil {
@@ -4520,7 +4520,7 @@ func mealMove(v MealMenuView, modal bool) templ.Component {
 			var templ_7745c5c3_Var239 string
 			templ_7745c5c3_Var239, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.moveDaysAction(v.Move.Prev)).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 757, Col: 61}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 756, Col: 61}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var239)
 			if templ_7745c5c3_Err != nil {
@@ -4546,7 +4546,7 @@ func mealMove(v MealMenuView, modal bool) templ.Component {
 		var templ_7745c5c3_Var240 string
 		templ_7745c5c3_Var240, templ_7745c5c3_Err = templ.JoinStringErrs(v.Move.Range)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 762, Col: 51}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 761, Col: 51}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var240))
 		if templ_7745c5c3_Err != nil {
@@ -4559,7 +4559,7 @@ func mealMove(v MealMenuView, modal bool) templ.Component {
 		var templ_7745c5c3_Var241 string
 		templ_7745c5c3_Var241, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL("/plan/meals/" + v.ID)).ResolveURL(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 767, Col: 55}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 766, Col: 55}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var241)
 		if templ_7745c5c3_Err != nil {
@@ -4572,7 +4572,7 @@ func mealMove(v MealMenuView, modal bool) templ.Component {
 		var templ_7745c5c3_Var242 string
 		templ_7745c5c3_Var242, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.Move.Next).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 770, Col: 25}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 769, Col: 25}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var242)
 		if templ_7745c5c3_Err != nil {
@@ -4585,7 +4585,7 @@ func mealMove(v MealMenuView, modal bool) templ.Component {
 		var templ_7745c5c3_Var243 string
 		templ_7745c5c3_Var243, templ_7745c5c3_Err = templruntime.NewAttributeExpression(i18n.T(ctx, "plan.nextWeek")).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 771, Col: 47}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 770, Col: 47}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var243)
 		if templ_7745c5c3_Err != nil {
@@ -4603,7 +4603,7 @@ func mealMove(v MealMenuView, modal bool) templ.Component {
 			var templ_7745c5c3_Var244 string
 			templ_7745c5c3_Var244, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.moveDaysAction(v.Move.Next)).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 773, Col: 61}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 772, Col: 61}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var244)
 			if templ_7745c5c3_Err != nil {
@@ -4639,7 +4639,7 @@ func mealMove(v MealMenuView, modal bool) templ.Component {
 		var templ_7745c5c3_Var245 string
 		templ_7745c5c3_Var245, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.Move.lookup(v.Move.Notes, "movedate")).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 785, Col: 106}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 784, Col: 106}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var245)
 		if templ_7745c5c3_Err != nil {
@@ -4652,7 +4652,7 @@ func mealMove(v MealMenuView, modal bool) templ.Component {
 		var templ_7745c5c3_Var246 string
 		templ_7745c5c3_Var246, templ_7745c5c3_Err = templ.JoinStringErrs(v.Move.note())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 785, Col: 124}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 784, Col: 124}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var246))
 		if templ_7745c5c3_Err != nil {
@@ -4665,7 +4665,7 @@ func mealMove(v MealMenuView, modal bool) templ.Component {
 		var templ_7745c5c3_Var247 string
 		templ_7745c5c3_Var247, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.Move.lookup(v.Move.CTAs, "movedate")).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 788, Col: 136}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 787, Col: 136}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var247)
 		if templ_7745c5c3_Err != nil {
@@ -4678,7 +4678,7 @@ func mealMove(v MealMenuView, modal bool) templ.Component {
 		var templ_7745c5c3_Var248 string
 		templ_7745c5c3_Var248, templ_7745c5c3_Err = templ.JoinStringErrs(v.Move.cta())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 788, Col: 185}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 787, Col: 185}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var248))
 		if templ_7745c5c3_Err != nil {
@@ -4691,7 +4691,7 @@ func mealMove(v MealMenuView, modal bool) templ.Component {
 		var templ_7745c5c3_Var249 string
 		templ_7745c5c3_Var249, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.Move.plannedExpr("movedate")).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 789, Col: 130}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 788, Col: 130}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var249)
 		if templ_7745c5c3_Err != nil {
@@ -4704,7 +4704,7 @@ func mealMove(v MealMenuView, modal bool) templ.Component {
 		var templ_7745c5c3_Var250 string
 		templ_7745c5c3_Var250, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "plan.move.both"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 789, Col: 164}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 788, Col: 164}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var250))
 		if templ_7745c5c3_Err != nil {
@@ -4742,7 +4742,7 @@ func mealServings(v MealMenuView, modal bool) templ.Component {
 		var templ_7745c5c3_Var252 string
 		templ_7745c5c3_Var252, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL("/plan/meals/" + v.ID + "/servings")).ResolveURL(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 795, Col: 98}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 794, Col: 98}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var252)
 		if templ_7745c5c3_Err != nil {
@@ -4755,7 +4755,7 @@ func mealServings(v MealMenuView, modal bool) templ.Component {
 		var templ_7745c5c3_Var253 string
 		templ_7745c5c3_Var253, templ_7745c5c3_Err = templruntime.NewAttributeExpression(postForm("/plan/meals/" + v.ID + "/servings")).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 795, Col: 163}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 794, Col: 163}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var253)
 		if templ_7745c5c3_Err != nil {
@@ -4784,7 +4784,7 @@ func mealServings(v MealMenuView, modal bool) templ.Component {
 		var templ_7745c5c3_Var254 string
 		templ_7745c5c3_Var254, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "recipes.servingsLabel"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 800, Col: 96}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 799, Col: 96}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var254))
 		if templ_7745c5c3_Err != nil {
@@ -4805,7 +4805,7 @@ func mealServings(v MealMenuView, modal bool) templ.Component {
 		var templ_7745c5c3_Var255 string
 		templ_7745c5c3_Var255, templ_7745c5c3_Err = templruntime.NewAttributeExpression(itoa(v.Servings)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 802, Col: 64}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 801, Col: 64}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var255)
 		if templ_7745c5c3_Err != nil {
@@ -4818,7 +4818,7 @@ func mealServings(v MealMenuView, modal bool) templ.Component {
 		var templ_7745c5c3_Var256 string
 		templ_7745c5c3_Var256, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "plan.servings.note", v.Day, plural(ctx, v.Base, "recipes.servingsOne", "recipes.servings")))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 804, Col: 141}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 803, Col: 141}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var256))
 		if templ_7745c5c3_Err != nil {
@@ -4831,7 +4831,7 @@ func mealServings(v MealMenuView, modal bool) templ.Component {
 		var templ_7745c5c3_Var257 string
 		templ_7745c5c3_Var257, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "form.save"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 805, Col: 86}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 804, Col: 86}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var257))
 		if templ_7745c5c3_Err != nil {
@@ -4873,7 +4873,7 @@ func mealSwap(v MealMenuView, modal bool) templ.Component {
 		var templ_7745c5c3_Var259 string
 		templ_7745c5c3_Var259, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL("/plan/meals/" + v.ID)).ResolveURL(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 811, Col: 104}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 810, Col: 104}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var259)
 		if templ_7745c5c3_Err != nil {
@@ -4886,7 +4886,7 @@ func mealSwap(v MealMenuView, modal bool) templ.Component {
 		var templ_7745c5c3_Var260 string
 		templ_7745c5c3_Var260, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.swapResultsAction()).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 811, Col: 168}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 810, Col: 168}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var260)
 		if templ_7745c5c3_Err != nil {
@@ -4915,7 +4915,7 @@ func mealSwap(v MealMenuView, modal bool) templ.Component {
 		var templ_7745c5c3_Var261 string
 		templ_7745c5c3_Var261, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "plan.pick.search"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 815, Col: 84}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 814, Col: 84}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var261))
 		if templ_7745c5c3_Err != nil {
@@ -4928,7 +4928,7 @@ func mealSwap(v MealMenuView, modal bool) templ.Component {
 		var templ_7745c5c3_Var262 string
 		templ_7745c5c3_Var262, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.Query).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 821, Col: 18}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 820, Col: 18}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var262)
 		if templ_7745c5c3_Err != nil {
@@ -4941,7 +4941,7 @@ func mealSwap(v MealMenuView, modal bool) templ.Component {
 		var templ_7745c5c3_Var263 string
 		templ_7745c5c3_Var263, templ_7745c5c3_Err = templruntime.NewAttributeExpression(i18n.T(ctx, "plan.pick.search")).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 822, Col: 48}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 821, Col: 48}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var263)
 		if templ_7745c5c3_Err != nil {
@@ -4954,7 +4954,7 @@ func mealSwap(v MealMenuView, modal bool) templ.Component {
 		var templ_7745c5c3_Var264 string
 		templ_7745c5c3_Var264, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.swapResultsAction()).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 825, Col: 56}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 824, Col: 56}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var264)
 		if templ_7745c5c3_Err != nil {
@@ -4997,7 +4997,7 @@ func MealSwapResults(v MealMenuView) templ.Component {
 		var templ_7745c5c3_Var266 string
 		templ_7745c5c3_Var266, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL("/plan/meals/" + v.ID + "/replace")).ResolveURL(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 833, Col: 102}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 832, Col: 102}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var266)
 		if templ_7745c5c3_Err != nil {
@@ -5019,7 +5019,7 @@ func MealSwapResults(v MealMenuView) templ.Component {
 			var templ_7745c5c3_Var267 string
 			templ_7745c5c3_Var267, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "plan.pick.none", v.Query))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 836, Col: 60}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 835, Col: 60}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var267))
 			if templ_7745c5c3_Err != nil {
@@ -5042,7 +5042,7 @@ func MealSwapResults(v MealMenuView) templ.Component {
 				var templ_7745c5c3_Var268 string
 				templ_7745c5c3_Var268, templ_7745c5c3_Err = templruntime.NewAttributeExpression(r.ID).Resolve(ctx)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 841, Col: 54}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 840, Col: 54}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var268)
 				if templ_7745c5c3_Err != nil {
@@ -5055,7 +5055,7 @@ func MealSwapResults(v MealMenuView) templ.Component {
 				var templ_7745c5c3_Var269 string
 				templ_7745c5c3_Var269, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.replaceAction(r.ID)).Resolve(ctx)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 841, Col: 131}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 840, Col: 131}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var269)
 				if templ_7745c5c3_Err != nil {
@@ -5076,7 +5076,7 @@ func MealSwapResults(v MealMenuView) templ.Component {
 				var templ_7745c5c3_Var270 string
 				templ_7745c5c3_Var270, templ_7745c5c3_Err = templ.JoinStringErrs(r.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 844, Col: 45}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 843, Col: 45}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var270))
 				if templ_7745c5c3_Err != nil {
@@ -5094,7 +5094,7 @@ func MealSwapResults(v MealMenuView) templ.Component {
 					var templ_7745c5c3_Var271 string
 					templ_7745c5c3_Var271, templ_7745c5c3_Err = templ.JoinStringErrs(r.Meta)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 846, Col: 52}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 845, Col: 52}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var271))
 					if templ_7745c5c3_Err != nil {
@@ -5112,7 +5112,7 @@ func MealSwapResults(v MealMenuView) templ.Component {
 				var templ_7745c5c3_Var272 string
 				templ_7745c5c3_Var272, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "plan.swap.pick"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 849, Col: 69}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 848, Col: 69}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var272))
 				if templ_7745c5c3_Err != nil {
@@ -5185,7 +5185,7 @@ func AddToPlanButton(recipeID, class string) templ.Component {
 			var templ_7745c5c3_Var276 string
 			templ_7745c5c3_Var276, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL("/plan/add?recipe=" + recipeID)).ResolveURL(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 864, Col: 54}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 863, Col: 54}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var276)
 			if templ_7745c5c3_Err != nil {
@@ -5198,7 +5198,7 @@ func AddToPlanButton(recipeID, class string) templ.Component {
 			var templ_7745c5c3_Var277 string
 			templ_7745c5c3_Var277, templ_7745c5c3_Err = templruntime.NewAttributeExpression(getAction("/plan/add?recipe=" + recipeID)).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 865, Col: 68}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 864, Col: 68}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var277)
 			if templ_7745c5c3_Err != nil {
@@ -5233,7 +5233,7 @@ func AddToPlanButton(recipeID, class string) templ.Component {
 		var templ_7745c5c3_Var278 string
 		templ_7745c5c3_Var278, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "plan.addTo.title"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 868, Col: 35}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 867, Col: 35}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var278))
 		if templ_7745c5c3_Err != nil {
@@ -5272,7 +5272,7 @@ func tonightCard(t TonightCard) templ.Component {
 		var templ_7745c5c3_Var280 string
 		templ_7745c5c3_Var280, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL(RecipeHref(t.RecipeID))).ResolveURL(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 874, Col: 64}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 873, Col: 64}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var280)
 		if templ_7745c5c3_Err != nil {
@@ -5285,7 +5285,7 @@ func tonightCard(t TonightCard) templ.Component {
 		var templ_7745c5c3_Var281 string
 		templ_7745c5c3_Var281, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "plan.tonight"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 875, Col: 60}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 874, Col: 60}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var281))
 		if templ_7745c5c3_Err != nil {
@@ -5343,7 +5343,7 @@ func tonightCard(t TonightCard) templ.Component {
 			var templ_7745c5c3_Var284 string
 			templ_7745c5c3_Var284, templ_7745c5c3_Err = templruntime.NewAttributeExpression(ImageURL(t.Photo, "thumb")).ResolveURL(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 879, Col: 42}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 878, Col: 42}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var284)
 			if templ_7745c5c3_Err != nil {
@@ -5361,7 +5361,7 @@ func tonightCard(t TonightCard) templ.Component {
 			var templ_7745c5c3_Var285 string
 			templ_7745c5c3_Var285, templ_7745c5c3_Err = templ.JoinStringErrs(Initial(t.Name))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 881, Col: 47}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 880, Col: 47}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var285))
 			if templ_7745c5c3_Err != nil {
@@ -5379,7 +5379,7 @@ func tonightCard(t TonightCard) templ.Component {
 		var templ_7745c5c3_Var286 string
 		templ_7745c5c3_Var286, templ_7745c5c3_Err = templ.JoinStringErrs(t.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 885, Col: 40}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 884, Col: 40}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var286))
 		if templ_7745c5c3_Err != nil {
@@ -5392,7 +5392,7 @@ func tonightCard(t TonightCard) templ.Component {
 		var templ_7745c5c3_Var287 string
 		templ_7745c5c3_Var287, templ_7745c5c3_Err = templ.JoinStringErrs(t.Meta)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 886, Col: 40}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 885, Col: 40}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var287))
 		if templ_7745c5c3_Err != nil {
@@ -5488,15 +5488,28 @@ func iconSwap() templ.Component {
 	})
 }
 
-// dayCellLabel names a month calendar day and what is planned on it.
+// dayCellLabel names a month calendar day, whether it is today, and what
+// is planned on it.
 func dayCellLabel(ctx context.Context, d PlanDay) string {
+	label := d.Label
+	if d.Today {
+		label += ", " + i18n.T(ctx, "plan.todayMark")
+	}
 	switch len(d.Meals) {
 	case 0:
-		return i18n.T(ctx, "plan.cell.free", d.Label)
+		return i18n.T(ctx, "plan.cell.free", label)
 	case 1:
-		return i18n.T(ctx, "plan.cell.one", d.Label, d.Meals[0].Name)
+		return i18n.T(ctx, "plan.cell.one", label, d.Meals[0].Name)
 	}
-	return i18n.T(ctx, "plan.cell.many", d.Label, len(d.Meals))
+	return i18n.T(ctx, "plan.cell.many", label, len(d.Meals))
+}
+
+// moreLabel names the "+N" marker of a day.
+func moreLabel(ctx context.Context, d PlanDay) string {
+	if d.More() == 1 {
+		return i18n.T(ctx, "plan.moreOne", d.Label)
+	}
+	return i18n.T(ctx, "plan.more", d.More(), d.Label)
 }
 
 var _ = templruntime.GeneratedTemplate

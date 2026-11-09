@@ -125,7 +125,7 @@ templ weekDay(d PlanDay) {
 			<div class="plan-day__meals">
 				@mealCard(d.Meals[0])
 				if d.More() > 0 {
-					<a class="plan-day__more" href={ templ.SafeURL(d.MoreHref) } aria-label={ i18n.T(ctx, "plan.more", d.More(), d.Label) }>{ "+" + itoa(d.More()) }</a>
+					<a class="plan-day__more" href={ templ.SafeURL(d.MoreHref) } aria-label={ moreLabel(ctx, d) }>{ "+" + itoa(d.More()) }</a>
 				}
 			</div>
 		} else {
@@ -203,7 +203,7 @@ templ PlanMonthRegion(v PlanMonthView) {
 								class={ "month-cal__day", templ.KV("month-cal__day--out", !d.InMonth), templ.KV("month-cal__day--past", d.Past), templ.KV("month-cal__day--today", d.Today) }
 								href={ templ.SafeURL(d.SelectHref) }
 								if d.Selected {
-									aria-current="date"
+									aria-current="page"
 								}
 								aria-label={ dayCellLabel(ctx, d) }
 							>
@@ -301,7 +301,6 @@ templ AddPlanPage(p Page, v AddPlanView) {
 templ addPlanForm(v AddPlanView, modal bool) {
 	<form class="plan-form" method="post" action="/plan" data-on:submit={ postForm("/plan") }>
 		<input type="hidden" name="recipe" value={ v.RecipeID }/>
-		<input type="hidden" name="form" value="1"/>
 		if v.Back != "" {
 			<input type="hidden" name="back" value={ v.Back }/>
 		}
@@ -905,13 +904,26 @@ templ iconSwap() {
 	<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h13l-3-3M20 16H7l3 3"></path></svg>
 }
 
-// dayCellLabel names a month calendar day and what is planned on it.
+// dayCellLabel names a month calendar day, whether it is today, and what
+// is planned on it.
 func dayCellLabel(ctx context.Context, d PlanDay) string {
+	label := d.Label
+	if d.Today {
+		label += ", " + i18n.T(ctx, "plan.todayMark")
+	}
 	switch len(d.Meals) {
 	case 0:
-		return i18n.T(ctx, "plan.cell.free", d.Label)
+		return i18n.T(ctx, "plan.cell.free", label)
 	case 1:
-		return i18n.T(ctx, "plan.cell.one", d.Label, d.Meals[0].Name)
+		return i18n.T(ctx, "plan.cell.one", label, d.Meals[0].Name)
 	}
-	return i18n.T(ctx, "plan.cell.many", d.Label, len(d.Meals))
+	return i18n.T(ctx, "plan.cell.many", label, len(d.Meals))
+}
+
+// moreLabel names the "+N" marker of a day.
+func moreLabel(ctx context.Context, d PlanDay) string {
+	if d.More() == 1 {
+		return i18n.T(ctx, "plan.moreOne", d.Label)
+	}
+	return i18n.T(ctx, "plan.more", d.More(), d.Label)
 }

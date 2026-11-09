@@ -141,13 +141,16 @@ func (s *Service) MarkCooked(ctx context.Context, sc store.Scoped, recipeID, by 
 	return id, nil
 }
 
-// UndoCooked deletes a cook event recorded within UndoWindow, or returns
-// ErrNotFound.
-func (s *Service) UndoCooked(ctx context.Context, sc store.Scoped, eventID uuid.UUID) error {
-	var recipeID uuid.UUID
+// UndoCooked deletes a cook event of the recipe recorded within
+// UndoWindow, or returns ErrNotFound.
+func (s *Service) UndoCooked(ctx context.Context, sc store.Scoped, recipeID, eventID uuid.UUID) error {
 	err := sc.Tx(ctx, func(ctx context.Context, q store.Querier) error {
-		return notFound(q.Get(ctx, &recipeID, `DELETE FROM cook_events WHERE household_id = ? AND id = ? AND created_at >= ?
-			RETURNING recipe_id`, sc.HouseholdID(), eventID, s.undoCutoff()))
+		res, err := q.Exec(ctx, `DELETE FROM cook_events WHERE household_id = ? AND recipe_id = ? AND id = ? AND created_at >= ?`,
+			sc.HouseholdID(), recipeID, eventID, s.undoCutoff())
+		if err != nil {
+			return err
+		}
+		return mustAffect(res)
 	})
 	if err != nil {
 		return err

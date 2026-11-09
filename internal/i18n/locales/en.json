@@ -520,6 +520,7 @@
   "plan.addOn": "Plan a meal on %s",
   "plan.dropHere": "Drop here",
   "plan.more": "%d more meals on %s",
+  "plan.moreOne": "1 more meal on %s",
   "plan.mealLabel": "%s on %s. Open options to move, change or remove, or drag to move.",
   "plan.cell.free": "%s, nothing planned",
   "plan.cell.one": "%s, %s",
@@ -587,5 +588,6 @@
   "plan.tonight.planned": "On tonight’s plan",
   "recipes.menu.cookedNote": "Counts as cooked today",
   "recipes.delete.planned": "It’s on the plan for %s.",
-  "recipes.delete.plannedMore": "%d more days"
+  "recipes.delete.plannedMore": "%d more days",
+  "recipes.delete.plannedMoreOne": "1 more day"
 }

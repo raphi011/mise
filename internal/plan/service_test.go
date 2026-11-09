@@ -532,18 +532,21 @@ func TestCookEvents(t *testing.T) {
 		if err != nil || r.TimesCooked != 1 || r.LastCookedAt == nil || !r.LastCookedAt.Equal(start) {
 			t.Errorf("after cooking: %d times, last %v, %v", r.TimesCooked, r.LastCookedAt, err)
 		}
-		if err := e.s.UndoCooked(ctx, e.sc, ev); err != nil {
+		if err := e.s.UndoCooked(ctx, e.sc, uuid.New(), ev); !errors.Is(err, ErrNotFound) {
+			t.Errorf("undo with another recipe: %v", err)
+		}
+		if err := e.s.UndoCooked(ctx, e.sc, tofu.ID, ev); err != nil {
 			t.Fatal(err)
 		}
 		if r, _ := e.r.Get(ctx, e.sc, tofu.ID, e.hh.Admin); r.TimesCooked != 0 {
 			t.Errorf("after undo: %d times", r.TimesCooked)
 		}
-		if err := e.s.UndoCooked(ctx, e.sc, ev); !errors.Is(err, ErrNotFound) {
+		if err := e.s.UndoCooked(ctx, e.sc, tofu.ID, ev); !errors.Is(err, ErrNotFound) {
 			t.Errorf("undo twice: %v", err)
 		}
 		ev, _ = e.s.MarkCooked(ctx, e.sc, tofu.ID, e.hh.Member)
 		e.clk.Add(UndoWindow + time.Minute)
-		if err := e.s.UndoCooked(ctx, e.sc, ev); !errors.Is(err, ErrNotFound) {
+		if err := e.s.UndoCooked(ctx, e.sc, tofu.ID, ev); !errors.Is(err, ErrNotFound) {
 			t.Errorf("undo after the window: %v", err)
 		}
 		if _, err := e.s.MarkCooked(ctx, e.sc, uuid.New(), e.hh.Member); !errors.Is(err, ErrNotFound) {

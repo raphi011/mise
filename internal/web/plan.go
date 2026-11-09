@@ -152,11 +152,14 @@ func pickHref(date store.Date, back string) string {
 	return withParams("/plan/pick", url.Values{"date": {date.String()}, "back": {back}})
 }
 
-// addHref opens the add-to-plan sheet.
-func addHref(recipeID uuid.UUID, date store.Date, back string) string {
+// addHref opens the add-to-plan sheet on date or, when date is zero, in
+// week (today's weekday; today when week is zero too).
+func addHref(recipeID uuid.UUID, date, week store.Date, back string) string {
 	q := url.Values{"recipe": {recipeID.String()}}
 	if !date.IsZero() {
 		q.Set("date", date.String())
+	} else if !week.IsZero() {
+		q.Set("week", week.String())
 	}
 	if back != "" {
 		q.Set("back", back)
@@ -204,10 +207,16 @@ func (s *Server) planWeekView(ctx context.Context, sc store.Scoped, date store.D
 		return ui.PlanWeekView{}, err
 	}
 	thisWeek := cal.WeekOf(w.Today)
+	// The month link shows today's month for this week, else the month
+	// the week starts in: the same for the page and its live refresh.
+	month := w.Start
+	if w.Start == thisWeek {
+		month = w.Today
+	}
 	v := ui.PlanWeekView{
 		Week: w.Start.String(), PrevHref: weekHref(w.Start.AddDays(-7)), NextHref: weekHref(w.Start.AddDays(7)),
 		TodayHref: "/plan", Current: w.Start == thisWeek,
-		MonthHref: monthHref(date.Year, date.Month, store.Date{}),
+		MonthHref: monthHref(month.Year, month.Month, store.Date{}),
 	}
 	planned := 0
 	for _, d := range w.Days {
@@ -225,7 +234,7 @@ func (s *Server) planWeekView(ctx context.Context, sc store.Scoped, date store.D
 	for _, sg := range sugg {
 		v.Suggestions = append(v.Suggestions, ui.PlanSuggestion{
 			RecipeID: sg.Recipe.ID.String(), Name: sg.Recipe.Name, Photo: sg.Recipe.Photo,
-			Last: lastCooked(ctx, now, sg.LastCookedAt), AddHref: addHref(sg.Recipe.ID, store.Date{}, back),
+			Last: lastCooked(ctx, now, sg.LastCookedAt), AddHref: addHref(sg.Recipe.ID, store.Date{}, w.Start, back),
 		})
 	}
 	list, err := s.groceries.FirstList(ctx, sc)
@@ -465,6 +474,16 @@ func (s *Server) planDone(w http.ResponseWriter, r *http.Request, back string, m
 		return
 	}
 	s.sendPatches(w, r, patchTempl(ui.EmptySheet()), msg)
+}
+
+// planUndone answers a successful Undo from a toast: Datastar clears the
+// toast and leaves any sheet opened since alone; a form post goes back.
+func (s *Server) planUndone(w http.ResponseWriter, r *http.Request, back string) {
+	if !isDatastar(r) {
+		seeOther(w, r, back)
+		return
+	}
+	s.sendPatches(w, r, clearToast)
 }
 
 // planError answers a failed plan write; it reports whether err was one.
@@ -764,6 +783,11 @@ func (s *Server) addMeal(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	if errors.Is(err, plan.ErrNotFound) {
+		// The recipe was deleted (or an ingredient is no longer its).
+		s.recipeGone(w, r)
+		return
+	}
 	if s.planError(w, r, err) {
 		return
 	}
@@ -799,11 +823,7 @@ func (s *Server) unplanMeal(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	ctx := r.Context()
-	m, err := s.plan.Remove(ctx, sc, mealID)
-	if s.planError(w, r, err) {
-		return
-	}
+	var entries []uuid.UUID
 	if raw := r.PostFormValue("entries"); raw != "" {
 		for _, e := range strings.Split(raw, ",") {
 			entryID, err := uuid.Parse(e)
@@ -811,14 +831,22 @@ func (s *Server) unplanMeal(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 				return
 			}
-			// An entry already checked off or removed stays as it is.
-			if _, err := s.groceries.Remove(ctx, sc, entryID); err != nil && !errors.Is(err, groceries.ErrNotFound) {
-				s.serverError(w, r, err)
-				return
-			}
+			entries = append(entries, entryID)
 		}
 	}
-	s.planDone(w, r, localPath(r.PostFormValue("back"), s.weekBack(ctx, sc, m.Date)), clearToast)
+	ctx := r.Context()
+	m, err := s.plan.Remove(ctx, sc, mealID)
+	if s.planError(w, r, err) {
+		return
+	}
+	for _, entryID := range entries {
+		// An entry already checked off or removed stays as it is.
+		if _, err := s.groceries.Remove(ctx, sc, entryID); err != nil && !errors.Is(err, groceries.ErrNotFound) {
+			s.serverError(w, r, err)
+			return
+		}
+	}
+	s.planUndone(w, r, localPath(r.PostFormValue("back"), s.weekBack(ctx, sc, m.Date)))
 }
 
 // ---- Recipe picker ----
@@ -848,13 +876,13 @@ func (s *Server) pickView(ctx context.Context, sc store.Scoped, id *auth.Identit
 			v.Suggested = append(v.Suggested, ui.PickRecipe{
 				ID: sg.Recipe.ID.String(), Name: sg.Recipe.Name, Photo: sg.Recipe.Photo,
 				Meta: joinNonEmpty(" · ", minutes(ctx, sg.Recipe.TotalMin), lastCooked(ctx, now, sg.LastCookedAt)),
-				Href: addHref(sg.Recipe.ID, date, back),
+				Href: addHref(sg.Recipe.ID, date, store.Date{}, back),
 			})
 		}
 	}
 	for _, c := range cards {
 		v.Recipes = append(v.Recipes, ui.PickRecipe{
-			ID: c.ID.String(), Name: c.Name, Photo: c.Photo, Meta: cardMeta(ctx, c), Href: addHref(c.ID, date, back),
+			ID: c.ID.String(), Name: c.Name, Photo: c.Photo, Meta: cardMeta(ctx, c), Href: addHref(c.ID, date, store.Date{}, back),
 		})
 	}
 	if q != "" {
@@ -1181,7 +1209,7 @@ func (s *Server) placeMeals(w http.ResponseWriter, r *http.Request) {
 	if s.planError(w, r, s.plan.Place(ctx, sc, ps)) {
 		return
 	}
-	s.planDone(w, r, localPath(r.PostFormValue("back"), s.weekBack(ctx, sc, ps[0].Date)), clearToast)
+	s.planUndone(w, r, localPath(r.PostFormValue("back"), s.weekBack(ctx, sc, ps[0].Date)))
 }
 
 func (s *Server) setMealServings(w http.ResponseWriter, r *http.Request) {
@@ -1257,7 +1285,7 @@ func (s *Server) restoreMeal(w http.ResponseWriter, r *http.Request) {
 	if s.planError(w, r, s.plan.Restore(r.Context(), sc, mealID)) {
 		return
 	}
-	s.planDone(w, r, localPath(r.PostFormValue("back"), "/plan"), clearToast)
+	s.planUndone(w, r, localPath(r.PostFormValue("back"), "/plan"))
 }
 
 // ---- Cook events ----
@@ -1293,10 +1321,10 @@ func (s *Server) undoCooked(w http.ResponseWriter, r *http.Request) {
 		s.notFound(w, r)
 		return
 	}
-	if s.planError(w, r, s.plan.UndoCooked(r.Context(), sc, eventID)) {
+	if s.planError(w, r, s.plan.UndoCooked(r.Context(), sc, recipeID, eventID)) {
 		return
 	}
-	s.planDone(w, r, localPath(r.PostFormValue("back"), ui.RecipeHref(recipeID.String())), clearToast)
+	s.planUndone(w, r, localPath(r.PostFormValue("back"), ui.RecipeHref(recipeID.String())))
 }
 
 // ---- Library ----

@@ -416,7 +416,7 @@ func plannedLine(ctx context.Context, dates []store.Date) string {
 	var days []string
 	for i, d := range dates {
 		if i == shown {
-			days = append(days, i18n.T(ctx, "recipes.delete.plannedMore", len(dates)-shown))
+			days = append(days, plural(ctx, len(dates)-shown, "recipes.delete.plannedMoreOne", "recipes.delete.plannedMore"))
 			break
 		}
 		days = append(days, shortDate(ctx, d))
