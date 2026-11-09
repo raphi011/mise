@@ -79,12 +79,13 @@ securityContext:
   capabilities:
     drop: [ALL]
 
+# A photo upload decodes up to 40 megapixels (about 160 MB) before resizing.
 resources:
   requests:
     cpu: 50m
-    memory: 64Mi
+    memory: 128Mi
   limits:
-    memory: 256Mi
+    memory: 512Mi
 
 nodeSelector: {}
 tolerations: []

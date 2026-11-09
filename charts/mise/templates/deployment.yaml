@@ -42,6 +42,12 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args: [serve]
           env:
+            # Lets the Go GC work against the cgroup limit instead of being OOM-killed at it.
+            - name: GOMEMLIMIT
+              valueFrom:
+                resourceFieldRef:
+                  containerName: mise
+                  resource: limits.memory
             - name: MISE_DATA_DIR
               value: /data
             - name: MISE_LISTEN
