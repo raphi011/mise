@@ -60,7 +60,11 @@ Env vars (flags mirror them):
 | `MISE_BASE_URL` | required after setup | public URL for invite/reset links; also passed to `CrossOriginProtection.AddTrustedOrigin` for proxies that rewrite `Host`. If unset at first run, the setup page proposes the request's origin and stores it |
 | `MISE_TRUSTED_PROXIES` | unset | CIDRs whose `X-Forwarded-For` is trusted for client IP (rate limiting, logs) |
 | `MISE_SECRET_KEY` | generated into data dir | AES-GCM key for stored API keys; token HMAC |
-| `MISE_SMTP_*` | unset | optional; without it invites are link-only and admins reset passwords |
+| `MISE_SMTP_HOST` | unset | optional; enables invite and password-reset emails. Without it invites are link-only and admins reset passwords |
+| `MISE_SMTP_PORT` | `587` | |
+| `MISE_SMTP_TLS` | `starttls` | `starttls`, `tls` (implicit, usually port 465) or `none` |
+| `MISE_SMTP_USERNAME`, `MISE_SMTP_PASSWORD` | unset | auth, when the server needs it |
+| `MISE_SMTP_FROM` | required with host | sender address, e.g. `mise <mise@example.com>` |
 
 ## Architecture
 
@@ -122,14 +126,14 @@ All tables also have `household_id` (except `households`, `users`) and `created_
 | memberships | household_id, user_id, role (admin, member), removed_at |
 | sessions | id (hash of token), user_id, household_id, expires_at, user_agent, last_seen_at |
 | invites | id, token_hash, email, role, invited_by, expires_at (7 days), used_at |
-| password_resets | token_hash, user_id, expires_at (1 hour), used_at |
+| password_resets | id, token_hash, user_id, expires_at (1 hour), used_at; global like sessions (no household_id) |
 | categories | id, name, name_key, color, position; "Uncategorised" is implicit (NULL) and sorts last |
 | items | id, name, name_key, category_id, purchase_count, last_purchased_at |
 | shopping_lists | id, name, position (first = default), deleted_at (Undo for list delete). First-run setup creates the default list and categories in the household's language, in its transaction; startup backfills households created before P1b, so every GET stays read-only. |
 | list_entries | id, list_id, item_id, quantity, unit, amount_text, note, added_by, recipe_id (added in P2 with its FK), checked_at, deleted_at |
 | recipes | id, name, name_key, description, photo, prep_min, cook_min, servings, source_url, notes, notes_by, notes_at, draft, created_by, updated_by, deleted_at |
 | recipe_ingredients | id, recipe_id, item_id, quantity, unit, amount_text, optional, position |
-| steps | id, recipe_id, position, text, timer_seconds |
+| steps | id, recipe_id, position, text, timer_seconds (set per step in the editor, P4) |
 | tags / recipe_tags | id, name, name_key, pinned / recipe_id, tag_id |
 | favourites | user_id, recipe_id |
 | planned_meals | id, date, recipe_id, servings, position (order within the day), created_by, deleted_at (several per date allowed; hidden while their recipe is in the bin, deleted with it) |
@@ -188,7 +192,7 @@ Derived, not stored: "on a list" per ingredient, times cooked (count of `cook_ev
 - Client IP from `X-Forwarded-For` only when `RemoteAddr` is in `MISE_TRUSTED_PROXIES`.
 - Rate limit sign-in and reset per client IP, per client IP and username, and per username (in-memory token buckets). The per-username bucket refills faster than one IP may spend, so a lockout needs several addresses; successful sign-ins give their attempts back. The account page's current-password check has its own per-user bucket.
 - Invites: copyable link (always), email if SMTP is configured; token stored hashed; role chosen at invite time.
-- Reset: admin reset under Settings › People (P1a); email link valid 1 h once SMTP lands.
+- Reset: admin reset under Settings › People (P1a); with SMTP, self-service by email (P4): the link is valid 1 h and single-use.
 - Roles enforced in middleware for admin routes (people, AI settings).
 
 ### Images
@@ -275,6 +279,19 @@ Each phase ends with something usable and is merged before the next starts.
 - Cook mode: one step per screen, wake lock, step timers.
 - `backup` command, proxy docs.
 - SMTP: invite emails and self-service password reset.
+
+- Order and commits: installable, cook mode, SMTP, backup and docs; one commit each.
+- **Installable.** `/manifest.webmanifest` (name "mise", `start_url` `/`, `display: standalone`, theme and background colours from the tokens, PNG icons 192 and 512 plus a maskable 512) and `/sw.js` are served from the root so the worker's scope is `/`; both are infrastructure paths (no session). The worker only installs and activates: no fetch handler, no caching. `apple-touch-icon` (180 px PNG) and `theme-color` metas for light and dark. PNGs are rendered from `icon.svg` (`mise run icons`, ImageMagick) and committed.
+- **Add-to-home-screen hint**, per the design: after the first cleared cart, on the groceries page, once per device (remembered in `localStorage`), only in a mobile browser not already running the installed app. iOS Safari shows the Share → Add to Home Screen steps and "Got it"; Chromium keeps the `beforeinstallprompt` event and shows "Install"; other browsers show nothing.
+- **Cook mode** at `/recipes/{id}/cook?servings=&step=`, from a "Cook mode" button in the method's header (hidden without steps). Full screen, always dark, outside the app shell. One step per screen with "Step 2 of 5", a progress bar, the step's ingredient mentions with amounts at the detail page's servings, previous and next; the last step's "Done" posts "I made this" (`/recipes/{id}/cooked`) and returns to the recipe with its Undo toast. Steps have no titles, so next reads "Next step". With JavaScript all steps are rendered and a signal switches them, so timers keep running across steps; without it, previous and next are links to `?step=`.
+- Wake lock: requested on entering cook mode and again when the tab becomes visible; "Screen stays on" shows only while the lock is held (it needs HTTPS or localhost).
+- Timers: a step with `timer_seconds` offers "Start 10:00 timer". Several can run; timers of other steps show as chips that jump to their step. A finished timer vibrates, beeps and shows which step it belongs to. Timers live in the browser only (end times in `sessionStorage`, so a reload keeps them).
+- Editor: the method is a list of step rows on every screen size (text plus an optional timer in minutes), replacing the phone textarea; `steps_text`/`steps_orig` go away. A save keeps a step's row when its text is unchanged and updates its timer.
+- **SMTP** (`wneessen/go-mail`) behind a small `internal/mail` interface, faked in tests. Emails are multipart text and HTML, in the recipient's language (user, then household default); invites use the household default.
+- Invites: with SMTP and an email address, creating the invite also emails the link, synchronously with a timeout. The link is shown either way; a failed send shows an error and the invite stays valid. Without SMTP nothing changes.
+- Reset: with SMTP, `/forgot-password` asks for the email address and always answers "Check your inbox". Each account with that address (case-insensitive) and an active membership gets its own email naming its username; tokens are created and sent in the background after the response, so the answer does not reveal whether an account exists. Rate limited per client IP and per address. `/reset/{token}` sets a new password, marks the token used, drops the user's other reset tokens, revokes all their sessions (`sessions.changed`) and signs in on this device. Without SMTP the page keeps "Ask an admin". Expired and used tokens are swept.
+- **Backup** as in Operations: `mise-server backup <dir>` writes `mise-backup-<UTC timestamp>.tar.gz` with the SQLite database (`VACUUM INTO`) and the images directory. On Postgres the archive holds only the images and the docs describe `pg_dump`/`pg_restore`. Restore is documented (stop the server, unpack into the data directory), not a command.
+- **Docs** in `docs/operations.md`: reverse proxy (Caddy, nginx) with SSE buffering off, HTTP/2, `MISE_BASE_URL`, `MISE_TRUSTED_PROXIES`; backup and restore for both engines; SMTP.
 
 ### P5 — Later
 - OIDC, KitchenOwl import, "always have" staples, tablet polish.
