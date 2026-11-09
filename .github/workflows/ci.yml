@@ -62,6 +62,14 @@ jobs:
       - name: Test (SQLite + Postgres)
         run: go test -race ./...
 
+  chart:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: azure/setup-helm@v4
+      - run: helm lint charts/mise
+      - run: helm template mise charts/mise --set smtp.host=mail,smtp.from=mise@example.com >/dev/null
+
   docker:
     runs-on: ubuntu-latest
     steps:

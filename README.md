@@ -21,6 +21,19 @@ The container runs as uid 65532 (distroless `nonroot`). Use a named volume as
 above, or a host directory owned by that uid
 (`sudo chown 65532:65532 ./data`), for `/data`.
 
+### Kubernetes
+
+A Helm chart lives in [`charts/mise`](charts/mise). There is no published
+image yet: build one for your nodes' architecture, push it to your registry
+and set `image.repository` and `image.tag`. The chart runs one replica with
+`Recreate` (live updates are in-process); see its `values.yaml` for the
+database, SMTP and volume settings.
+
+```sh
+helm install mise ./charts/mise --set image.repository=registry.example.com/mise \
+  --set baseURL=https://mise.example.com
+```
+
 ## Configuration
 
 | Variable | Default | |
