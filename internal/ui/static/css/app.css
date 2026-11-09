@@ -692,6 +692,9 @@ select.input { padding-right: 10px; }
 .auth__footer { margin: auto 0 0; text-align: center; font-size: 14px; color: var(--muted); }
 .auth__footer a { font-weight: 600; }
 
+.auth__or { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 13px; }
+.auth__or::before, .auth__or::after { content: ""; flex: 1; border-top: 1px solid var(--surface-2); }
+
 .invited-card {
   display: flex;
   align-items: center;

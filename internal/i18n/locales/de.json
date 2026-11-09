@@ -691,5 +691,20 @@
   "ai.error.modelRequired": "Gib einen Modellnamen ein.",
   "ai.error.modelLong": "Dieser Modellname ist zu lang.",
   "ai.error.key": "Das sieht nicht nach einem API-Schlüssel aus.",
-  "ai.error.keyRequired": "Gib einen API-Schlüssel ein, um den KI-Import mit der Anthropic API einzuschalten."
+  "ai.error.keyRequired": "Gib einen API-Schlüssel ein, um den KI-Import mit der Anthropic API einzuschalten.",
+  "signin.or": "oder",
+  "signin.sso": "Mit %s anmelden",
+  "oidc.error.unavailable": "%s ist gerade nicht erreichbar. Melde dich mit deinem Passwort an oder versuch es später noch einmal.",
+  "oidc.error.failed": "Die Anmeldung mit %s hat nicht geklappt. Versuch es noch einmal.",
+  "oidc.error.expired": "Die Anmeldung hat zu lange gedauert oder wurde in einem anderen Browser gestartet. Versuch es noch einmal.",
+  "oidc.error.noAccount": "Kein mise-Konto verwendet diese E-Mail-Adresse. Bitte einen Admin um eine Einladung.",
+  "oidc.error.unverified": "%s hat deine E-Mail-Adresse nicht bestätigt, daher lässt sie sich keinem mise-Konto zuordnen.",
+  "oidc.error.ambiguous": "Mehrere mise-Konten verwenden diese E-Mail-Adresse, daher ist nicht klar, welches deins ist. Melde dich stattdessen mit deinem Passwort an.",
+  "oidc.error.otherLinked": "Dein mise-Konto ist schon mit einem anderen %s-Konto verknüpft. Melde dich mit deinem Passwort an und heb die Verknüpfung zuerst auf.",
+  "account.sso.title": "Mit %s anmelden",
+  "account.sso.linked": "Verknüpft",
+  "account.sso.notLinked": "Nicht verknüpft. Eine Anmeldung darüber verknüpft dieses Konto über seine E-Mail-Adresse.",
+  "account.sso.unlink": "Verknüpfung aufheben",
+  "account.sso.needsPassword": "Dein Konto hat kein Passwort, ohne Verknüpfung könntest du dich nicht mehr anmelden. Bitte zuerst einen Admin, eins zu setzen.",
+  "notice.ssoUnlinked": "Verknüpfung aufgehoben. Melde dich ab jetzt mit deinem Passwort an."
 }

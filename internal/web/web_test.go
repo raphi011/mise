@@ -9,6 +9,7 @@ import (
 	"net/netip"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -213,6 +214,26 @@ func TestWriteRouteRejectsSafeMethods(t *testing.T) {
 		}()
 	}
 	newRouter().write("POST", "/x", http.NotFoundHandler())
+}
+
+// TestStateChangingGETs checks that the OIDC callback is the only GET route
+// allowed to change state, and only through router.callback.
+func TestStateChangingGETs(t *testing.T) {
+	func() {
+		defer func() {
+			if recover() == nil {
+				t.Error("callback on another path did not panic")
+			}
+		}()
+		newRouter().callback("/signin", http.NotFoundHandler())
+	}()
+
+	s := newServer(t, config.Config{}, storetest.SQLite(t), slog.New(slog.DiscardHandler))
+	r := newRouter()
+	s.routes(r)
+	if want := []string{"GET " + oidcCallbackPath}; !slices.Equal(r.callbacks, want) {
+		t.Errorf("state-changing GET routes %v, want %v", r.callbacks, want)
+	}
 }
 
 func TestClientIP(t *testing.T) {

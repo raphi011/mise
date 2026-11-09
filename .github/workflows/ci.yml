@@ -69,6 +69,7 @@ jobs:
       - uses: azure/setup-helm@v4
       - run: helm lint charts/mise
       - run: helm template mise charts/mise --set smtp.host=mail,smtp.from=mise@example.com >/dev/null
+      - run: helm template mise charts/mise --set oidc.issuer=https://id.example.com,oidc.clientId=mise,oidc.existingSecret.name=mise-oidc >/dev/null
 
   docker:
     runs-on: ubuntu-latest

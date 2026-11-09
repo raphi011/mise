@@ -1,6 +1,9 @@
 {{- if and .Values.smtp.host (not .Values.smtp.from) }}
 {{- fail "smtp.from is required with smtp.host" }}
 {{- end }}
+{{- if and .Values.oidc.issuer (not (and .Values.oidc.clientId .Values.oidc.existingSecret.name)) }}
+{{- fail "oidc.clientId and oidc.existingSecret.name are required with oidc.issuer" }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -100,6 +103,18 @@ spec:
             {{- end }}
             {{- end }}
             {{- end }}
+            {{- with .Values.oidc }}
+            {{- if .issuer }}
+            - name: MISE_OIDC_ISSUER
+              value: {{ .issuer | quote }}
+            - name: MISE_OIDC_CLIENT_ID
+              value: {{ .clientId | quote }}
+            - name: MISE_OIDC_NAME
+              value: {{ .name | quote }}
+            - name: MISE_OIDC_CLIENT_SECRET_FILE
+              value: /etc/mise/oidc/{{ .existingSecret.key }}
+            {{- end }}
+            {{- end }}
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -137,6 +152,11 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /data
+            {{- if .Values.oidc.issuer }}
+            - name: oidc
+              mountPath: /etc/mise/oidc
+              readOnly: true
+            {{- end }}
       volumes:
         - name: data
           {{- if .Values.persistence.enabled }}
@@ -145,6 +165,16 @@ spec:
           {{- else }}
           emptyDir: {}
           {{- end }}
+        {{- if .Values.oidc.issuer }}
+        - name: oidc
+          secret:
+            secretName: {{ .Values.oidc.existingSecret.name }}
+            items:
+              - key: {{ .Values.oidc.existingSecret.key }}
+                path: {{ .Values.oidc.existingSecret.key }}
+            # Owned by root with group fsGroup, so the group must read it.
+            defaultMode: 0440
+        {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

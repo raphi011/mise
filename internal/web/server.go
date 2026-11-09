@@ -24,6 +24,7 @@ import (
 	"github.com/raphi011/mise/internal/mail"
 	"github.com/raphi011/mise/internal/plan"
 	"github.com/raphi011/mise/internal/recipes"
+	"github.com/raphi011/mise/internal/sso"
 	"github.com/raphi011/mise/internal/store"
 	"github.com/raphi011/mise/internal/ui"
 )
@@ -81,6 +82,8 @@ type Server struct {
 	plan      *plan.Service
 	ai        *ai.Service
 	images    *images.Store
+	// sso signs users in with the OIDC provider; nil without one.
+	sso *sso.Client
 	// clock is the current time, for tests; nil means time.Now.
 	clock func() time.Time
 	// heartbeat overrides live.DefaultHeartbeat, for tests.
@@ -122,6 +125,9 @@ func New(cfg config.Config, db *store.DB, log *slog.Logger) (*Server, error) {
 	}
 	if cfg.SMTP.Enabled() {
 		s.mailer = mail.NewSMTP(cfg.SMTP)
+	}
+	if cfg.OIDC.Enabled() {
+		s.sso = sso.New(sso.Config{Issuer: cfg.OIDC.Issuer, ClientID: cfg.OIDC.ClientID, ClientSecret: cfg.OIDC.ClientSecret})
 	}
 	s.live = live.NewHub()
 	s.groceries = groceries.New(s.live, nil)
@@ -169,14 +175,21 @@ func (s *Server) Images() *images.Store { return s.images }
 // MISE_BASE_URL is unset, the stored base URL becomes the public URL and a
 // trusted origin for cross-origin protection.
 func (s *Server) LoadSettings(ctx context.Context) error {
-	if s.cfg.BaseURL != nil {
-		return nil
+	if s.cfg.BaseURL == nil {
+		u, err := s.auth.StoredBaseURL(ctx)
+		if err != nil {
+			return err
+		}
+		if u != nil {
+			if err := s.setBaseURL(u); err != nil {
+				return err
+			}
+		}
 	}
-	u, err := s.auth.StoredBaseURL(ctx)
-	if err != nil || u == nil {
-		return err
+	if s.sso != nil && s.BaseURL() == nil {
+		s.log.WarnContext(ctx, "OIDC is configured but no base URL is known, so the SSO button stays hidden; set MISE_BASE_URL or finish setup")
 	}
-	return s.setBaseURL(u)
+	return nil
 }
 
 func (s *Server) setBaseURL(u *url.URL) error {
@@ -303,6 +316,8 @@ func (s *Server) routes(r *router) {
 	r.read("/invite/{token}", http.HandlerFunc(s.acceptInvitePage))
 	r.write(http.MethodPost, "/invite/{token}", http.HandlerFunc(s.acceptInviteSubmit))
 	r.write(http.MethodPost, "/signout", s.user(s.signOut))
+	r.write(http.MethodPost, "/auth/oidc/start", http.HandlerFunc(s.oidcStart))
+	r.callback(oidcCallbackPath, http.HandlerFunc(s.oidcCallback))
 
 	// App.
 	r.read("/{$}", s.user(http.RedirectHandler("/groceries", http.StatusFound).ServeHTTP))
@@ -366,6 +381,7 @@ func (s *Server) routes(r *router) {
 	r.write(http.MethodPost, "/settings/account/password", s.user(s.changePassword))
 	r.write(http.MethodPost, "/settings/account/sessions/revoke-others", s.user(s.revokeOtherSessions))
 	r.write(http.MethodPost, "/settings/account/sessions/{id}/revoke", s.user(s.revokeSession))
+	r.write(http.MethodPost, "/settings/account/sso/unlink", s.user(s.unlinkSSO))
 	r.write(http.MethodPost, "/settings/lists", s.user(s.createList))
 	r.write(http.MethodPost, "/settings/lists/{id}/rename", s.user(s.renameList))
 	r.write(http.MethodPost, "/settings/lists/{id}/move", s.user(s.moveList))

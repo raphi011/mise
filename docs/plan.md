@@ -65,6 +65,7 @@ Env vars (flags mirror them):
 | `MISE_SMTP_TLS` | `starttls` | `starttls`, `tls` (implicit, usually port 465) or `none` |
 | `MISE_SMTP_USERNAME`, `MISE_SMTP_PASSWORD` | unset | auth, when the server needs it |
 | `MISE_SMTP_FROM` | required with host | sender address, e.g. `mise <mise@example.com>` |
+| `MISE_OIDC_ISSUER`, `MISE_OIDC_CLIENT_ID`, `MISE_OIDC_CLIENT_SECRET` (or `_FILE`), `MISE_OIDC_NAME` | unset, name `SSO` | optional single sign-on next to passwords (see Auth) |
 
 ## Architecture
 
@@ -140,6 +141,7 @@ All tables also have `household_id` (except `households`, `users`) and `created_
 | cook_events | id, recipe_id, user_id, cooked_at (table created in P2 for the library's filters and sorts; written from P3 on) |
 | ai_settings | household_id (PK), enabled, provider, endpoint, model, api_key_enc, allow_fetch_page, allow_search_items, allow_create_item, tested_at, test_ok (P6) |
 | import_jobs | id, user_id, source_url, source_text, status, steps (JSON), draft (JSON), error_code, error_detail, started_at, finished_at (P6) |
+| user_identities | issuer, subject (primary key), user_id (unique per issuer, cascades with the user), created_at; global like sessions |
 
 Derived, not stored: "on a list" per ingredient, times cooked (count of `cook_events`), "not cooked in a month", suggestion ranking.
 
@@ -156,7 +158,7 @@ Derived, not stored: "on a list" per ingredient, times cooked (count of `cook_ev
 - Editing categories, items, tags, lists: everyone.
 - Live updates: SSE.
 - Amounts: structured quantity (decimal) + unit + original text; scaling acts on the structured part, free text like "1 thumb" is left as is. The parser is locale-aware: decimal comma ("1,5 kg"), fractions ("½", "1/2"), English and German units ("EL", "TL", "Prise", "Bund").
-- SSO: later (OIDC via `coreos/go-oidc`).
+- SSO: OIDC via `coreos/go-oidc`, optional and next to passwords (see Auth).
 - KitchenOwl import: later.
 
 ### Time and locale
@@ -194,10 +196,11 @@ Derived, not stored: "on a list" per ingredient, times cooked (count of `cook_ev
 - Invites: copyable link (always), email if SMTP is configured; token stored hashed; role chosen at invite time.
 - Reset: admin reset under Settings › People (P1a); with SMTP, self-service by email (P4): the link is valid 1 h and single-use.
 - Roles enforced in middleware for admin routes (people, AI settings).
+- SSO (optional): authorization code + PKCE; state, nonce and verifier in a 10-minute HttpOnly cookie on `/auth/oidc/`. `POST /auth/oidc/start` redirects to the provider; `GET /auth/oidc/callback` is the one state-changing GET (registered through `router.callback`, which the router test pins). `user_identities` (issuer, subject → user, migration `00008_oidc`) links an identity on first sign-in to the one active account with its verified email; SSO never creates accounts. Unlink on the Account page needs a password; member removal drops links. Callback attempts share the sign-in per-IP limit. Details in `docs/operations.md`.
 
 ### Images
 
-- Upload via form, max 15 MB. Before decoding, `image.DecodeConfig` rejects images over 40 megapixels.
+- Upload via form, max 15 MB. Before decoding, `image.DecodeConfig` rejects images over 40 megapixels. One upload decodes at a time (a 40 MP decode is about 160 MB); a request waiting for its turn gives up when it is cancelled.
 - Accepted: JPEG, PNG, WebP (sniffed from bytes, not the extension). HEIC/HEIF is detected and rejected with a clear message ("Convert to JPEG or pick from Photos"). The file input lists `image/jpeg` first, which makes iOS convert when picking from Photos; picks from Files and macOS uploads can still send HEIC.
 - EXIF orientation is read and applied before re-encoding (which strips all metadata).
 - Output: original capped at 2400 px long edge and a 600 px thumbnail, both JPEG.
@@ -316,7 +319,7 @@ Each phase ends with something usable and is merged before the next starts.
 - **Docs** in `docs/operations.md`: reverse proxy (Caddy, nginx) with SSE buffering off, HTTP/2, `MISE_BASE_URL`, `MISE_TRUSTED_PROXIES`; backup and restore for both engines; SMTP.
 
 ### P5 — Later
-- OIDC, KitchenOwl import, "always have" staples, tablet polish.
+- KitchenOwl import, "always have" staples, tablet polish. (OIDC is done; see Auth.)
 
 ### P6 — AI import
 - As decided in AI import above. P5 stays later; P6 goes first.
