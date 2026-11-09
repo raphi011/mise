@@ -357,7 +357,7 @@ func TestNoGETWriteRoutes(t *testing.T) {
 	s := newServer(t, config.Config{}, storetest.SQLite(t), slog.New(slog.DiscardHandler))
 	r := newRouter()
 	s.routes(r)
-	verbs := []string{"/favourite", "/toggle", "/restore", "/remove", "/check", "/uncheck", "/revoke", "/move", "/restore-cart", "/signout", "/entries", "/invites", "/role", "/password", "/revoke-others"}
+	verbs := []string{"/favourite", "/toggle", "/restore", "/remove", "/check", "/uncheck", "/revoke", "/move", "/restore-cart", "/signout", "/entries", "/invites", "/role", "/password", "/revoke-others", "/pin", "/merge", "/rename"}
 	posts := map[string]bool{}
 	for _, p := range r.patterns {
 		method, path, _ := strings.Cut(p, " ")
@@ -378,5 +378,67 @@ func TestNoGETWriteRoutes(t *testing.T) {
 		if !posts[path] {
 			t.Errorf("no write route %s", path)
 		}
+	}
+}
+
+var tagActionRe = regexp.MustCompile(`action="/settings/tags/([0-9a-f-]{36})/rename"`)
+
+// tagIDs returns the tag IDs on the tags page, in order.
+func tagIDs(t *testing.T, b *browser) []string {
+	t.Helper()
+	var ids []string
+	for _, m := range tagActionRe.FindAllStringSubmatch(b.get("/settings/tags").expect(t, "tags", http.StatusOK).body, -1) {
+		ids = append(ids, m[1])
+	}
+	return ids
+}
+
+// TestTagSettings checks Settings › Recipe tags, which every member may
+// edit.
+func TestTagSettings(t *testing.T) {
+	_, srv := startServer(t, storetest.SQLite(t))
+	anna, ben := household(t, srv)
+	createRecipe(t, anna, stickyTofu()) // tags Asian, Vegan
+
+	if overview := ben.get("/settings").body; !strings.Contains(overview, `href="/settings/tags"`) {
+		t.Error("settings overview does not link the tags")
+	}
+	ben.post("/settings/tags", url.Values{"name": {"Soup"}}).expect(t, "add tag", http.StatusSeeOther, "/settings/tags?done=created")
+	res := ben.post("/settings/tags", url.Values{"name": {"vegan"}}).expect(t, "duplicate", http.StatusUnprocessableEntity)
+	if !strings.Contains(res.body, "There&#39;s already a tag with that name.") {
+		t.Errorf("duplicate tag:\n%.2000s", res.body)
+	}
+	ids := tagIDs(t, ben) // Asian, Soup, Vegan
+	if len(ids) != 3 {
+		t.Fatalf("tags: %v", ids)
+	}
+	asian, soup, vegan := ids[0], ids[1], ids[2]
+
+	ben.post("/settings/tags/"+asian+"/rename", url.Values{"name": {"Asian food"}}).expect(t, "rename", http.StatusSeeOther)
+	res = ben.post("/settings/tags/"+asian+"/rename", url.Values{"name": {"Soup"}}).expect(t, "rename to taken", http.StatusUnprocessableEntity)
+	if !strings.Contains(res.body, "There&#39;s already a tag with that name.") {
+		t.Errorf("rename to a taken name:\n%.2000s", res.body)
+	}
+
+	// A pinned tag is a quick filter on Recipes.
+	ben.post("/settings/tags/"+vegan+"/pin", url.Values{"pinned": {"true"}}).expect(t, "pin", http.StatusSeeOther)
+	lib := ben.get("/recipes").body
+	if !strings.Contains(lib, `href="/recipes?tag=`+vegan+`"`) || !strings.Contains(ben.get("/settings/tags").body, "Quick filter") {
+		t.Errorf("pinned tag is no quick filter:\n%.3000s", lib)
+	}
+
+	// Merging moves the recipes; deleting keeps them.
+	ben.post("/settings/tags/"+vegan+"/merge", url.Values{"into": {soup}}).expect(t, "merge", http.StatusSeeOther, "/settings/tags?done=merged")
+	if ids := tagIDs(t, ben); len(ids) != 2 {
+		t.Errorf("after merge: %v", ids)
+	}
+	if soupLib := ben.get("/recipes?tag=" + soup).body; !strings.Contains(soupLib, "Sticky tofu") {
+		t.Error("merged recipe not under the target tag")
+	}
+	ben.post("/settings/tags/"+soup+"/merge", url.Values{"into": {soup}}).expect(t, "merge into itself", http.StatusBadRequest)
+	ben.post("/settings/tags/"+asian+"/delete", nil).expect(t, "delete", http.StatusSeeOther, "/settings/tags?done=deleted")
+	ben.post("/settings/tags/"+asian+"/delete", nil).expect(t, "delete again", http.StatusNotFound)
+	if lib := ben.get("/recipes").body; !strings.Contains(lib, "Sticky tofu") {
+		t.Error("recipe gone with its tag")
 	}
 }

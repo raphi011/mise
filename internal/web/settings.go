@@ -113,10 +113,15 @@ func (s *Server) renderSettings(w http.ResponseWriter, r *http.Request, status i
 		s.serverError(w, r, err)
 		return
 	}
+	tags, err := s.recipes.Tags(ctx, sc)
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
 	v := ui.SettingsView{
 		Name: id.Name, Username: id.Username, Color: id.AvatarColor, Admin: id.IsAdmin(),
 		Prefs: st.prefs, Notice: st.notice,
-		ListForm: st.list, ListFormID: st.listID, UndoList: st.undoList, Categories: len(cats),
+		ListForm: st.list, ListFormID: st.listID, UndoList: st.undoList, Categories: len(cats), Tags: len(tags),
 		Themes: []ui.Option{
 			{Value: "system", Label: i18n.T(ctx, "theme.system")},
 			{Value: "light", Label: i18n.T(ctx, "theme.light")},

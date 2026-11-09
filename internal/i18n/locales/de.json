@@ -346,5 +346,12 @@
   "recipes.delete.confirm": "Rezept löschen",
   "recipes.delete.keep": "Behalten",
   "recipes.toast.deleted": "Rezept gelöscht",
-  "recipes.photo.heic": "HEIC-Fotos werden nicht unterstützt. Wandle sie in JPEG um oder wähle sie aus Fotos."
+  "recipes.photo.heic": "HEIC-Fotos werden nicht unterstützt. Wandle sie in JPEG um oder wähle sie aus Fotos.",
+  "settings.recipes": "Rezepte",
+  "settings.tags": "Schlagwörter",
+  "tags.title": "Schlagwörter",
+  "tags.add": "Hinzufügen",
+  "tags.merge": "Zusammenführen",
+  "tags.recipes": "Rezepte",
+  "notice.tagDeleted": "Schlagwort gelöscht."
 }

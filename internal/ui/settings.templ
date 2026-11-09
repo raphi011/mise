@@ -28,6 +28,8 @@ type SettingsView struct {
 	UndoList string
 	// Categories counts the household's categories.
 	Categories int
+	// Tags counts the household's recipe tags.
+	Tags int
 }
 
 // MemberRow is one person in the People list.
@@ -65,6 +67,7 @@ templ Settings(p Page, v SettingsView) {
 				<a href="#people">{ i18n.T(ctx, "settings.people") }</a>
 				<a href="#lists">{ i18n.T(ctx, "settings.lists") }</a>
 				<a href="#groceries">{ i18n.T(ctx, "settings.groceries") }</a>
+				<a href="#recipes">{ i18n.T(ctx, "settings.recipes") }</a>
 				<a href="#app">{ i18n.T(ctx, "settings.appAccount") }</a>
 			</nav>
 			<div class="settings-body">
@@ -127,6 +130,20 @@ templ Settings(p Page, v SettingsView) {
 							<a class="list__link" href="/settings/categories">
 								<span class="list__text">{ i18n.T(ctx, "settings.categories") }</span>
 								<span class="role-label">{ itoa(v.Categories) }</span>
+								@chevron()
+							</a>
+						</li>
+					</ul>
+				</section>
+				<section class="settings-section" id="recipes" aria-labelledby="recipes-title">
+					<div class="settings-section__head">
+						<h2 class="settings-section__title" id="recipes-title">{ i18n.T(ctx, "settings.recipes") }</h2>
+					</div>
+					<ul class="list" role="list">
+						<li class="list__row">
+							<a class="list__link" href="/settings/tags">
+								<span class="list__text">{ i18n.T(ctx, "settings.tags") }</span>
+								<span class="role-label">{ itoa(v.Tags) }</span>
 								@chevron()
 							</a>
 						</li>

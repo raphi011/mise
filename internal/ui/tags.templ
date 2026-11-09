@@ -1,0 +1,126 @@
+package ui
+
+import "github.com/raphi011/mise/internal/i18n"
+
+// TagsView is Settings › Recipe tags.
+type TagsView struct {
+	Tags []TagRow
+	// New holds the new-tag form.
+	New Form
+	// Edit holds the form of the tag EditID after an error.
+	EditID string
+	Edit   Form
+	Notice string
+}
+
+// TagRow is one tag with its recipe count.
+type TagRow struct {
+	ID     string
+	Name   string
+	Pinned bool
+	Count  int
+}
+
+// tagForm is the rename form of tag t.
+func tagForm(v TagsView, t TagRow) Form {
+	if v.EditID == t.ID {
+		return v.Edit
+	}
+	return Form{Values: map[string]string{"name": t.Name}}
+}
+
+templ Tags(p Page, v TagsView) {
+	@Layout(p) {
+		<div class="narrow stack">
+			@notice(v.Notice)
+			<p class="lead">{ i18n.T(ctx, "tags.lead") }</p>
+			<form class="card stack" method="post" action="/settings/tags" novalidate>
+				@formAlert(v.New)
+				@textField(Field{ID: "new-tag-name", Name: "name", Label: i18n.T(ctx, "tags.new"), Required: true, Attrs: templ.Attributes{"placeholder": i18n.T(ctx, "tags.newPlaceholder"), "autocomplete": "off"}}, v.New)
+				<div>
+					<button class="btn btn--secondary btn--small" type="submit">{ i18n.T(ctx, "tags.add") }</button>
+				</div>
+			</form>
+			<section class="stack" aria-labelledby="tags-title">
+				<div class="list-group__head">
+					<h2 class="section-title" id="tags-title">{ plural(ctx, len(v.Tags), "tags.countOne", "tags.count") }</h2>
+					<span class="list-group__count">{ i18n.T(ctx, "tags.recipes") }</span>
+				</div>
+				if len(v.Tags) == 0 {
+					<section class="empty">
+						<p>{ i18n.T(ctx, "tags.empty") }</p>
+					</section>
+				} else {
+					<ul class="list" role="list">
+						for _, t := range v.Tags {
+							@tagRow(v, t)
+						}
+					</ul>
+				}
+				<span class="settings-section__foot">{ i18n.T(ctx, "tags.footer") }</span>
+			</section>
+		</div>
+	}
+}
+
+templ tagRow(v TagsView, t TagRow) {
+	<li class="list__row">
+		<details class="disclosure" open?={ v.EditID == t.ID }>
+			<summary class="list__link" aria-label={ i18n.T(ctx, "tags.options", t.Name) }>
+				<span class="list__text">
+					<span>{ t.Name }</span>
+					if t.Pinned {
+						<span class="role-label role-label--pending">{ i18n.T(ctx, "tags.quickFilter") }</span>
+					}
+				</span>
+				<span class="role-label">{ itoa(t.Count) }</span>
+				@chevron()
+			</summary>
+			<div class="stack disclosure__body">
+				<form class="stack" method="post" action={ templ.SafeURL("/settings/tags/" + t.ID + "/rename") } novalidate>
+					if v.EditID == t.ID {
+						@formAlert(v.Edit)
+					}
+					@textField(Field{ID: "tag-name-" + t.ID, Name: "name", Label: i18n.T(ctx, "field.name"), Required: true, Hint: i18n.T(ctx, "tags.renameHint"), Attrs: templ.Attributes{"autocomplete": "off"}}, tagForm(v, t))
+					<div>
+						<button class="btn btn--secondary btn--small" type="submit">{ i18n.T(ctx, "settings.rename") }</button>
+					</div>
+				</form>
+				<div class="settings-actions">
+					if t.Pinned {
+						@postButton("/settings/tags/"+t.ID+"/pin", i18n.T(ctx, "tags.unpin"), "btn btn--ghost btn--small", map[string]string{"pinned": "false"})
+					} else {
+						@postButton("/settings/tags/"+t.ID+"/pin", i18n.T(ctx, "tags.pin"), "btn btn--ghost btn--small", map[string]string{"pinned": "true"})
+					}
+				</div>
+				if len(v.Tags) > 1 {
+					<form class="stack" method="post" action={ templ.SafeURL("/settings/tags/" + t.ID + "/merge") }>
+						<div class="field">
+							<label class="field__label" for={ "tag-merge-" + t.ID }>{ i18n.T(ctx, "tags.mergeInto") }</label>
+							<select class="input" id={ "tag-merge-" + t.ID } name="into" aria-describedby={ "tag-merge-hint-" + t.ID }>
+								for _, o := range v.Tags {
+									if o.ID != t.ID {
+										<option value={ o.ID }>{ o.Name }</option>
+									}
+								}
+							</select>
+							<span class="field__hint" id={ "tag-merge-hint-" + t.ID }>{ i18n.T(ctx, "tags.mergeHint", t.Name) }</span>
+						</div>
+						<div>
+							<button class="btn btn--secondary btn--small" type="submit">{ i18n.T(ctx, "tags.merge") }</button>
+						</div>
+					</form>
+				}
+				<details class="disclosure disclosure--danger">
+					<summary class="disclosure__summary">{ i18n.T(ctx, "tags.delete") }</summary>
+					<div class="stack disclosure__body">
+						<p>{ plural(ctx, t.Count, "tags.deleteNoteOne", "tags.deleteNote") }</p>
+						<div>
+							@postButton("/settings/tags/"+t.ID+"/delete", i18n.T(ctx, "tags.deleteConfirm", t.Name), "btn btn--destructive", nil)
+						</div>
+					</div>
+				</details>
+			</div>
+		</details>
+	</li>
+}
