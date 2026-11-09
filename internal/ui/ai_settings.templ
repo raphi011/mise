@@ -1,0 +1,112 @@
+package ui
+
+import (
+	"context"
+
+	"github.com/raphi011/mise/internal/i18n"
+)
+
+// AISettingsView is Settings › AI import (admins).
+type AISettingsView struct {
+	// Form holds the submitted or stored values; checkboxes are "on" when
+	// set. The API key is never part of it.
+	Form      Form
+	Providers []Option
+	// HasKey is set when a key is stored; KeyUnreadable when this server
+	// can't decrypt it.
+	HasKey        bool
+	KeyUnreadable bool
+	Notice        string
+}
+
+templ AISettings(p Page, v AISettingsView) {
+	@Layout(p) {
+		<form class="narrow stack" method="post" action="/settings/ai" novalidate>
+			@notice(v.Notice)
+			@formAlert(v.Form)
+			<div class="card">
+				<label class="toggle-row">
+					<span class="toggle-row__text">
+						<span class="toggle-row__title">{ i18n.T(ctx, "ai.settings.enabled") }</span>
+						<span class="muted">{ i18n.T(ctx, "ai.settings.enabledNote") }</span>
+					</span>
+					<input type="checkbox" role="switch" name="enabled" checked?={ v.Form.Value("enabled") != "" }/>
+				</label>
+			</div>
+			<section class="stack" aria-labelledby="ai-connection-title">
+				<h2 class="section-title" id="ai-connection-title">{ i18n.T(ctx, "ai.settings.connection") }</h2>
+				<div class="card stack">
+					<div class="field">
+						<label class="field__label" for="ai-provider">{ i18n.T(ctx, "ai.settings.provider") }</label>
+						<select
+							class="input"
+							id="ai-provider"
+							name="provider"
+							if v.Form.Error("provider") != "" {
+								aria-invalid="true"
+								aria-describedby="ai-provider-error"
+							}
+						>
+							for _, o := range v.Providers {
+								<option value={ o.Value } selected?={ v.Form.Value("provider") == o.Value }>{ o.Label }</option>
+							}
+						</select>
+						@fieldError("ai-provider-error", v.Form.Error("provider"))
+					</div>
+					@textField(Field{ID: "ai-endpoint", Name: "endpoint", Label: i18n.T(ctx, "ai.settings.endpoint"), Type: "url",
+						Autocomplete: "off", Hint: i18n.T(ctx, "ai.settings.endpointHint")}, v.Form)
+					@textField(Field{ID: "ai-model", Name: "model", Label: i18n.T(ctx, "ai.settings.model"),
+						Autocomplete: "off", Hint: i18n.T(ctx, "ai.settings.modelHint")}, v.Form)
+					if v.KeyUnreadable {
+						<p class="alert" role="alert">{ i18n.T(ctx, "ai.settings.keyUnreadable") }</p>
+					}
+					@textField(Field{ID: "ai-key", Name: "api_key", Label: i18n.T(ctx, "ai.settings.key"), Type: "password",
+						Autocomplete: "off", Hint: keyHint(ctx, v), LabelNote: keyNote(ctx, v)}, v.Form)
+				</div>
+			</section>
+			<section class="stack" aria-labelledby="ai-tools-title">
+				<h2 class="section-title" id="ai-tools-title">{ i18n.T(ctx, "ai.settings.tools") }</h2>
+				<div class="card toggle-rows">
+					@toolSwitch(v.Form, "allow_fetch_page", "ai.tool.fetchPage", "ai.tool.fetchPageNote")
+					@toolSwitch(v.Form, "allow_search_items", "ai.tool.searchItems", "ai.tool.searchItemsNote")
+					@toolSwitch(v.Form, "allow_create_item", "ai.tool.createItem", "ai.tool.createItemNote")
+					<div class="toggle-row">
+						<span class="toggle-row__text">
+							<span class="toggle-row__title">{ i18n.T(ctx, "ai.tool.createRecipe") }</span>
+							<span class="muted">{ i18n.T(ctx, "ai.tool.createRecipeNote") }</span>
+						</span>
+						<span class="role-label">{ i18n.T(ctx, "ai.tool.always") }</span>
+					</div>
+				</div>
+				<span class="settings-section__foot">{ i18n.T(ctx, "ai.settings.toolsFoot") }</span>
+			</section>
+			<div>
+				<button class="btn btn--primary" type="submit">{ i18n.T(ctx, "form.save") }</button>
+			</div>
+		</form>
+	}
+}
+
+templ toolSwitch(f Form, name string, title, note i18n.Key) {
+	<label class="toggle-row">
+		<span class="toggle-row__text">
+			<span class="toggle-row__title">{ i18n.T(ctx, title) }</span>
+			<span class="muted">{ i18n.T(ctx, note) }</span>
+		</span>
+		<input type="checkbox" role="switch" name={ name } checked?={ f.Value(name) != "" }/>
+	</label>
+}
+
+func keyHint(ctx context.Context, v AISettingsView) string {
+	if v.HasKey && !v.KeyUnreadable {
+		return i18n.T(ctx, "ai.settings.keyStored")
+	}
+	return i18n.T(ctx, "ai.settings.keyHint")
+}
+
+func keyNote(ctx context.Context, v AISettingsView) string {
+	if v.HasKey && !v.KeyUnreadable {
+		return i18n.T(ctx, "ai.settings.keyReplace")
+	}
+	return ""
+}

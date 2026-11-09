@@ -130,6 +130,14 @@ func (s *Server) renderSettings(w http.ResponseWriter, r *http.Request, status i
 		},
 		Languages: languageOptions(r),
 	}
+	if id.IsAdmin() {
+		ai, err := s.ai.Settings(ctx, sc)
+		if err != nil {
+			s.serverError(w, r, err)
+			return
+		}
+		v.AIEnabled = ai.Enabled
+	}
 	for _, l := range lists {
 		v.Lists = append(v.Lists, ui.ListTab{ID: l.ID.String(), Name: l.Name, Open: l.Open})
 	}

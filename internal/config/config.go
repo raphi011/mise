@@ -35,6 +35,9 @@ type Config struct {
 	LogLevel slog.Level
 	// SMTP configures outgoing email; without a host there is none.
 	SMTP SMTP
+	// SecretKey is the base64 AES-256 key for stored API keys; empty means
+	// the key generated into the data directory.
+	SecretKey string
 }
 
 // SMTP TLS modes.
@@ -90,6 +93,7 @@ func load(args []string, getenv func(string) string, out io.Writer) (Config, err
 	smtpTLS := str("smtp-tls", "MISE_SMTP_TLS", TLSStartTLS, "SMTP TLS mode: starttls, tls (implicit) or none")
 	smtpUser := str("smtp-username", "MISE_SMTP_USERNAME", "", "SMTP username")
 	smtpPass := str("smtp-password", "MISE_SMTP_PASSWORD", "", "SMTP password")
+	secretKey := str("secret-key", "MISE_SECRET_KEY", "", "base64 32-byte key for stored API keys; default generated into the data directory")
 	smtpFrom := str("smtp-from", "MISE_SMTP_FROM", "", "sender address, e.g. 'mise <mise@example.com>'")
 	if err := fs.Parse(args); err != nil {
 		return Config{}, err
@@ -117,6 +121,7 @@ func load(args []string, getenv func(string) string, out io.Writer) (Config, err
 		DB:        *db,
 		Listen:    *listen,
 		LogFormat: *logFormat,
+		SecretKey: *secretKey,
 	}
 	if cfg.DB == "" {
 		cfg.DB = "sqlite://" + filepath.Join(cfg.DataDir, "mise.db")

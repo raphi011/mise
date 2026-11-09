@@ -127,3 +127,10 @@ func TestLoadSMTP(t *testing.T) {
 		t.Errorf("SMTP defaults = %+v, %v", cfg.SMTP, err)
 	}
 }
+
+func TestLoadSecretKey(t *testing.T) {
+	cfg, err := Load(nil, envMap(map[string]string{"MISE_SECRET_KEY": "a2V5"}))
+	if err != nil || cfg.SecretKey != "a2V5" {
+		t.Errorf("SecretKey = %q, %v", cfg.SecretKey, err)
+	}
+}

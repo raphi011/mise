@@ -14,6 +14,7 @@ import (
 
 	"github.com/a-h/templ"
 
+	"github.com/raphi011/mise/internal/ai"
 	"github.com/raphi011/mise/internal/auth"
 	"github.com/raphi011/mise/internal/config"
 	"github.com/raphi011/mise/internal/groceries"
@@ -78,6 +79,7 @@ type Server struct {
 	groceries *groceries.Service
 	recipes   *recipes.Service
 	plan      *plan.Service
+	ai        *ai.Service
 	images    *images.Store
 	// clock is the current time, for tests; nil means time.Now.
 	clock func() time.Time
@@ -126,6 +128,15 @@ func New(cfg config.Config, db *store.DB, log *slog.Logger) (*Server, error) {
 	s.recipes = recipes.New(s.live, s.groceries, nil)
 	s.plan = plan.New(s.live, s.recipes, s.now)
 	s.images = images.New(cfg.DataDir)
+	key, err := ai.LoadKey(cfg.SecretKey, cfg.DataDir)
+	if err != nil {
+		return nil, err
+	}
+	box, err := ai.NewBox(key)
+	if err != nil {
+		return nil, err
+	}
+	s.ai = ai.New(ai.Config{Box: box, Now: s.now})
 	s.auth = auth.New(db, auth.Config{Log: log, SecureCookie: s.secureCookie, OnSetup: s.seedHousehold})
 	if cfg.BaseURL != nil {
 		if err := s.setBaseURL(cfg.BaseURL); err != nil {
@@ -367,6 +378,8 @@ func (s *Server) routes(r *router) {
 	r.write(http.MethodPost, "/settings/tags/{id}/pin", s.user(s.pinTag))
 	r.write(http.MethodPost, "/settings/tags/{id}/merge", s.user(s.mergeTag))
 	r.write(http.MethodPost, "/settings/tags/{id}/delete", s.user(s.deleteTag))
+	r.read("/settings/ai", s.admin(s.aiSettingsPage))
+	r.write(http.MethodPost, "/settings/ai", s.admin(s.saveAISettings))
 	r.read("/settings/invite", s.admin(s.invitePage))
 	r.write(http.MethodPost, "/settings/invites", s.admin(s.createInvite))
 	r.write(http.MethodPost, "/settings/invites/{id}/revoke", s.admin(s.revokeInvite))

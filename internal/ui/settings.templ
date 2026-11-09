@@ -30,6 +30,8 @@ type SettingsView struct {
 	Categories int
 	// Tags counts the household's recipe tags.
 	Tags int
+	// AIEnabled is whether AI import is on (shown to admins only).
+	AIEnabled bool
 }
 
 // MemberRow is one person in the People list.
@@ -147,6 +149,19 @@ templ Settings(p Page, v SettingsView) {
 								@chevron()
 							</a>
 						</li>
+						if v.Admin {
+							<li class="list__row">
+								<a class="list__link" href="/settings/ai">
+									<span class="list__text">{ i18n.T(ctx, "settings.ai") }</span>
+									if v.AIEnabled {
+										<span class="role-label">{ i18n.T(ctx, "settings.on") }</span>
+									} else {
+										<span class="role-label">{ i18n.T(ctx, "settings.off") }</span>
+									}
+									@chevron()
+								</a>
+							</li>
+						}
 					</ul>
 				</section>
 				<section class="settings-section" id="app" aria-labelledby="app-title">

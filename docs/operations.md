@@ -115,6 +115,12 @@ mise.db           SQLite only: a consistent copy, made with VACUUM INTO
 images/...        recipe photos
 ```
 
+The archive leaves out `secret.key`, the key that encrypts stored AI API
+keys, so an archive alone can't reveal them. Restoring on a new machine
+without it (and without `MISE_SECRET_KEY`) keeps everything but the API key,
+which an admin enters again under Settings › AI import. To avoid that, back
+up `secret.key` separately or set `MISE_SECRET_KEY`.
+
 Keep the archives off the data directory's disk or volume: a lost volume
 takes them with it, and a restore replaces the volume's contents. With
 Docker, mount a backup directory into the container, writable by uid 65532
@@ -253,3 +259,21 @@ Username and password are set together or not at all. `MISE_SMTP_FROM` is
 required and must be an address the server lets you send from. Email links
 are built from `MISE_BASE_URL` (or the URL stored at setup); without either,
 no email is sent.
+
+## AI import
+
+Recipe links import without a model when the page carries schema.org
+recipe data, which most large recipe sites do. For other pages and pasted
+text an admin connects a model under Settings › AI import: the Anthropic
+API, an OpenAI-compatible API, or a local Ollama server.
+
+The API key is stored encrypted (AES-256-GCM) with a key that mise
+generates into `$MISE_DATA_DIR/secret.key` on first start. To manage that
+key yourself, set `MISE_SECRET_KEY` to 32 random bytes, base64-encoded:
+
+```sh
+openssl rand -base64 32
+```
+
+Changing the key makes stored API keys unreadable; the settings page then
+asks for them again.
