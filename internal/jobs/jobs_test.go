@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/text/language"
 
+	"github.com/raphi011/mise/internal/ai"
 	"github.com/raphi011/mise/internal/groceries"
 	"github.com/raphi011/mise/internal/images"
 	"github.com/raphi011/mise/internal/recipes"
@@ -332,6 +333,45 @@ func TestSweepResets(t *testing.T) {
 		}
 		if got, err := s.Sweep(ctx); err != nil || got != (Swept{}) {
 			t.Errorf("second sweep: %+v, %v", got, err)
+		}
+	})
+}
+
+func TestSweepImports(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		ctx := t.Context()
+		now := time.Date(2026, 11, 9, 12, 0, 0, 0, time.UTC)
+		hh := storetest.NewHousehold(t, db, "home")
+		insert := func(status string, finished *time.Time) uuid.UUID {
+			t.Helper()
+			id := store.NewID()
+			var fin any
+			if finished != nil {
+				fin = store.T(*finished)
+			}
+			err := db.System().Tx(ctx, func(ctx context.Context, q store.Querier) error {
+				_, err := q.Exec(ctx, `INSERT INTO import_jobs (id, household_id, user_id, source_url, status, steps, finished_at, created_at, updated_at)
+					VALUES (?, ?, ?, 'https://example.com/r', ?, '[]', ?, ?, ?)`, id, hh.ID, hh.Admin, status, fin, store.T(now), store.T(now))
+				return err
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return id
+		}
+		old := now.Add(-ai.ReadyRetention - time.Minute)
+		recent := now.Add(-ai.ReadyRetention + time.Minute)
+		insert("ready", &old)
+		insert("failed", &old)
+		insert("canceled", &recent)
+		keep := []uuid.UUID{insert("ready", &recent), insert("failed", &recent), insert("running", nil), insert("queued", nil)}
+		s := NewSweeper(db, slog.New(slog.DiscardHandler), func() time.Time { return now }, 0)
+		if got, err := s.Sweep(ctx); err != nil || got != (Swept{Imports: 3}) {
+			t.Fatalf("sweep: %+v, %v", got, err)
+		}
+		var ids []uuid.UUID
+		if err := db.System().Read().Select(ctx, &ids, `SELECT id FROM import_jobs`); err != nil || len(ids) != len(keep) {
+			t.Errorf("imports left: %v, %v (want %v)", ids, err, keep)
 		}
 	})
 }

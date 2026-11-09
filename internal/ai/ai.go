@@ -2,10 +2,12 @@ package ai
 
 import (
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/raphi011/mise/internal/groceries"
 	"github.com/raphi011/mise/internal/recipes"
+	"github.com/raphi011/mise/internal/store"
 )
 
 // ProviderFunc builds a Model for a connection.
@@ -22,6 +24,11 @@ type Service struct {
 	box         *Box
 	now         func() time.Time
 	newProvider ProviderFunc
+	db          *store.DB
+	pub         UserPublisher
+	log         *slog.Logger
+	run         *runner
+	jobTimeout  time.Duration
 }
 
 // Config configures a Service.
@@ -35,6 +42,13 @@ type Config struct {
 	Fetcher *Fetcher
 	// Now defaults to time.Now.
 	Now func() time.Time
+	// DB runs import jobs across households (Run); Publisher tells the
+	// importer's pages about progress. Both may be nil in tests that do
+	// not run jobs.
+	DB        *store.DB
+	Publisher UserPublisher
+	// Log defaults to discarding.
+	Log *slog.Logger
 	// Provider builds model clients; nil means Clients{}.New. Tests pass
 	// fakes.
 	Provider ProviderFunc
@@ -42,7 +56,11 @@ type Config struct {
 
 // New returns a Service.
 func New(cfg Config) *Service {
-	s := &Service{box: cfg.Box, groceries: cfg.Groceries, recipes: cfg.Recipes, fetcher: cfg.Fetcher, now: cfg.Now, newProvider: cfg.Provider}
+	s := &Service{box: cfg.Box, groceries: cfg.Groceries, recipes: cfg.Recipes, fetcher: cfg.Fetcher, now: cfg.Now,
+		newProvider: cfg.Provider, db: cfg.DB, pub: cfg.Publisher, log: cfg.Log, run: newRunner(), jobTimeout: JobTimeout}
+	if s.log == nil {
+		s.log = slog.New(slog.DiscardHandler)
+	}
 	if s.fetcher == nil {
 		s.fetcher = NewFetcher()
 	}

@@ -166,8 +166,11 @@ func unwrapFetchErr(err error) error {
 			return fmt.Errorf("%w: %w", target, err)
 		}
 	}
-	return fmt.Errorf("ai: fetch: %w", err)
+	return fmt.Errorf("%w: %w", errFetch, err)
 }
+
+// errFetch wraps network failures of a fetch.
+var errFetch = errors.New("ai: fetch")
 
 // ParseURL accepts an absolute http or https URL without credentials. The
 // port is checked when dialling, with the address.

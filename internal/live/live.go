@@ -45,6 +45,9 @@ const (
 	// SessionsChanged: sessions of UserID ended (sign-out, revoke, password
 	// change, removal). Streams of that user re-check their session.
 	SessionsChanged Kind = "sessions.changed"
+	// ImportChanged: the recipe import JobID of UserID made progress,
+	// finished or went away. It goes to that user only.
+	ImportChanged Kind = "import.changed"
 )
 
 // Event is one change.
@@ -53,6 +56,7 @@ type Event struct {
 	ListID   uuid.UUID
 	RecipeID uuid.UUID
 	UserID   uuid.UUID
+	JobID    uuid.UUID
 }
 
 // Publisher accepts events after a write has committed.

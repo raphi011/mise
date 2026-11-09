@@ -64,3 +64,6 @@ func (s *Service) RunLoop(ctx context.Context, sc store.Scoped, m Model, in Loop
 
 // MaxToolResult exposes the tool result cap.
 const MaxToolResult = maxToolResult
+
+// SetJobTimeout shortens the per-job limit.
+func (s *Service) SetJobTimeout(d time.Duration) { s.jobTimeout = d }

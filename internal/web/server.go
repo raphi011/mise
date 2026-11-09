@@ -136,7 +136,8 @@ func New(cfg config.Config, db *store.DB, log *slog.Logger) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	s.ai = ai.New(ai.Config{Box: box, Groceries: s.groceries, Recipes: s.recipes, Now: s.now})
+	s.ai = ai.New(ai.Config{Box: box, Groceries: s.groceries, Recipes: s.recipes, Now: s.now,
+		DB: db, Publisher: s.live, Log: log})
 	s.auth = auth.New(db, auth.Config{Log: log, SecureCookie: s.secureCookie, OnSetup: s.seedHousehold})
 	if cfg.BaseURL != nil {
 		if err := s.setBaseURL(cfg.BaseURL); err != nil {
@@ -153,6 +154,9 @@ func (s *Server) now() time.Time {
 	}
 	return time.Now()
 }
+
+// RunImports runs recipe import jobs until ctx ends.
+func (s *Server) RunImports(ctx context.Context) error { return s.ai.Run(ctx) }
 
 // Wait blocks until background work started by requests (reset emails)
 // is done. Call it after the HTTP server has shut down.

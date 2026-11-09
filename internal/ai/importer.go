@@ -26,15 +26,20 @@ func (s *Service) pageDraft(ctx context.Context, sc store.Scoped, rawURL string,
 	if page.Recipe == nil {
 		return Draft{}, page, ErrNoRecipe
 	}
+	d, err := s.draftFromPage(ctx, sc, page, lang)
+	return d, page, err
+}
+
+// draftFromPage builds a draft from a page's JSON-LD recipe.
+func (s *Service) draftFromPage(ctx context.Context, sc store.Scoped, page Page, lang language.Tag) (Draft, error) {
 	r := *page.Recipe
-	if r.SourceURL == "" {
-		r.SourceURL = res.URL.String()
+	if r.SourceURL == "" && page.URL != nil {
+		r.SourceURL = page.URL.String()
 	}
 	if r.ImageURL == "" {
 		r.ImageURL = page.Image
 	}
-	d, err := s.draftFromRecipe(ctx, sc, r, amountLang(page.Lang, lang))
-	return d, page, err
+	return s.draftFromRecipe(ctx, sc, r, amountLang(page.Lang, lang))
 }
 
 // amountLang picks the language amounts are parsed in: the page's when it

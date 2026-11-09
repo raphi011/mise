@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/raphi011/mise/internal/ai"
 	"github.com/raphi011/mise/internal/groceries"
 	"github.com/raphi011/mise/internal/images"
 	"github.com/raphi011/mise/internal/store"
@@ -22,7 +23,8 @@ const DefaultInterval = time.Hour
 // removed or cleared, deleted shopping lists (with their entries), removed
 // planned meals and deleted recipes (with their ingredients, steps, tags,
 // favourites, cook history and planned meals) (docs/plan.md, Undo). It
-// also deletes password-reset tokens that expired or were used.
+// also deletes password-reset tokens that expired or were used, and old
+// recipe imports.
 type Sweeper struct {
 	db       *store.DB
 	log      *slog.Logger
@@ -64,6 +66,9 @@ type Swept struct {
 	Images  int64
 	// Resets are expired or used password-reset tokens.
 	Resets int64
+	// Imports are recipe imports that finished more than
+	// ai.ReadyRetention ago, and canceled ones.
+	Imports int64
 }
 
 // Sweep deletes soft-deleted rows older than groceries.UndoWindow.
@@ -112,7 +117,17 @@ func (s *Sweeper) Sweep(ctx context.Context) (Swept, error) {
 		if err != nil {
 			return err
 		}
-		out.Resets, err = res.RowsAffected()
+		if out.Resets, err = res.RowsAffected(); err != nil {
+			return err
+		}
+		// Saved, discarded and canceled imports are deleted right away;
+		// ready and failed ones wait for review a while.
+		res, err = q.Exec(ctx, `DELETE FROM import_jobs WHERE status = 'canceled'
+			OR (status IN ('ready', 'failed') AND finished_at < ?)`, store.T(s.now().Add(-ai.ReadyRetention)))
+		if err != nil {
+			return err
+		}
+		out.Imports, err = res.RowsAffected()
 		return err
 	})
 	if err != nil || s.images == nil {
@@ -169,7 +184,7 @@ func (s *Sweeper) Run(ctx context.Context) {
 		case swept != (Swept{}):
 			s.log.InfoContext(ctx, "swept soft-deleted rows",
 				slog.Int64("entries", swept.Entries), slog.Int64("lists", swept.Lists), slog.Int64("meals", swept.Meals),
-				slog.Int64("recipes", swept.Recipes), slog.Int64("images", swept.Images))
+				slog.Int64("recipes", swept.Recipes), slog.Int64("images", swept.Images), slog.Int64("imports", swept.Imports))
 		}
 		select {
 		case <-ctx.Done():

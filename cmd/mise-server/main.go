@@ -141,8 +141,10 @@ func serve(ctx context.Context, cfg config.Config, db *store.DB, log *slog.Logge
 	// does not wait for open tabs.
 	srv.RegisterOnShutdown(server.CloseStreams)
 
-	// Periodic maintenance stops with ctx.
+	// Periodic maintenance and recipe imports stop with ctx.
 	go jobs.NewSweeper(db, log, nil, 0).WithImages(server.Images()).Run(ctx)
+	imports := make(chan error, 1)
+	go func() { imports <- server.RunImports(ctx) }()
 
 	errc := make(chan error, 1)
 	go func() {
@@ -153,6 +155,9 @@ func serve(ctx context.Context, cfg config.Config, db *store.DB, log *slog.Logge
 	select {
 	case err := <-errc:
 		return err
+	case err := <-imports:
+		// Run only returns early when it can't start.
+		return fmt.Errorf("imports: %w", err)
 	case <-ctx.Done():
 	}
 	log.Info("shutting down")
@@ -161,9 +166,10 @@ func serve(ctx context.Context, cfg config.Config, db *store.DB, log *slog.Logge
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		return fmt.Errorf("shutdown: %w", err)
 	}
-	// Reset emails go out after their response; let them finish.
+	// Reset emails go out after their response; let them finish, and let
+	// running imports record that they were interrupted.
 	server.Wait()
-	return nil
+	return <-imports
 }
 
 func newLogger(cfg config.Config, w io.Writer) *slog.Logger {

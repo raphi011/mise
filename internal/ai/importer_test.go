@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -24,20 +25,64 @@ type importEnv struct {
 	s     *ai.Service
 	g     *groceries.Service
 	r     *recipes.Service
+	db    *store.DB
 	sc    store.Scoped
 	hh    storetest.Household
 	items map[string]uuid.UUID
+	pub   *userEvents
+	// model is what the household's provider returns; nil fails.
+	mu    sync.Mutex
+	model ai.Model
+}
+
+// setModel sets what the provider returns; job workers read it.
+func (e *importEnv) setModel(m ai.Model) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.model = m
+}
+
+// userEvents records events published to users.
+type userEvents struct {
+	mu     sync.Mutex
+	events []live.Event
+}
+
+func (p *userEvents) PublishUser(user uuid.UUID, e live.Event) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.events = append(p.events, e)
+}
+
+func (p *userEvents) count(job uuid.UUID) int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	n := 0
+	for _, e := range p.events {
+		if e.Kind == live.ImportChanged && e.JobID == job {
+			n++
+		}
+	}
+	return n
 }
 
 func newImportEnv(t *testing.T, db *store.DB, name string, f *ai.Fetcher) *importEnv {
 	t.Helper()
 	hub := live.NewHub()
 	t.Cleanup(hub.Close)
-	e := &importEnv{hh: storetest.NewHousehold(t, db, name), items: map[string]uuid.UUID{}}
+	e := &importEnv{hh: storetest.NewHousehold(t, db, name), items: map[string]uuid.UUID{}, db: db, pub: &userEvents{}}
 	e.sc = db.ScopeFor(e.hh.ID)
 	e.g = groceries.New(hub, nil)
 	e.r = recipes.New(hub, e.g, nil)
-	e.s = ai.New(ai.Config{Box: newBox(t), Groceries: e.g, Recipes: e.r, Fetcher: f})
+	e.s = ai.New(ai.Config{Box: newBox(t), Groceries: e.g, Recipes: e.r, Fetcher: f, DB: db, Publisher: e.pub,
+		Provider: func(ai.Connection) (ai.Model, error) {
+			e.mu.Lock()
+			defer e.mu.Unlock()
+			if e.model == nil {
+				return nil, errors.New("no model")
+			}
+			return e.model, nil
+		}})
 	return e
 }
 
