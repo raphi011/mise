@@ -64,6 +64,8 @@ func TestLoadInvalid(t *testing.T) {
 		"smtp bad tls":      {"MISE_SMTP_HOST": "mail.example.com", "MISE_SMTP_FROM": "a@example.com", "MISE_SMTP_TLS": "ssl"},
 		"smtp user only":    {"MISE_SMTP_HOST": "mail.example.com", "MISE_SMTP_FROM": "a@example.com", "MISE_SMTP_USERNAME": "u"},
 		"smtp bad from":     {"MISE_SMTP_HOST": "mail.example.com", "MISE_SMTP_FROM": "not an address"},
+		"smtp bad skip":     {"MISE_SMTP_HOST": "mail.example.com", "MISE_SMTP_FROM": "a@example.com", "MISE_SMTP_TLS_SKIP_VERIFY": "maybe"},
+		"smtp skip no tls":  {"MISE_SMTP_HOST": "mail.example.com", "MISE_SMTP_FROM": "a@example.com", "MISE_SMTP_TLS": "none", "MISE_SMTP_TLS_SKIP_VERIFY": "true"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			if _, err := Load(nil, envMap(env)); err == nil {
@@ -123,7 +125,13 @@ func TestLoadSMTP(t *testing.T) {
 		t.Errorf("SMTP = %+v", s)
 	}
 	cfg, err = Load(nil, envMap(map[string]string{"MISE_SMTP_HOST": "mail", "MISE_SMTP_FROM": "a@example.com"}))
-	if err != nil || cfg.SMTP.Port != 587 || cfg.SMTP.TLS != TLSStartTLS {
+	if err != nil || cfg.SMTP.Port != 587 || cfg.SMTP.TLS != TLSStartTLS || cfg.SMTP.SkipVerify {
 		t.Errorf("SMTP defaults = %+v, %v", cfg.SMTP, err)
+	}
+	cfg, err = Load(nil, envMap(map[string]string{
+		"MISE_SMTP_HOST": "mail", "MISE_SMTP_FROM": "a@example.com", "MISE_SMTP_TLS_SKIP_VERIFY": "true",
+	}))
+	if err != nil || !cfg.SMTP.SkipVerify {
+		t.Errorf("SMTP skip verify = %+v, %v", cfg.SMTP, err)
 	}
 }

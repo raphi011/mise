@@ -5,6 +5,7 @@ package mail
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"time"
 
@@ -49,6 +50,13 @@ func (s *SMTP) Send(ctx context.Context, m Message) error {
 		opts = append(opts, gomail.WithTLSPolicy(gomail.NoTLS))
 	default:
 		opts = append(opts, gomail.WithTLSPolicy(gomail.TLSMandatory))
+	}
+	if s.cfg.SkipVerify {
+		opts = append(opts, gomail.WithTLSConfig(&tls.Config{
+			ServerName:         s.cfg.Host,
+			InsecureSkipVerify: true, //nolint:gosec // opted into for relays with self-signed certificates
+			MinVersion:         tls.VersionTLS12,
+		}))
 	}
 	if s.cfg.Username != "" {
 		opts = append(opts, gomail.WithSMTPAuth(gomail.SMTPAuthAutoDiscover),

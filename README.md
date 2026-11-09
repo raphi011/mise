@@ -35,6 +35,7 @@ above, or a host directory owned by that uid
 | `MISE_SMTP_HOST` | | SMTP server; enables invite and password-reset emails |
 | `MISE_SMTP_PORT` | `587` | |
 | `MISE_SMTP_TLS` | `starttls` | `starttls`, `tls` (implicit, usually port 465) or `none` |
+| `MISE_SMTP_TLS_SKIP_VERIFY` | `false` | accept a self-signed server certificate (trusted-network relays only) |
 | `MISE_SMTP_USERNAME`, `MISE_SMTP_PASSWORD` | | when the server needs auth |
 | `MISE_SMTP_FROM` | | sender, e.g. `mise <mise@example.com>`; required with a host |
 
