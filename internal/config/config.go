@@ -38,7 +38,24 @@ type Config struct {
 	// SecretKey is the base64 AES-256 key for stored API keys; empty means
 	// the key generated into the data directory.
 	SecretKey string
+	// OIDC configures single sign-on; without an issuer there is none.
+	OIDC OIDC
 }
+
+// OIDC is the OpenID Connect provider users may sign in with, besides
+// their password.
+type OIDC struct {
+	// Issuer is the provider's issuer URL, exactly as its discovery
+	// document states it.
+	Issuer       string
+	ClientID     string
+	ClientSecret string
+	// Name labels the sign-in button, e.g. "Pocket ID".
+	Name string
+}
+
+// Enabled reports whether single sign-on is configured.
+func (o OIDC) Enabled() bool { return o.Issuer != "" }
 
 // SMTP TLS modes.
 const (
@@ -99,6 +116,11 @@ func load(args []string, getenv func(string) string, out io.Writer) (Config, err
 	smtpPass := str("smtp-password", "MISE_SMTP_PASSWORD", "", "SMTP password")
 	secretKey := str("secret-key", "MISE_SECRET_KEY", "", "base64 32-byte key for stored API keys; default generated into the data directory")
 	smtpFrom := str("smtp-from", "MISE_SMTP_FROM", "", "sender address, e.g. 'mise <mise@example.com>'")
+	oidcIssuer := str("oidc-issuer", "MISE_OIDC_ISSUER", "", "OpenID Connect issuer URL; unset disables single sign-on")
+	oidcClientID := str("oidc-client-id", "MISE_OIDC_CLIENT_ID", "", "OpenID Connect client ID")
+	oidcSecret := str("oidc-client-secret", "MISE_OIDC_CLIENT_SECRET", "", "OpenID Connect client secret")
+	oidcSecretFile := str("oidc-client-secret-file", "MISE_OIDC_CLIENT_SECRET_FILE", "", "file holding the OpenID Connect client secret")
+	oidcName := str("oidc-name", "MISE_OIDC_NAME", "SSO", "provider name on the sign-in button")
 	if err := fs.Parse(args); err != nil {
 		return Config{}, err
 	}
@@ -167,7 +189,45 @@ func load(args []string, getenv func(string) string, out io.Writer) (Config, err
 		errs = append(errs, err)
 		cfg.SMTP = smtp
 	}
+	if *oidcIssuer != "" || *oidcClientID != "" || *oidcSecret != "" || *oidcSecretFile != "" {
+		o, err := parseOIDC(*oidcIssuer, *oidcClientID, *oidcSecret, *oidcSecretFile, *oidcName)
+		errs = append(errs, err)
+		cfg.OIDC = o
+	}
 	return cfg, errors.Join(errs...)
+}
+
+// parseOIDC validates the single sign-on settings given any of them.
+func parseOIDC(issuer, clientID, secret, secretFile, name string) (OIDC, error) {
+	var errs []error
+	if secret != "" && secretFile != "" {
+		errs = append(errs, errors.New("OIDC client secret: set the secret or the secret file, not both"))
+	}
+	if secretFile != "" {
+		b, err := os.ReadFile(secretFile)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("OIDC client secret file: %w", err))
+		}
+		secret = strings.TrimSpace(string(b))
+	}
+	if issuer == "" || clientID == "" || secret == "" {
+		errs = append(errs, errors.New("OIDC: set the issuer, client ID and client secret together"))
+	}
+	if issuer != "" {
+		u, err := url.Parse(issuer)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.RawQuery != "" || u.Fragment != "" {
+			errs = append(errs, fmt.Errorf("OIDC issuer %q: must be an absolute http(s) URL without query", issuer))
+		}
+	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		errs = append(errs, errors.New("OIDC name: must not be blank"))
+	}
+	o := OIDC{Issuer: issuer, ClientID: clientID, ClientSecret: secret, Name: name}
+	if err := errors.Join(errs...); err != nil {
+		return OIDC{}, err
+	}
+	return o, nil
 }
 
 // parseSMTP validates the SMTP settings given a host.

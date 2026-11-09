@@ -3,6 +3,8 @@ package config
 import (
 	"log/slog"
 	"net/netip"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -140,5 +142,67 @@ func TestLoadSecretKey(t *testing.T) {
 	cfg, err := Load(nil, envMap(map[string]string{"MISE_SECRET_KEY": "a2V5"}))
 	if err != nil || cfg.SecretKey != "a2V5" {
 		t.Errorf("SecretKey = %q, %v", cfg.SecretKey, err)
+	}
+}
+
+func TestLoadOIDC(t *testing.T) {
+	cfg, err := Load(nil, envMap(nil))
+	if err != nil || cfg.OIDC.Enabled() {
+		t.Fatalf("OIDC enabled without config: %+v, %v", cfg.OIDC, err)
+	}
+	cfg, err = Load(nil, envMap(map[string]string{
+		"MISE_OIDC_ISSUER":        "https://id.example.com",
+		"MISE_OIDC_CLIENT_ID":     "mise",
+		"MISE_OIDC_CLIENT_SECRET": "s3cret",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	o := cfg.OIDC
+	if !o.Enabled() || o.Issuer != "https://id.example.com" || o.ClientID != "mise" || o.ClientSecret != "s3cret" || o.Name != "SSO" {
+		t.Errorf("OIDC = %+v", o)
+	}
+
+	file := filepath.Join(t.TempDir(), "secret")
+	if err := os.WriteFile(file, []byte("from-file\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err = Load([]string{"-oidc-name", "Pocket ID"}, envMap(map[string]string{
+		"MISE_OIDC_ISSUER":             "https://id.example.com",
+		"MISE_OIDC_CLIENT_ID":          "mise",
+		"MISE_OIDC_CLIENT_SECRET_FILE": file,
+	}))
+	if err != nil || cfg.OIDC.ClientSecret != "from-file" || cfg.OIDC.Name != "Pocket ID" {
+		t.Errorf("OIDC from file = %+v, %v", cfg.OIDC, err)
+	}
+}
+
+func TestLoadOIDCInvalid(t *testing.T) {
+	full := func(extra map[string]string) map[string]string {
+		m := map[string]string{
+			"MISE_OIDC_ISSUER":        "https://id.example.com",
+			"MISE_OIDC_CLIENT_ID":     "mise",
+			"MISE_OIDC_CLIENT_SECRET": "s3cret",
+		}
+		for k, v := range extra {
+			m[k] = v
+		}
+		return m
+	}
+	for name, env := range map[string]map[string]string{
+		"issuer only":       {"MISE_OIDC_ISSUER": "https://id.example.com"},
+		"no issuer":         {"MISE_OIDC_CLIENT_ID": "mise", "MISE_OIDC_CLIENT_SECRET": "s3cret"},
+		"no secret":         {"MISE_OIDC_ISSUER": "https://id.example.com", "MISE_OIDC_CLIENT_ID": "mise"},
+		"secret and file":   full(map[string]string{"MISE_OIDC_CLIENT_SECRET_FILE": "/etc/hostname"}),
+		"missing file":      {"MISE_OIDC_ISSUER": "https://id.example.com", "MISE_OIDC_CLIENT_ID": "mise", "MISE_OIDC_CLIENT_SECRET_FILE": "/nonexistent/secret"},
+		"relative issuer":   full(map[string]string{"MISE_OIDC_ISSUER": "id.example.com"}),
+		"issuer with query": full(map[string]string{"MISE_OIDC_ISSUER": "https://id.example.com/?x=1"}),
+		"blank name":        full(map[string]string{"MISE_OIDC_NAME": "   "}),
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := Load(nil, envMap(env)); err == nil {
+				t.Fatal("expected error")
+			}
+		})
 	}
 }
