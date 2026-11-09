@@ -1100,12 +1100,15 @@ a.list__link:hover, summary.list__link:hover { color: var(--ink); background: va
 
 .add-form__input::placeholder { color: var(--muted); }
 
+/* A 36 px pill with a 44 px tap target: the transparent top and bottom
+   border take taps but get no background. */
 .add-form__submit {
-  min-height: 36px;
+  min-height: var(--target);
   padding: 0 14px;
-  border-radius: 18px;
-  border: none;
-  background: var(--surface-2);
+  border-radius: 18px / 22px; /* 18 px corners on the visible pill */
+  border: 4px solid transparent;
+  border-width: 4px 0;
+  background: var(--surface-2) padding-box;
   color: var(--ink);
   font-size: 14px;
   font-weight: 500;
