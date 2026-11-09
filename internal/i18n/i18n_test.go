@@ -6,6 +6,8 @@ import (
 	"go/types"
 	"path/filepath"
 	"reflect"
+	"regexp"
+	"slices"
 	"testing"
 
 	"golang.org/x/text/language"
@@ -52,6 +54,30 @@ func TestCatalogComplete(t *testing.T) {
 		for k := range m {
 			if _, ok := en[k]; !ok {
 				t.Errorf("%s has key %q missing from en", tag, k)
+			}
+		}
+	}
+}
+
+// formatVerb matches a printf verb such as %s, %d or %.1f.
+var formatVerb = regexp.MustCompile(`%[-+# 0]*\d*(?:\.\d+)?[a-zA-Z%]`)
+
+// TestTranslationsComplete fails when a translation lacks a key English
+// has, or uses other format verbs for it.
+func TestTranslationsComplete(t *testing.T) {
+	en := messages[language.English]
+	for tag, m := range messages {
+		if tag == language.English {
+			continue
+		}
+		for k, v := range en {
+			tr, ok := m[k]
+			if !ok {
+				t.Errorf("%s lacks key %q", tag, k)
+				continue
+			}
+			if want, got := formatVerb.FindAllString(v, -1), formatVerb.FindAllString(tr, -1); !slices.Equal(want, got) {
+				t.Errorf("%s %q has verbs %q, en has %q", tag, k, got, want)
 			}
 		}
 	}

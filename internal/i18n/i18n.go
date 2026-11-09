@@ -1,8 +1,9 @@
 // Package i18n holds the UI message catalog and the request locale.
 //
 // Messages live in locales/<lang>.json as flat key → format string maps
-// (fmt verbs, e.g. "%d to get"). English is the source of truth; other
-// languages may lag and fall back to English per key.
+// (fmt verbs, e.g. "%d to get"). English is the source of truth; every
+// other language has all of its keys (TestTranslationsComplete), and a
+// key missing at run time falls back to English.
 //
 // Keys are of type Key. Write them as string literals where they are used
 // (i18n.T(ctx, "nav.recipes"), or passed to a Key parameter) so that the
