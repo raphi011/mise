@@ -11,7 +11,7 @@ Self-hosted recipe, meal-plan and shopping-list app. One Go binary serves HTML, 
 - Multi-tenant data model from day one; the UI exposes exactly one household.
 - Live sharing between devices (two people shopping from one list).
 - Installable on phones (manifest), full-screen launch.
-- English and German from the start of the UI work (catalog in P0, German strings can lag).
+- English and German from the start of the UI work (catalog in P0; since P2 a test keeps German complete).
 - **Not a goal:** offline editing. The app needs a connection. A service worker exists only to make the app installable.
 
 The binary is named `mise-server`, not `mise`, so `go install` does not shadow the jdx/mise CLI in `~/go/bin`. The product name stays "mise".
@@ -155,7 +155,7 @@ Derived, not stored: "on a list" per ingredient, times cooked (count of `cook_ev
 
 - "Today", week boundaries and month views use the household's `timezone` and `week_start` (setup asks; defaults from the browser). Never the server's local time; the container runs in UTC.
 - UI language per user (`users.language`, falling back to the household default, then `Accept-Language`).
-- `internal/i18n` provides `T(ctx, key, args...)`; every templ component uses it from P0 on. Catalog files per language, embedded. A test fails on keys missing from the English catalog; German may lag until P6.
+- `internal/i18n` provides `T(ctx, key, args...)`; every templ component uses it from P0 on. Catalog files per language, embedded. A test fails on keys missing from the English catalog, and on keys or format verbs a translation lacks.
 
 ### Live updates
 
@@ -270,11 +270,12 @@ Each phase ends with something usable and is merged before the next starts.
 - `backup` command, proxy docs.
 - SMTP: invite emails and self-service password reset.
 
-### P5 — AI import
-- Settings page, safe fetcher, JSON-LD extractor, providers, tool loop with permissions, job runner, running/failed/review screens, pasted text.
+### P5 — Later
+- OIDC, KitchenOwl import, "always have" staples, tablet polish.
 
-### P6 — Later
-- OIDC, KitchenOwl import, complete German translation, "always have" staples, tablet polish.
+### P6 — AI import
+- Settings page, safe fetcher, JSON-LD extractor, providers, tool loop with permissions, job runner, running/failed/review screens, pasted text.
+- The editor's "Import it with AI" card appears with this phase.
 
 ## Risks
 
