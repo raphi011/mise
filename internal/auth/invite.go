@@ -154,6 +154,11 @@ func (s *Service) AcceptInvite(ctx context.Context, token string, in AcceptInput
 	if err := errs.orNil(); err != nil {
 		return "", err
 	}
+	// Reject unknown tokens before the expensive hash (see CompleteReset);
+	// the transaction below checks the token again.
+	if _, err := s.InviteByToken(ctx, token); err != nil {
+		return "", err
+	}
 	hash, err := HashPassword(in.Password)
 	if err != nil {
 		return "", err

@@ -143,6 +143,12 @@ func (s *Service) CompleteReset(ctx context.Context, token, password, userAgent 
 	if err := errs.orNil(); err != nil {
 		return "", uuid.Nil, err
 	}
+	// Hashing is deliberately expensive: reject unknown tokens with a cheap
+	// read first, so the endpoint cannot be used to burn CPU and memory.
+	// The transaction below checks the token again.
+	if _, err := s.validReset(ctx, s.db.System().Read(), token); err != nil {
+		return "", uuid.Nil, err
+	}
 	hash, err := HashPassword(password)
 	if err != nil {
 		return "", uuid.Nil, err

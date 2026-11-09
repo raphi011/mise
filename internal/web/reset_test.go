@@ -90,6 +90,28 @@ func TestPasswordResetRateLimit(t *testing.T) {
 	b.post("/forgot-password", url.Values{"email": {"Anna@Example.com"}}).expect(t, "over the limit", http.StatusTooManyRequests)
 }
 
+// TestResetSubmitRateLimit: setting a password from a reset link hashes
+// it, so submits are limited per client IP, valid token or not.
+func TestResetSubmitRateLimit(t *testing.T) {
+	_, srv, rec := startMailServer(t, storetest.SQLite(t))
+	household(t, srv)
+	b := newBrowser(t, srv.URL)
+	b.post("/forgot-password", url.Values{"email": {"anna@example.com"}}).expect(t, "request", http.StatusSeeOther)
+	waitMail(t, rec.Wait, 1)
+	m := resetLinkRe.FindStringSubmatch(rec.Sent()[0].Text)
+	if m == nil {
+		t.Fatal("no reset link")
+	}
+	for range resetSubmitBurst {
+		b.post("/reset/unknown-token", url.Values{"password": {"a brand new secret"}}).expect(t, "unknown token", http.StatusGone)
+	}
+	page := b.post(m[1], url.Values{"password": {"a brand new secret"}}).expect(t, "over the limit", http.StatusTooManyRequests)
+	if !strings.Contains(page.body, `role="alert"`) {
+		t.Errorf("no alert on the limited reset form:\n%.3000s", page.body)
+	}
+	b.get(m[1]).expect(t, "link still valid", http.StatusOK)
+}
+
 func TestPasswordResetWithoutSMTP(t *testing.T) {
 	_, srv := startServer(t, storetest.SQLite(t))
 	household(t, srv)

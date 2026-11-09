@@ -88,6 +88,16 @@ func (s *Server) resetSubmit(w http.ResponseWriter, r *http.Request) {
 	resetHeaders(w)
 	ctx := r.Context()
 	token := r.PathValue("token")
+	if !s.resetSubmitLimit.Allow(clientIP(r, s.cfg.TrustedProxies).String()) {
+		info, err := s.auth.ResetByToken(ctx, token)
+		if err != nil {
+			s.renderResetInvalid(w, r)
+			return
+		}
+		f := ui.Form{Alert: i18n.T(ctx, "signin.error.tooMany")}
+		s.renderReset(w, r, http.StatusTooManyRequests, ui.ResetView{Token: token, Username: info.Username}, f)
+		return
+	}
 	session, userID, err := s.auth.CompleteReset(ctx, token, r.PostFormValue("password"), r.UserAgent())
 	if errors.Is(err, auth.ErrResetInvalid) {
 		s.renderResetInvalid(w, r)

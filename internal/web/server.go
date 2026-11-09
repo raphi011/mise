@@ -59,6 +59,13 @@ const (
 	resetAddrInterval = 10 * time.Minute
 )
 
+// Setting a new password from a reset link hashes it, so submits are
+// limited per client IP like sign-in attempts.
+const (
+	resetSubmitBurst    = ipBurst
+	resetSubmitInterval = ipInterval
+)
+
 // Server holds the dependencies of the HTTP handlers.
 type Server struct {
 	cfg  config.Config
@@ -77,12 +84,13 @@ type Server struct {
 	// heartbeat overrides live.DefaultHeartbeat, for tests.
 	heartbeat time.Duration
 
-	ipLimit        *auth.Limiter
-	pairLimit      *auth.Limiter
-	userLimit      *auth.Limiter
-	passwordLimit  *auth.Limiter
-	resetIPLimit   *auth.Limiter
-	resetAddrLimit *auth.Limiter
+	ipLimit          *auth.Limiter
+	pairLimit        *auth.Limiter
+	userLimit        *auth.Limiter
+	passwordLimit    *auth.Limiter
+	resetIPLimit     *auth.Limiter
+	resetAddrLimit   *auth.Limiter
+	resetSubmitLimit *auth.Limiter
 
 	// mailer sends invite and reset emails; nil without SMTP.
 	mailer mail.Mailer
@@ -98,16 +106,17 @@ type Server struct {
 // base URL stored by first-run setup is known.
 func New(cfg config.Config, db *store.DB, log *slog.Logger) (*Server, error) {
 	s := &Server{
-		cfg:            cfg,
-		db:             db,
-		log:            log,
-		csrf:           http.NewCrossOriginProtection(),
-		ipLimit:        auth.NewLimiter(ipBurst, ipInterval, limiterMaxKeys, nil),
-		pairLimit:      auth.NewLimiter(pairBurst, pairInterval, limiterMaxKeys, nil),
-		userLimit:      auth.NewLimiter(userBurst, userInterval, limiterMaxKeys, nil),
-		passwordLimit:  auth.NewLimiter(passwordBurst, passwordInterval, limiterMaxKeys, nil),
-		resetIPLimit:   auth.NewLimiter(resetIPBurst, resetIPInterval, limiterMaxKeys, nil),
-		resetAddrLimit: auth.NewLimiter(resetAddrBurst, resetAddrInterval, limiterMaxKeys, nil),
+		cfg:              cfg,
+		db:               db,
+		log:              log,
+		csrf:             http.NewCrossOriginProtection(),
+		ipLimit:          auth.NewLimiter(ipBurst, ipInterval, limiterMaxKeys, nil),
+		pairLimit:        auth.NewLimiter(pairBurst, pairInterval, limiterMaxKeys, nil),
+		userLimit:        auth.NewLimiter(userBurst, userInterval, limiterMaxKeys, nil),
+		passwordLimit:    auth.NewLimiter(passwordBurst, passwordInterval, limiterMaxKeys, nil),
+		resetIPLimit:     auth.NewLimiter(resetIPBurst, resetIPInterval, limiterMaxKeys, nil),
+		resetAddrLimit:   auth.NewLimiter(resetAddrBurst, resetAddrInterval, limiterMaxKeys, nil),
+		resetSubmitLimit: auth.NewLimiter(resetSubmitBurst, resetSubmitInterval, limiterMaxKeys, nil),
 	}
 	if cfg.SMTP.Enabled() {
 		s.mailer = mail.NewSMTP(cfg.SMTP)
