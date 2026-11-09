@@ -243,6 +243,28 @@ func (s *Service) SearchItems(ctx context.Context, sc store.Scoped, name string,
 	return out, nil
 }
 
+// ItemsByID returns the household's items among ids, by ID. IDs of other
+// households' items are left out.
+func (s *Service) ItemsByID(ctx context.Context, sc store.Scoped, ids []uuid.UUID) (map[uuid.UUID]Item, error) {
+	out := map[uuid.UUID]Item{}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	args := []any{sc.HouseholdID()}
+	for _, id := range ids {
+		args = append(args, id)
+	}
+	var rows []itemRow
+	err := sc.Read().Select(ctx, &rows, itemSelect+` AND i.id IN (?`+strings.Repeat(", ?", len(ids)-1)+`)`, args...)
+	if err != nil {
+		return nil, err
+	}
+	for _, r := range rows {
+		out[r.ID] = r.item()
+	}
+	return out, nil
+}
+
 // compareTimes orders nil before any time.
 func compareTimes(a, b *time.Time) int {
 	switch {

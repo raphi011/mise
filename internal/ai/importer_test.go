@@ -195,3 +195,25 @@ func TestPageDraft(t *testing.T) {
 		}
 	})
 }
+
+// storetestEach runs fn on both engines with two households and a site
+// serving /tofu, /print and /big (over the tool result cap). e has the
+// items Firm tofu, Soy sauce and Onion and the tag Vegan; other has Garam
+// masala and Oil.
+func storetestEach(t *testing.T, fn func(t *testing.T, e, other *importEnv, base string)) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		base, f := pages(t, map[string]string{
+			"/tofu":  `<html><body><p>Sticky tofu teaser. <a href="/print">Print</a></p></body></html>`,
+			"/print": `<html><head><title>Print view</title></head><body><p>400 g firm tofu</p></body></html>`,
+			"/big":   `<html><body><p>` + strings.Repeat("é", 40<<10) + `</p></body></html>`,
+		})
+		e := newImportEnv(t, db, "home", f)
+		other := newImportEnv(t, db, "other", f)
+		e.item(t, "Firm tofu", "Soy sauce", "Onion")
+		other.item(t, "Garam masala", "Oil")
+		if _, err := e.r.CreateTag(t.Context(), e.sc, "Vegan"); err != nil {
+			t.Fatal(err)
+		}
+		fn(t, e, other, base)
+	})
+}

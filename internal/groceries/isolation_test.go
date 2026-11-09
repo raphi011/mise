@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/text/language"
 
 	"github.com/raphi011/mise/internal/store"
@@ -123,6 +124,10 @@ func TestHouseholdIsolation(t *testing.T) {
 						}
 					}
 				}
+			}
+
+			if byID, err := s.ItemsByID(ctx, sc, []uuid.UUID{other.open.ItemID, other.inCart.ItemID}); err != nil || len(byID) != 0 {
+				t.Errorf("ItemsByID returned the other household's items: %v, %v", byID, err)
 			}
 
 			if sug, err := s.Suggest(ctx, sc, other.list.ID, "e", 50); err == nil {

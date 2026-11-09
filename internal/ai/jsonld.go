@@ -10,17 +10,17 @@ import (
 // Recipe is a recipe as read from a source (JSON-LD or the model), before
 // its ingredients are matched to items.
 type Recipe struct {
-	Name        string
-	Description string
-	PrepMin     int // 0: unknown
-	CookMin     int
-	Servings    int
-	SourceURL   string
-	ImageURL    string
-	Ingredients []string
-	Steps       []Step
+	Name        string   `json:"name"`
+	Description string   `json:"description,omitempty"`
+	PrepMin     int      `json:"prep_min,omitempty"` // 0: unknown
+	CookMin     int      `json:"cook_min,omitempty"`
+	Servings    int      `json:"servings,omitempty"`
+	SourceURL   string   `json:"source_url,omitempty"`
+	ImageURL    string   `json:"image_url,omitempty"`
+	Ingredients []string `json:"ingredients,omitempty"`
+	Steps       []Step   `json:"steps,omitempty"`
 	// Keywords are tag candidates (keywords, category, cuisine).
-	Keywords []string
+	Keywords []string `json:"keywords,omitempty"`
 }
 
 // Step is one step of a recipe source.

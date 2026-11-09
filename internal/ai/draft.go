@@ -53,6 +53,8 @@ type DraftIngredient struct {
 	// ItemName is the matched item's name, or the new item's.
 	ItemName string `json:"item_name"`
 	Match    Match  `json:"match"`
+	// Category is a new item's proposed category name, if any.
+	Category string `json:"category,omitempty"`
 }
 
 // NewItems returns the distinct names of the items saving would create.
