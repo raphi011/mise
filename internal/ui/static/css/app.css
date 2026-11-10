@@ -344,6 +344,19 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 .page-header .page-title { flex: 1; min-width: 0; }
 
+/* Back link and actions on a phone (the recipe page): the buttons share the
+   first row and the title gets the full width below, so a long name wraps
+   instead of running under them. */
+@media (max-width: 767px) {
+  .page-header:not(.page-header--bar):has(.back-link):has(.page-actions) { flex-wrap: wrap; }
+  .page-header:not(.page-header--bar):has(.back-link):has(.page-actions) .back-link { margin-right: auto; }
+  .page-header:not(.page-header--bar):has(.back-link):has(.page-actions) .page-title {
+    order: 1;
+    flex: 0 0 100%;
+    overflow-wrap: anywhere;
+  }
+}
+
 /* ---- Account tokens: field borders, destructive, brand panel, avatars ---- */
 
 :root {
