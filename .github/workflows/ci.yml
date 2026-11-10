@@ -1,10 +1,9 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
   pull_request:
-  # Reused by release.yml so nothing is published without the same checks.
+  # Pushes to main and tags run these checks through release.yml, which
+  # publishes only when they pass.
   workflow_call:
 
 permissions:
