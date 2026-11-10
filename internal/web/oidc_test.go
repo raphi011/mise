@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -400,12 +401,46 @@ func TestSSOFormAction(t *testing.T) {
 			t.Errorf("%s, want %s", got, want)
 		}
 	})
+	t.Run("slow provider at startup", func(t *testing.T) {
+		// A provider that does not answer must not hold up startup; the
+		// policy keeps the issuer's origin meanwhile.
+		release := make(chan struct{})
+		slow := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			select {
+			case <-release:
+			case <-r.Context().Done():
+			}
+			http.Error(w, "down", http.StatusServiceUnavailable)
+		}))
+		t.Cleanup(slow.Close)
+		t.Cleanup(func() { close(release) })
+		base, err := url.Parse("https://mise.example.com")
+		if err != nil {
+			t.Fatal(err)
+		}
+		cfg := config.Config{BaseURL: base, OIDC: config.OIDC{Issuer: slow.URL, ClientID: ssotest.ClientID, ClientSecret: ssotest.ClientSecret, Name: "Pocket ID"}}
+		s := newServer(t, cfg, storetest.SQLite(t), slog.New(slog.DiscardHandler))
+		ctx, cancel := context.WithCancel(t.Context())
+		started := time.Now()
+		if err := s.LoadSettings(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if d := time.Since(started); d > time.Second {
+			t.Errorf("LoadSettings took %v waiting for the provider", d)
+		}
+		if got, want := *s.csp.Load(), contentSecurityPolicy(slow.URL); got != want {
+			t.Errorf("policy while discovering = %q, want %q", got, want)
+		}
+		// Ending the context stops discovery, and Wait returns.
+		cancel()
+		s.Wait()
+	})
 	t.Run("discovered at startup", func(t *testing.T) {
 		idp := movedIdP(t)
 		db := storetest.SQLite(t)
 		startSSOServer(t, db, idp)
-		// A restarted server: setup stored the base URL, so it discovers the
-		// provider while loading its settings.
+		// A restarted server: setup stored the base URL, so loading its
+		// settings starts discovering the provider.
 		cfg := config.Config{OIDC: config.OIDC{Issuer: idp.URL, ClientID: ssotest.ClientID, ClientSecret: ssotest.ClientSecret, Name: "Pocket ID"}}
 		s := newServer(t, cfg, db, slog.New(slog.DiscardHandler))
 		srv := httptest.NewServer(s.Handler())
@@ -413,6 +448,8 @@ func TestSSOFormAction(t *testing.T) {
 		if err := s.LoadSettings(t.Context()); err != nil {
 			t.Fatal(err)
 		}
+		// Discovery runs in the background; wait for it (and its hook).
+		s.Wait()
 		p := newBrowser(t, srv.URL).get("/signin").expect(t, "sign-in page", http.StatusOK)
 		if got, want := formAction(t, p), "form-action 'self' "+authOrigin; got != want {
 			t.Errorf("%s, want %s", got, want)

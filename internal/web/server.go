@@ -101,7 +101,8 @@ type Server struct {
 
 	// mailer sends invite and reset emails; nil without SMTP.
 	mailer mail.Mailer
-	// bg tracks work that outlives its request (reset emails).
+	// bg tracks work that outlives its request (reset emails) and the
+	// startup provider discovery.
 	bg sync.WaitGroup
 
 	// baseURL is the public URL: MISE_BASE_URL, or the one stored by setup.
@@ -181,8 +182,9 @@ func (s *Server) now() time.Time {
 // RunImports runs recipe import jobs until ctx ends.
 func (s *Server) RunImports(ctx context.Context) error { return s.ai.Run(ctx) }
 
-// Wait blocks until background work started by requests (reset emails)
-// is done. Call it after the HTTP server has shut down.
+// Wait blocks until background work (reset emails, the provider discovery
+// LoadSettings starts) is done. Call it after the HTTP server has shut
+// down and the context given to LoadSettings has ended.
 func (s *Server) Wait() { s.bg.Wait() }
 
 // Images returns the image store, for the sweep of unreferenced images.
@@ -206,12 +208,16 @@ func (s *Server) LoadSettings(ctx context.Context) error {
 	if s.sso != nil && s.BaseURL() == nil {
 		s.log.WarnContext(ctx, "OIDC is configured but no base URL is known, so the SSO button stays hidden; set MISE_BASE_URL or finish setup")
 	}
-	// Discover the provider now, so the sign-in pages served from the start
-	// let the SSO button reach its authorization endpoint.
+	// Discover the provider now, so the policy names its authorization
+	// endpoint before the first sign-in (OnDiscover). It runs in the
+	// background so a slow provider does not hold up serving; it stops
+	// with ctx, and Wait waits for it.
 	if s.ssoAvailable() {
-		if err := s.sso.Discover(ctx); err != nil {
-			s.log.WarnContext(ctx, "oidc: provider discovery failed; retrying at the first sign-in", slog.Any("err", err))
-		}
+		s.bg.Go(func() {
+			if err := s.sso.Discover(ctx); err != nil && ctx.Err() == nil {
+				s.log.WarnContext(ctx, "oidc: provider discovery failed; retrying at the first sign-in", slog.Any("err", err))
+			}
+		})
 	}
 	return nil
 }
