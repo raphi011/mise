@@ -11,55 +11,62 @@ import (
 
 const testIssuer = "https://id.example.com"
 
-func external(sub, email string, verified bool) ExternalIdentity {
-	return ExternalIdentity{Issuer: testIssuer, Subject: sub, Email: email, EmailVerified: verified}
+func external(sub string) ExternalIdentity {
+	return ExternalIdentity{Issuer: testIssuer, Subject: sub}
 }
 
+// signInAs returns the identity of a fresh password session of username.
+func signInAs(t *testing.T, s *Service, username string) (*Identity, string) {
+	t.Helper()
+	tok, err := s.SignIn(t.Context(), username, testPassword, "ua")
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, _, err := s.Authenticate(t.Context(), tok)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id, tok
+}
+
+// TestSignInExternal: an identity signs in only as the account linked to
+// it. An unlinked one is refused even when an account uses its email
+// address, so a member who types a housemate's address into their own
+// account cannot catch the housemate's first SSO sign-in.
 func TestSignInExternal(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db *store.DB) {
 		ctx := t.Context()
 		s, _ := newService(t, db)
 		f := addHousehold(t, db, "home")
-		setEmail(t, db, f.member, "Member@Example.com", nil)
+		setEmail(t, db, f.member, "admin@example.com", nil)
+		setEmail(t, db, f.admin, "admin@example.com", nil)
 
-		for name, tc := range map[string]struct {
-			ext  ExternalIdentity
-			want error
-		}{
-			"unverified": {external("sub-1", "member@example.com", false), ErrEmailUnverified},
-			"unknown":    {external("sub-1", "stranger@example.com", true), ErrNoAccount},
-			"no email":   {external("sub-1", "", true), ErrNoAccount},
+		for name, ext := range map[string]ExternalIdentity{
+			"unlinked":   external("sub-1"),
+			"no subject": external(""),
 		} {
-			if _, err := s.SignInExternal(ctx, tc.ext, "ua"); !errors.Is(err, tc.want) {
-				t.Errorf("%s: %v, want %v", name, err, tc.want)
+			if _, err := s.SignInExternal(ctx, ext, "ua"); !errors.Is(err, ErrNoAccount) {
+				t.Errorf("%s: %v, want ErrNoAccount", name, err)
 			}
 		}
 		if linked, err := s.LinkedIdentity(ctx, f.member, testIssuer); err != nil || linked {
-			t.Fatalf("linked before a successful sign-in: %v, %v", linked, err)
+			t.Fatalf("linked by a sign-in: %v, %v", linked, err)
 		}
 
-		// First sign-in links by verified email, case-insensitively.
-		tok, err := s.SignInExternal(ctx, external("sub-1", "member@EXAMPLE.com", true), "ua")
+		admin, _ := signInAs(t, s, "home-admin")
+		if err := s.Link(ctx, admin, external("sub-1")); err != nil {
+			t.Fatal(err)
+		}
+		tok, err := s.SignInExternal(ctx, external("sub-1"), "ua")
 		if err != nil {
 			t.Fatal(err)
 		}
 		id, _, err := s.Authenticate(ctx, tok)
-		if err != nil || id.UserID != f.member || id.HouseholdID != f.household {
+		if err != nil || id.UserID != f.admin || id.HouseholdID != f.household {
 			t.Fatalf("identity %+v, %v", id, err)
 		}
-		if linked, err := s.LinkedIdentity(ctx, f.member, testIssuer); err != nil || !linked {
-			t.Fatalf("not linked after sign-in: %v, %v", linked, err)
-		}
-		// Linked: the email no longer matters.
-		if _, err := s.SignInExternal(ctx, external("sub-1", "changed@example.com", false), "ua"); err != nil {
-			t.Errorf("linked sign-in: %v", err)
-		}
-		// Another subject of the same issuer cannot take over the account.
-		if _, err := s.SignInExternal(ctx, external("sub-2", "member@example.com", true), "ua"); !errors.Is(err, ErrOtherIdentityLinked) {
-			t.Errorf("second subject: %v", err)
-		}
 		// The same subject at another issuer is another identity.
-		other := external("sub-1", "nobody@example.com", true)
+		other := external("sub-1")
 		other.Issuer = "https://other.example.com"
 		if _, err := s.SignInExternal(ctx, other, "ua"); !errors.Is(err, ErrNoAccount) {
 			t.Errorf("other issuer: %v", err)
@@ -67,26 +74,31 @@ func TestSignInExternal(t *testing.T) {
 	})
 }
 
-func TestSignInExternalAmbiguous(t *testing.T) {
+// TestLink: a signed-in user links the identity they signed in with at
+// the provider; one identity per provider and account, one account per
+// identity.
+func TestLink(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db *store.DB) {
 		ctx := t.Context()
 		s, _ := newService(t, db)
-		f := addHousehold(t, db, "home")
-		setEmail(t, db, f.admin, "shared@example.com", nil)
-		setEmail(t, db, f.member, "SHARED@example.com", nil)
-		if _, err := s.SignInExternal(ctx, external("sub-1", "shared@example.com", true), "ua"); !errors.Is(err, ErrAmbiguousEmail) {
-			t.Errorf("shared address: %v", err)
-		}
-		// A removed member's address no longer counts.
-		if err := s.RemoveMember(ctx, f.sc, f.admin, f.member); err != nil {
+		addHousehold(t, db, "home")
+		admin, _ := signInAs(t, s, "home-admin")
+		member, _ := signInAs(t, s, "home-member")
+
+		if err := s.Link(ctx, member, external("sub-member")); err != nil {
 			t.Fatal(err)
 		}
-		tok, err := s.SignInExternal(ctx, external("sub-1", "shared@example.com", true), "ua")
-		if err != nil {
-			t.Fatal(err)
+		if err := s.Link(ctx, member, external("sub-member")); err != nil {
+			t.Errorf("linking again: %v", err)
 		}
-		if id, _, err := s.Authenticate(ctx, tok); err != nil || id.UserID != f.admin {
-			t.Errorf("signed in as %+v, %v", id, err)
+		if err := s.Link(ctx, admin, external("sub-member")); !errors.Is(err, ErrIdentityLinkedElsewhere) {
+			t.Errorf("identity of another account: %v", err)
+		}
+		if err := s.Link(ctx, member, external("sub-other")); !errors.Is(err, ErrOtherIdentityLinked) {
+			t.Errorf("second identity of the issuer: %v", err)
+		}
+		if linked, err := s.LinkedIdentity(ctx, admin.UserID, testIssuer); err != nil || linked {
+			t.Errorf("admin linked: %v, %v", linked, err)
 		}
 	})
 }
@@ -96,8 +108,8 @@ func TestRemoveMemberDropsIdentity(t *testing.T) {
 		ctx := t.Context()
 		s, _ := newService(t, db)
 		f := addHousehold(t, db, "home")
-		setEmail(t, db, f.member, "member@example.com", nil)
-		if _, err := s.SignInExternal(ctx, external("sub-1", "member@example.com", true), "ua"); err != nil {
+		member, _ := signInAs(t, s, "home-member")
+		if err := s.Link(ctx, member, external("sub-1")); err != nil {
 			t.Fatal(err)
 		}
 		if err := s.RemoveMember(ctx, f.sc, f.admin, f.member); err != nil {
@@ -106,7 +118,7 @@ func TestRemoveMemberDropsIdentity(t *testing.T) {
 		if linked, err := s.LinkedIdentity(ctx, f.member, testIssuer); err != nil || linked {
 			t.Errorf("link survived removal: %v, %v", linked, err)
 		}
-		if _, err := s.SignInExternal(ctx, external("sub-1", "member@example.com", true), "ua"); !errors.Is(err, ErrNoAccount) {
+		if _, err := s.SignInExternal(ctx, external("sub-1"), "ua"); !errors.Is(err, ErrNoAccount) {
 			t.Errorf("removed member signed in: %v", err)
 		}
 	})
@@ -117,13 +129,8 @@ func TestUnlink(t *testing.T) {
 		ctx := t.Context()
 		s, _ := newService(t, db)
 		f := addHousehold(t, db, "home")
-		setEmail(t, db, f.member, "member@example.com", nil)
-		tok, err := s.SignInExternal(ctx, external("sub-1", "member@example.com", true), "ua")
-		if err != nil {
-			t.Fatal(err)
-		}
-		id, _, err := s.Authenticate(ctx, tok)
-		if err != nil {
+		id, tok := signInAs(t, s, "home-member")
+		if err := s.Link(ctx, id, external("sub-1")); err != nil {
 			t.Fatal(err)
 		}
 

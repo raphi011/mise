@@ -333,13 +333,14 @@ lists the origin of the provider's authorization endpoint from discovery
 (the issuer's origin until discovery succeeds), since the SSO button is a
 form post redirected there.
 
-SSO never creates accounts; invites stay the only way in. On someone's
-first SSO sign-in, mise links the provider identity (issuer and subject)
-to the one active account whose email matches the ID token's `email`,
-compared case-insensitively. The provider must send `email_verified: true`,
-otherwise the sign-in is refused: an unverified address would let anyone
-who can register it at the provider take over the account. No match, or
-several accounts with that address, is refused too. Once linked, the
-identity signs in as that account whatever its email becomes. People see
-and remove the link on their Account page (only with a password set, so
+SSO never creates accounts; invites stay the only way in. Nor does it
+match accounts by email address: a provider identity (issuer and subject)
+signs in only as the account it is linked to. People link it themselves
+on their Account page ("Link"), signed in with their password: mise runs
+the provider flow and links the identity to that session's account. An
+SSO sign-in with an identity nobody linked is refused with a hint to sign
+in with the password and link it. One identity links to one account, and
+an account to one identity of the provider. Once linked, the identity
+signs in as that account whatever its email becomes. People see and
+remove the link on their Account page (only with a password set, so
 nobody locks themselves out); removing a member removes their links.

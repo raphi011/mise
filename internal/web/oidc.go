@@ -1,6 +1,7 @@
 package web
 
 import (
+	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
@@ -18,6 +19,8 @@ import (
 // Single sign-on: POST /auth/oidc/start sends the browser to the provider
 // with a flow cookie holding the state, nonce and PKCE verifier; the
 // provider sends it back to GET /auth/oidc/callback (see router.callback).
+// POST /settings/account/sso/link runs the same flow from a signed-in
+// session to link the identity to that account instead of signing in.
 const (
 	oidcCookie    = "mise_oidc"
 	oidcCookieAge = 10 * time.Minute
@@ -26,8 +29,19 @@ const (
 // oidcFlow is the flow cookie's content.
 type oidcFlow struct {
 	sso.Flow
-	Next    string `json:"next,omitempty"`
+	Next string `json:"next,omitempty"`
+	// Link marks a flow that links the identity to the signed-in user: it
+	// is linkBinding of the session that started it, so the callback links
+	// only to that session's account.
+	Link    string `json:"l,omitempty"`
 	Started int64  `json:"t"`
+}
+
+// linkBinding ties a link flow to the session that started it without
+// putting the session's ID in the flow cookie.
+func linkBinding(id *auth.Identity) string {
+	sum := sha256.Sum256([]byte("mise oidc link\x00" + id.SessionID))
+	return base64.RawURLEncoding.EncodeToString(sum[:])
 }
 
 // ssoAvailable reports whether the sign-in page offers single sign-on:
@@ -53,8 +67,24 @@ func (s *Server) oidcStart(w http.ResponseWriter, r *http.Request) {
 		s.notFound(w, r)
 		return
 	}
-	ctx := r.Context()
 	flow := oidcFlow{Flow: sso.NewFlow(), Next: auth.SafeNext(r.PostFormValue("next")), Started: s.now().Unix()}
+	s.sendToProvider(w, r, flow)
+}
+
+// linkSSO starts linking the signed-in user's account to the provider.
+func (s *Server) linkSSO(w http.ResponseWriter, r *http.Request) {
+	if !s.ssoAvailable() {
+		s.notFound(w, r)
+		return
+	}
+	flow := oidcFlow{Flow: sso.NewFlow(), Next: "/settings/account", Link: linkBinding(identity(r)), Started: s.now().Unix()}
+	s.sendToProvider(w, r, flow)
+}
+
+// sendToProvider stores flow in the flow cookie and redirects to the
+// provider's authorization endpoint.
+func (s *Server) sendToProvider(w http.ResponseWriter, r *http.Request, flow oidcFlow) {
+	ctx := r.Context()
 	target, err := s.sso.AuthURL(ctx, s.oidcRedirectURL(), flow.Flow)
 	if err != nil {
 		s.log.WarnContext(ctx, "oidc: start", slog.Any("err", err))
@@ -123,9 +153,13 @@ func (s *Server) oidcCallback(w http.ResponseWriter, r *http.Request) {
 		s.oidcFailed(w, r, http.StatusUnauthorized, flow.Next, "oidc.error.failed", s.cfg.OIDC.Name)
 		return
 	}
-	token, err := s.auth.SignInExternal(ctx, auth.ExternalIdentity{
-		Issuer: id.Issuer, Subject: id.Subject, Email: id.Email, EmailVerified: id.EmailVerified,
-	}, r.UserAgent())
+	ext := auth.ExternalIdentity{Issuer: id.Issuer, Subject: id.Subject}
+	if flow.Link != "" {
+		refundAll(attempts)
+		s.finishLink(w, r, flow, ext)
+		return
+	}
+	token, err := s.auth.SignInExternal(ctx, ext, r.UserAgent())
 	if key, args, ok := s.oidcRefusal(err); ok {
 		s.oidcFailed(w, r, http.StatusForbidden, flow.Next, key, args...)
 		return
@@ -140,25 +174,51 @@ func (s *Server) oidcCallback(w http.ResponseWriter, r *http.Request) {
 	seeOther(w, r, auth.SafeNext(flow.Next))
 }
 
-// oidcRefusal maps a refused SSO sign-in to its message and arguments.
+// finishLink links ext to the signed-in user whose session started flow.
+func (s *Server) finishLink(w http.ResponseWriter, r *http.Request, flow oidcFlow, ext auth.ExternalIdentity) {
+	ctx := r.Context()
+	id, ok := auth.FromContext(ctx)
+	if !ok || subtle.ConstantTimeCompare([]byte(linkBinding(id)), []byte(flow.Link)) != 1 {
+		// Signed out or in as someone else since the link started.
+		s.oidcFailed(w, r, http.StatusForbidden, flow.Next, "oidc.error.linkSession", s.cfg.OIDC.Name)
+		return
+	}
+	err := s.auth.Link(ctx, id, ext)
+	if key, args, ok := s.oidcRefusal(err); ok {
+		s.oidcFailed(w, r, http.StatusConflict, flow.Next, key, args...)
+		return
+	}
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	seeOther(w, r, "/settings/account?done=linked")
+}
+
+// oidcRefusal maps a refused SSO sign-in or link to its message and
+// arguments.
 func (s *Server) oidcRefusal(err error) (key i18n.Key, args []any, ok bool) {
 	name := []any{s.cfg.OIDC.Name}
 	switch {
 	case errors.Is(err, auth.ErrNoAccount):
-		return "oidc.error.noAccount", nil, true
-	case errors.Is(err, auth.ErrAmbiguousEmail):
-		return "oidc.error.ambiguous", nil, true
-	case errors.Is(err, auth.ErrEmailUnverified):
-		return "oidc.error.unverified", name, true
+		return "oidc.error.notLinked", name, true
+	case errors.Is(err, auth.ErrIdentityLinkedElsewhere):
+		return "oidc.error.linkedElsewhere", name, true
 	case errors.Is(err, auth.ErrOtherIdentityLinked):
 		return "oidc.error.otherLinked", name, true
 	}
 	return key, nil, false
 }
 
-// oidcFailed shows the sign-in page, password form included, with the
-// message.
+// oidcFailed shows the message: on the account page to a signed-in user
+// (linking), otherwise on the sign-in page, password form included.
 func (s *Server) oidcFailed(w http.ResponseWriter, r *http.Request, status int, next string, key i18n.Key, args ...any) {
+	if id, ok := auth.FromContext(r.Context()); ok {
+		profile := ui.Form{Values: map[string]string{"name": id.Name, "email": id.Email, "avatar_color": id.AvatarColor}}
+		profile.Alert = i18n.T(r.Context(), key, args...)
+		s.renderAccount(w, r, status, profile, ui.Form{}, "")
+		return
+	}
 	v := s.signInView(next)
 	v.Form.Alert = i18n.T(r.Context(), key, args...)
 	s.renderSignIn(w, r, status, v)

@@ -278,6 +278,9 @@ type AccountView struct {
 type SSOLink struct {
 	Name   string
 	Linked bool
+	// CanLink offers linking: the base URL for the provider's callback is
+	// known.
+	CanLink bool
 }
 
 // SessionRow is one signed-in device.
@@ -365,6 +368,8 @@ templ Account(p Page, v AccountView) {
 							</span>
 							if v.SSO.Linked {
 								@postButton("/settings/account/sso/unlink", i18n.T(ctx, "account.sso.unlink"), "btn btn--ghost btn--small", nil)
+							} else if v.SSO.CanLink {
+								@postButton("/settings/account/sso/link", i18n.T(ctx, "account.sso.link"), "btn btn--secondary btn--small", nil)
 							}
 						</div>
 					}

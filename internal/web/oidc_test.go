@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/raphi011/mise/internal/auth"
 	"github.com/raphi011/mise/internal/config"
 	"github.com/raphi011/mise/internal/sso/ssotest"
 	"github.com/raphi011/mise/internal/store"
@@ -67,10 +68,27 @@ func ssoSignIn(t *testing.T, b *browser, idp *ssotest.Provider, next string, c s
 	return b.get(idp.Authorize(ssoStart(t, b, next), c))
 }
 
+// annaSignedIn returns a browser signed in to base as anna with her password.
+func annaSignedIn(t *testing.T, base string) *browser {
+	t.Helper()
+	b := newBrowser(t, base)
+	b.post("/signin", url.Values{"username": {"anna"}, "password": {adminPassword}}).expect(t, "password sign-in", http.StatusSeeOther)
+	return b
+}
+
+// ssoLink links b's account from the account page: start, sign in at the
+// provider as c, and follow the provider back to the callback.
+func ssoLink(t *testing.T, b *browser, idp *ssotest.Provider, c ssotest.Claims) page {
+	t.Helper()
+	start := b.post("/settings/account/sso/link", nil).expect(t, "start link", http.StatusSeeOther)
+	return b.get(idp.Authorize(start.location, c))
+}
+
 func TestOIDCSignIn(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db *store.DB) {
 		idp := ssotest.New(t)
 		base := startSSOServer(t, db, idp)
+		anna := ssotest.Claims{Subject: "sub-anna", Email: "anna@example.com", EmailVerified: true}
 
 		// The button sits next to the password form, which stays.
 		p := newBrowser(t, base).get("/signin").expect(t, "sign-in page", http.StatusOK)
@@ -80,13 +98,14 @@ func TestOIDCSignIn(t *testing.T) {
 			}
 		}
 
+		// Not linked yet: the provider's verified address matching Anna's
+		// does not sign her in.
 		refused := map[string]struct {
 			claims ssotest.Claims
 			want   string
 		}{
-			"unverified": {ssotest.Claims{Subject: "sub-anna", Email: "anna@example.com"}, "hasn't verified your email"},
-			"unknown":    {ssotest.Claims{Subject: "sub-x", Email: "x@example.com", EmailVerified: true}, "No mise account uses this email. Ask an admin for an invite."},
-			"bad nonce":  {ssotest.Claims{Subject: "sub-anna", Email: "anna@example.com", EmailVerified: true, Nonce: "replayed"}, "Signing in with Pocket ID didn't work"},
+			"unlinked":  {anna, "No mise account is linked to this Pocket ID account. Sign in with your password, then link it in your account settings."},
+			"bad nonce": {ssotest.Claims{Subject: "sub-anna", Nonce: "replayed"}, "Signing in with Pocket ID didn't work"},
 		}
 		for name, tc := range refused {
 			b := newBrowser(t, base)
@@ -99,18 +118,15 @@ func TestOIDCSignIn(t *testing.T) {
 			}
 		}
 
-		// First sign-in links Anna by her verified email and keeps next.
+		// Linked from the account page, SSO signs Anna in and keeps next.
+		ssoLink(t, annaSignedIn(t, base), idp, anna).expect(t, "link", http.StatusSeeOther, "/settings/account?done=linked")
 		b := newBrowser(t, base)
-		ssoSignIn(t, b, idp, "/plan?week=2026-11-09", ssotest.Claims{Subject: "sub-anna", Email: "ANNA@example.com", EmailVerified: true}).
-			expect(t, "first sign-in", http.StatusSeeOther, "/plan?week=2026-11-09")
+		ssoSignIn(t, b, idp, "/plan?week=2026-11-09", ssotest.Claims{Subject: "sub-anna"}).
+			expect(t, "linked sign-in", http.StatusSeeOther, "/plan?week=2026-11-09")
 		p = b.get("/settings/account").expect(t, "account", http.StatusOK)
 		if !strings.Contains(p.body, "Sign in with Pocket ID") || !strings.Contains(p.body, "Linked") {
 			t.Errorf("account page does not show the link:\n%s", p.body)
 		}
-
-		// Linked: the provider's email no longer matters.
-		ssoSignIn(t, newBrowser(t, base), idp, "", ssotest.Claims{Subject: "sub-anna", Email: "new@example.com"}).
-			expect(t, "linked sign-in", http.StatusSeeOther, "/")
 
 		// next never leaves the site.
 		for _, next := range []string{"//evil.example/x", "https://evil.example/", "/\\evil.example"} {
@@ -120,16 +136,85 @@ func TestOIDCSignIn(t *testing.T) {
 	})
 }
 
-func TestOIDCAmbiguousEmail(t *testing.T) {
+// TestOIDCNoLinkByEmail: a member who sets their own email address to a
+// housemate's provider address does not get the housemate's first SSO
+// sign-in (security review F2).
+func TestOIDCNoLinkByEmail(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db *store.DB) {
 		idp := ssotest.New(t)
 		base := startSSOServer(t, db, idp)
-		addMember(t, db, "ben", "shared@example.com")
-		addMember(t, db, "bea", "Shared@Example.com")
-		p := ssoSignIn(t, newBrowser(t, base), idp, "", ssotest.Claims{Subject: "s", Email: "shared@example.com", EmailVerified: true})
-		if p.status != http.StatusForbidden || !strings.Contains(p.body, "Several mise accounts use this email") {
-			t.Errorf("ambiguous email: status %d\n%.400s", p.status, p.body)
+		ben := addMember(t, db, "ben", "carla@example.com")
+		b := newBrowser(t, base)
+		p := ssoSignIn(t, b, idp, "", ssotest.Claims{Subject: "sub-carla", Email: "carla@example.com", EmailVerified: true})
+		if p.status != http.StatusForbidden || !strings.Contains(p.body, "No mise account is linked") {
+			t.Errorf("unlinked sign-in: status %d\n%.400s", p.status, p.body)
 		}
+		if b.get("/settings").status != http.StatusFound {
+			t.Error("signed in as the account with the matching address")
+		}
+		var n int
+		if err := db.System().Read().QueryRow(t.Context(), `SELECT count(*) FROM user_identities WHERE user_id = ?`, ben).Scan(&n); err != nil || n != 0 {
+			t.Errorf("identities linked to ben: %d, %v", n, err)
+		}
+	})
+}
+
+// TestOIDCLink: linking runs the provider flow from a signed-in session
+// and links the identity to that session's account only.
+func TestOIDCLink(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		idp := ssotest.New(t)
+		base := startSSOServer(t, db, idp)
+		anna := ssotest.Claims{Subject: "sub-anna"}
+
+		b := annaSignedIn(t, base)
+		p := b.get("/settings/account").expect(t, "account", http.StatusOK)
+		if !strings.Contains(p.body, `action="/settings/account/sso/link"`) || !strings.Contains(p.body, "Not linked") {
+			t.Errorf("account page offers no link:\n%s", p.body)
+		}
+		if p := newBrowser(t, base).post("/settings/account/sso/link", nil); !strings.HasPrefix(p.location, "/signin") {
+			t.Errorf("link while signed out: status %d, location %q", p.status, p.location)
+		}
+
+		// The session that started the link must finish it: here it signed
+		// in again in between, which is a new session.
+		start := b.post("/settings/account/sso/link", nil).expect(t, "start link", http.StatusSeeOther)
+		b.post("/signin", url.Values{"username": {"anna"}, "password": {adminPassword}}).expect(t, "sign in again", http.StatusSeeOther)
+		p = b.get(idp.Authorize(start.location, anna))
+		if p.status != http.StatusForbidden || !strings.Contains(p.body, "while linking Pocket ID") {
+			t.Errorf("session changed: status %d\n%.400s", p.status, p.body)
+		}
+		// Signed out in between: refused on the sign-in page.
+		start = b.post("/settings/account/sso/link", nil).expect(t, "start link", http.StatusSeeOther)
+		b.post("/signout", nil).expect(t, "sign out", http.StatusSeeOther)
+		p = b.get(idp.Authorize(start.location, anna))
+		if p.status != http.StatusForbidden || !strings.Contains(p.body, `name="password"`) {
+			t.Errorf("signed out: status %d\n%.400s", p.status, p.body)
+		}
+		ssoSignIn(t, newBrowser(t, base), idp, "", anna).expect(t, "not linked by refused attempts", http.StatusForbidden)
+
+		b = annaSignedIn(t, base)
+		ssoLink(t, b, idp, anna).expect(t, "link", http.StatusSeeOther, "/settings/account?done=linked")
+		p = b.get("/settings/account?done=linked").expect(t, "account", http.StatusOK)
+		if !strings.Contains(p.body, "Linked. You can sign in with it from now on.") || !strings.Contains(p.body, `action="/settings/account/sso/unlink"`) {
+			t.Errorf("account page after linking:\n%s", p.body)
+		}
+		// Another identity of the same provider is refused.
+		p = ssoLink(t, b, idp, ssotest.Claims{Subject: "sub-other"})
+		if p.status != http.StatusConflict || !strings.Contains(p.body, "already linked to another Pocket ID account") {
+			t.Errorf("second identity: status %d\n%.400s", p.status, p.body)
+		}
+
+		// Anna's identity cannot be linked to another account.
+		benID := addMember(t, db, "ben", "ben@example.com")
+		setPassword(t, db, benID, memberPassword)
+		ben := newBrowser(t, base)
+		ben.post("/signin", url.Values{"username": {"ben"}, "password": {memberPassword}}).expect(t, "ben signs in", http.StatusSeeOther)
+		p = ssoLink(t, ben, idp, anna)
+		if p.status != http.StatusConflict || !strings.Contains(p.body, "already linked to another mise account") {
+			t.Errorf("identity linked elsewhere: status %d\n%.400s", p.status, p.body)
+		}
+		ssoSignIn(t, newBrowser(t, base), idp, "/settings/account", anna).expect(t, "still anna", http.StatusSeeOther, "/settings/account")
 	})
 }
 
@@ -189,7 +274,9 @@ func TestOIDCProviderDown(t *testing.T) {
 
 		// Discovery is retried once the provider is back.
 		idp.SetDown(false)
-		ssoSignIn(t, newBrowser(t, base), idp, "/plan", ssotest.Claims{Subject: "sub-anna", Email: "anna@example.com", EmailVerified: true}).
+		b = annaSignedIn(t, base)
+		ssoLink(t, b, idp, ssotest.Claims{Subject: "sub-anna"}).expect(t, "link after recovery", http.StatusSeeOther, "/settings/account?done=linked")
+		ssoSignIn(t, newBrowser(t, base), idp, "/plan", ssotest.Claims{Subject: "sub-anna"}).
 			expect(t, "sign-in after recovery", http.StatusSeeOther, "/plan")
 	})
 }
@@ -198,9 +285,8 @@ func TestOIDCUnlink(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db *store.DB) {
 		idp := ssotest.New(t)
 		base := startSSOServer(t, db, idp)
-		b := newBrowser(t, base)
-		ssoSignIn(t, b, idp, "", ssotest.Claims{Subject: "sub-anna", Email: "anna@example.com", EmailVerified: true}).
-			expect(t, "sign-in", http.StatusSeeOther, "/")
+		b := annaSignedIn(t, base)
+		ssoLink(t, b, idp, ssotest.Claims{Subject: "sub-anna"}).expect(t, "link", http.StatusSeeOther, "/settings/account?done=linked")
 
 		// An account without a password keeps its link.
 		setAnnaPassword(t, db, "")
@@ -218,6 +304,22 @@ func TestOIDCUnlink(t *testing.T) {
 			t.Errorf("unlink twice: status %d", p.status)
 		}
 	})
+}
+
+// setPassword gives the user password.
+func setPassword(t *testing.T, db *store.DB, userID uuid.UUID, password string) {
+	t.Helper()
+	hash, err := auth.HashPassword(password)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = db.System().Tx(t.Context(), func(ctx context.Context, q store.Querier) error {
+		_, err := q.Exec(ctx, `UPDATE users SET password_hash = ? WHERE id = ?`, hash, userID)
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func setAnnaPassword(t *testing.T, db *store.DB, hash string) {

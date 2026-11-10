@@ -35,6 +35,7 @@ var notices = map[string]i18n.Key{
 	"listDeleted":     "notice.listDeleted",
 	"listRestored":    "notice.listRestored",
 	"categoryDeleted": "notice.categoryDeleted",
+	"linked":          "notice.ssoLinked",
 	"unlinked":        "notice.ssoUnlinked",
 }
 
@@ -255,7 +256,7 @@ func (s *Server) renderAccount(w http.ResponseWriter, r *http.Request, status in
 			s.serverError(w, r, err)
 			return
 		}
-		v.SSO = &ui.SSOLink{Name: s.cfg.OIDC.Name, Linked: linked}
+		v.SSO = &ui.SSOLink{Name: s.cfg.OIDC.Name, Linked: linked, CanLink: s.ssoAvailable()}
 	}
 	loc := location(id)
 	for _, sess := range sessions {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"strings"
 
 	"github.com/google/uuid"
 
@@ -12,19 +11,18 @@ import (
 )
 
 // Single sign-on errors. SSO never creates accounts: an identity signs in
-// only as an account it is linked to, or links to the one active account
-// with its verified email address.
+// only as the account it is linked to, and it is linked only from a
+// signed-in session (Link). Linking by email address is not done: the
+// account's address is whatever its owner typed, so a member could claim
+// a housemate's provider identity.
 var (
-	// ErrNoAccount means no active account is linked to the identity or uses
-	// its email address.
-	ErrNoAccount = errors.New("auth: no account for this identity")
-	// ErrEmailUnverified means the provider does not vouch for the email
-	// address, so it cannot be used to link an account.
-	ErrEmailUnverified = errors.New("auth: email address not verified by the provider")
-	// ErrAmbiguousEmail means several active accounts use the email address.
-	ErrAmbiguousEmail = errors.New("auth: several accounts use this email address")
-	// ErrOtherIdentityLinked means the account matching the email address is
-	// already linked to another identity of the same provider.
+	// ErrNoAccount means no active account is linked to the identity.
+	ErrNoAccount = errors.New("auth: no account linked to this identity")
+	// ErrIdentityLinkedElsewhere means the identity is already linked to
+	// another account.
+	ErrIdentityLinkedElsewhere = errors.New("auth: identity linked to another account")
+	// ErrOtherIdentityLinked means the account is already linked to another
+	// identity of the same provider.
 	ErrOtherIdentityLinked = errors.New("auth: account linked to another identity")
 	// ErrNoPassword means unlinking would leave the account without a way
 	// to sign in.
@@ -33,15 +31,12 @@ var (
 
 // ExternalIdentity is a verified OpenID Connect ID token's identity.
 type ExternalIdentity struct {
-	Issuer        string
-	Subject       string
-	Email         string
-	EmailVerified bool
+	Issuer  string
+	Subject string
 }
 
-// SignInExternal starts a session for the account linked to ext. An
-// identity not linked yet is linked first to the one active account whose
-// email address (compared case-insensitively) is ext's verified address.
+// SignInExternal starts a session for the account linked to ext. It
+// returns ErrNoAccount when no active account is linked.
 func (s *Service) SignInExternal(ctx context.Context, ext ExternalIdentity, userAgent string) (string, error) {
 	if ext.Issuer == "" || ext.Subject == "" {
 		return "", ErrNoAccount
@@ -50,12 +45,10 @@ func (s *Service) SignInExternal(ctx context.Context, ext ExternalIdentity, user
 	err := s.db.System().Tx(ctx, func(ctx context.Context, q store.Querier) error {
 		var userID uuid.UUID
 		err := q.Get(ctx, &userID, `SELECT user_id FROM user_identities WHERE issuer = ? AND subject = ?`, ext.Issuer, ext.Subject)
-		switch {
-		case errors.Is(err, sql.ErrNoRows):
-			if userID, err = s.linkByEmail(ctx, q, ext); err != nil {
-				return err
-			}
-		case err != nil:
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrNoAccount
+		}
+		if err != nil {
 			return err
 		}
 		token, err = s.signInUser(ctx, q, userID, userAgent)
@@ -67,48 +60,41 @@ func (s *Service) SignInExternal(ctx context.Context, ext ExternalIdentity, user
 	return token, err
 }
 
-// linkByEmail links ext to the active account with its email address.
-func (s *Service) linkByEmail(ctx context.Context, q store.Querier, ext ExternalIdentity) (uuid.UUID, error) {
-	email := strings.TrimSpace(ext.Email)
-	if email == "" || len(email) > maxEmailLen {
-		return uuid.Nil, ErrNoAccount
+// Link links ext to the signed-in user, who has just signed in at the
+// provider as ext. Linking it again is a no-op. It returns
+// ErrIdentityLinkedElsewhere when ext belongs to another account and
+// ErrOtherIdentityLinked when the user already has another identity of
+// the issuer.
+func (s *Service) Link(ctx context.Context, id *Identity, ext ExternalIdentity) error {
+	if ext.Issuer == "" || ext.Subject == "" {
+		return errors.New("auth: link an identity without issuer or subject")
 	}
-	if !ext.EmailVerified {
-		return uuid.Nil, ErrEmailUnverified
-	}
-	// Compared in Go like RequestPasswordReset, so both engines fold alike.
-	var rows []struct {
-		ID    uuid.UUID
-		Email string
-	}
-	if err := q.Select(ctx, &rows, `
-		SELECT DISTINCT u.id, u.email
-		FROM users u
-		JOIN memberships m ON m.user_id = u.id AND m.removed_at IS NULL
-		WHERE u.email IS NOT NULL AND u.email <> ''`); err != nil {
-		return uuid.Nil, err
-	}
-	var match []uuid.UUID
-	for _, r := range rows {
-		if strings.EqualFold(r.Email, email) {
-			match = append(match, r.ID)
+	return s.db.System().Tx(ctx, func(ctx context.Context, q store.Querier) error {
+		var owner uuid.UUID
+		err := q.Get(ctx, &owner, `SELECT user_id FROM user_identities WHERE issuer = ? AND subject = ?`, ext.Issuer, ext.Subject)
+		switch {
+		case err == nil && owner == id.UserID:
+			return nil
+		case err == nil:
+			return ErrIdentityLinkedElsewhere
+		case !errors.Is(err, sql.ErrNoRows):
+			return err
 		}
-	}
-	switch len(match) {
-	case 0:
-		return uuid.Nil, ErrNoAccount
-	case 1:
-	default:
-		return uuid.Nil, ErrAmbiguousEmail
-	}
-	_, err := q.Exec(ctx, `INSERT INTO user_identities (issuer, subject, user_id, created_at) VALUES (?, ?, ?, ?)`,
-		ext.Issuer, ext.Subject, match[0], s.clock())
-	if store.IsUniqueViolation(err) {
-		// (user_id, issuer) is taken; a concurrent first sign-in of the same
-		// identity ends up here too and can simply retry.
-		return uuid.Nil, ErrOtherIdentityLinked
-	}
-	return match[0], err
+		var n int
+		if err := q.QueryRow(ctx, `SELECT count(*) FROM user_identities WHERE user_id = ? AND issuer = ?`, id.UserID, ext.Issuer).Scan(&n); err != nil {
+			return err
+		}
+		if n > 0 {
+			return ErrOtherIdentityLinked
+		}
+		_, err = q.Exec(ctx, `INSERT INTO user_identities (issuer, subject, user_id, created_at) VALUES (?, ?, ?, ?)`,
+			ext.Issuer, ext.Subject, id.UserID, s.clock())
+		if store.IsUniqueViolation(err) {
+			// A concurrent link of the same identity or account won.
+			return ErrIdentityLinkedElsewhere
+		}
+		return err
+	})
 }
 
 // LinkedIdentity reports whether the user has an identity of the issuer

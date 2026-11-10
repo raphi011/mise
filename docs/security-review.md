@@ -9,7 +9,7 @@ Scope: authentication (passwords, sessions, reset, invites, SSO), CSRF, househol
 | ID | Severity | Finding | Status |
 |----|----------|---------|--------|
 | F1 | Medium | Email change needs no re-authentication | Fixed (password required; accounts without one cannot change it) |
-| F2 | Low | SSO links by an unverified, self-entered email | Open |
+| F2 | Low | SSO links by an unverified, self-entered email | Fixed (linking only from a signed-in session) |
 | F3 | Low | No Content-Security-Policy; signed-in pages cacheable | Fixed (CSP, `no-store`); HSTS left to the proxy |
 | F4 | Accepted | Admin-configured AI endpoint can reach internal addresses | By design |
 
@@ -26,13 +26,15 @@ Scope: authentication (passwords, sessions, reset, invites, SSO), CSRF, househol
 
 On a first SSO sign-in, `linkByEmail` links the provider identity to the one active account whose email matches the provider's verified email. The account's email is whatever its owner typed, never verified. A member can set their email to a housemate's provider address before that housemate first uses SSO; the housemate's identity is then linked to the member's account and signs in as the member from then on.
 
-F1's fix stops this from a stolen session but not from a member acting on their own account. Fixing it needs one of: verifying addresses before they count for linking (an email round trip, needs SMTP), linking only from a signed-in session ("Link SSO" on the account page), or not linking by email at all. Open pending a decision.
+F1's fix stops this from a stolen session but not from a member acting on their own account.
+
+**Fix.** SSO no longer links by email address. An identity is linked only from a signed-in session: "Link" on the account page (a POST, so CSRF-protected) runs the provider flow with the flow cookie bound to a hash of the session ID, and the callback links the identity to that session's account. It refuses the link when the session changed in between, when the identity is already linked to another account, or when the account already has another identity of the provider. An SSO sign-in with an unlinked identity is refused with a hint to sign in with the password and link from the account page. SSO still never creates accounts. The link form also redirects to the provider, which `form-action` allows (F3).
 
 ### F3: Missing defence-in-depth headers
 
 `securityHeaders` set `nosniff`, `Referrer-Policy` and `X-Frame-Options` but no CSP, so an injection bug would run with no restriction. Signed-in pages carried no `Cache-Control`, so after signing out on a shared device the back button could show cached pages.
 
-**Fix.** Every response carries `Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`. Datastar evaluates expressions with `Function`, hence `'unsafe-eval'`; inline `style` attributes need `'unsafe-inline'` for styles. Browsers apply `form-action` to the redirects that follow a form submission too, and the SSO button is a form post answered with a redirect to the provider, so with OIDC configured `form-action` also lists the origin of the provider's authorization endpoint. The server learns it from discovery while loading its settings at startup (or at the first sign-in if the provider was down), and assumes the issuer's origin until then; no other form leaves the app. Responses to signed-in requests send `Cache-Control: no-store` unless the handler sets its own (images, import photos).
+**Fix.** Every response carries `Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`. Datastar evaluates expressions with `Function`, hence `'unsafe-eval'`; inline `style` attributes need `'unsafe-inline'` for styles. Browsers apply `form-action` to the redirects that follow a form submission too, and the SSO button is a form post answered with a redirect to the provider, so with OIDC configured `form-action` also lists the origin of the provider's authorization endpoint. The server learns it from discovery while loading its settings at startup (or at the first sign-in if the provider was down), and assumes the issuer's origin until then. The only other form that leaves the app, "Link" on the account page (F2), redirects to the same endpoint. Responses to signed-in requests send `Cache-Control: no-store` unless the handler sets its own (images, import photos).
 
 HSTS stays with the TLS-terminating proxy (`docs/operations.md`).
 

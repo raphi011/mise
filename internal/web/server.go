@@ -431,6 +431,7 @@ func (s *Server) routes(r *router) {
 	r.write(http.MethodPost, "/settings/account/password", s.user(s.changePassword))
 	r.write(http.MethodPost, "/settings/account/sessions/revoke-others", s.user(s.revokeOtherSessions))
 	r.write(http.MethodPost, "/settings/account/sessions/{id}/revoke", s.user(s.revokeSession))
+	r.write(http.MethodPost, "/settings/account/sso/link", s.user(s.linkSSO))
 	r.write(http.MethodPost, "/settings/account/sso/unlink", s.user(s.unlinkSSO))
 	r.write(http.MethodPost, "/settings/lists", s.user(s.createList))
 	r.write(http.MethodPost, "/settings/lists/{id}/rename", s.user(s.renameList))
