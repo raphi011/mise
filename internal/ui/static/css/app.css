@@ -729,9 +729,9 @@ select.input { padding-right: 10px; }
 
 /* ---- Settings: phone list with sub-pages, desktop cards with an index ---- */
 
-.settings { display: flex; flex-direction: column; gap: 22px; }
+.settings { display: flex; flex-direction: column; gap: var(--space-5); }
 .settings-nav { display: none; }
-.settings-body { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+.settings-body { display: flex; flex-direction: column; gap: var(--space-5); min-width: 0; }
 
 .profile-card, .card {
   border-radius: var(--radius-card);
@@ -740,13 +740,15 @@ select.input { padding-right: 10px; }
 }
 
 .profile-card { display: flex; align-items: center; gap: 12px; padding: 14px; }
+.profile-card--link { color: var(--ink); text-decoration: none; }
+.profile-card--link:hover { color: var(--ink); background: var(--surface-2); }
 .profile-card__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .profile-card__name { font-weight: 600; }
 .card { padding: 16px 14px; }
 .card__title { margin: 0; font-size: 16px; font-weight: 600; }
 
 .settings-section { display: flex; flex-direction: column; gap: var(--space-2); }
-.settings-section__head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 0 2px; }
+.settings-section__head { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 32px; padding: 0 2px; }
 
 .conn-status { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; color: var(--muted); }
 .conn-status::before { content: ""; width: 8px; height: 8px; border-radius: 4px; background: currentColor; }
@@ -772,6 +774,7 @@ select.input { padding-right: 10px; }
 .settings-section__action {
   display: inline-flex;
   align-items: center;
+  gap: var(--space-1);
   min-height: var(--target);
   color: var(--herb);
   font-size: 13px;
@@ -781,6 +784,8 @@ select.input { padding-right: 10px; }
 
 .settings-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: var(--space-2); }
 .settings-actions .btn { flex: 1 1 auto; }
+.settings-list-actions { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-left: -14px; }
+.settings-signout { display: flex; flex-direction: column; }
 
 .list {
   margin: 0;
@@ -796,7 +801,10 @@ select.input { padding-right: 10px; }
 .list__row { display: flex; align-items: center; gap: var(--space-2); padding-right: 6px; }
 .list__row + .list__row { border-top: 1px solid var(--surface-2); }
 .list__row--field { min-height: 56px; padding: 6px 10px 6px 14px; justify-content: space-between; }
-.list__row--actions { justify-content: flex-end; padding: 6px 10px; }
+.list__row--actions { justify-content: flex-end; gap: var(--space-3); padding: 8px 10px 8px 14px; }
+.list__row--actions .btn--primary { min-height: var(--target); font-size: 14px; }
+.list__row--actions .list__note { flex: 1; font-size: 12px; }
+.list__row--form { padding: 12px 10px 12px 14px; }
 
 .list__link {
   flex: 1;
@@ -814,10 +822,19 @@ a.list__link:hover, summary.list__link:hover { color: var(--ink); background: va
 .list__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .list__text--inline { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
 .list__label { flex: 1; }
+.list__note { font-size: 13px; color: var(--muted); }
 .chevron { flex-shrink: 0; color: var(--muted); }
 
 .role-label { font-size: 13px; color: var(--muted); }
 .role-label--pending { color: var(--amber-ink); font-weight: 500; }
+
+/* A text field with its button beside it, wrapping below on narrow rows. */
+.inline-field, .new-list { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-2); }
+.inline-field > .field { flex: 1 1 200px; min-width: 0; }
+.inline-field > .btn { min-height: 50px; }
+.inline-field > .alert, .new-list > .alert, .new-list > .field__error { flex-basis: 100%; }
+.new-list { flex: 1; align-items: center; }
+.new-list > .input { flex: 1 1 160px; min-width: 0; height: var(--target); background: var(--ground); }
 
 .disclosure { width: 100%; }
 .disclosure > summary { list-style: none; cursor: pointer; }
@@ -863,12 +880,12 @@ a.list__link:hover, summary.list__link:hover { color: var(--ink); background: va
 }
 
 @media (min-width: 1024px) {
-  .settings { flex-direction: row; align-items: flex-start; gap: 32px; }
+  .settings { flex-direction: row; align-items: flex-start; gap: 40px; }
 
   .settings-nav {
     position: sticky;
     top: 32px;
-    flex: 0 0 200px;
+    flex: 0 0 220px;
     display: flex;
     flex-direction: column;
     gap: 2px;
@@ -877,37 +894,70 @@ a.list__link:hover, summary.list__link:hover { color: var(--ink); background: va
   .settings-nav a {
     display: flex;
     align-items: center;
+    gap: 10px;
     min-height: var(--target);
     padding: 0 12px;
-    border-radius: 10px;
+    border-radius: 12px;
     color: var(--ink-2);
     text-decoration: none;
     font-size: 14px;
   }
 
+  .settings-nav svg { width: 18px; height: 18px; flex-shrink: 0; }
   .settings-nav a:hover { background: var(--surface); color: var(--ink); }
-  .settings-body { flex: 1; gap: 20px; }
+  .settings-nav__rule { width: auto; margin: 10px 12px; border: 0; border-top: 1px solid var(--line); }
 
-  .settings-section:not(.settings-section--plain) {
-    gap: 14px;
+  .settings-body { flex: 1; max-width: 720px; gap: 20px; }
+  .profile-card--link { gap: 14px; padding: 18px 22px; border-radius: 20px; }
+
+  .settings-body > .settings-section {
+    gap: 12px;
     padding: 22px;
     border-radius: 20px;
     background: var(--surface);
     border: 1px solid var(--line-soft);
+    scroll-margin-top: 32px;
   }
 
-  .settings-section:not(.settings-section--plain) .settings-section__title {
+  .settings-body > .settings-section > .settings-section__head { align-items: flex-start; padding: 0; }
+
+  .settings-body > .settings-section .settings-section__title {
     font-size: 18px;
     letter-spacing: normal;
     text-transform: none;
     color: var(--ink);
   }
 
-  .settings-section:not(.settings-section--plain) .settings-section__desc { display: block; }
-  .settings-section:not(.settings-section--plain) .settings-section__foot { display: none; }
-  .settings-section:not(.settings-section--plain) .list { border: none; border-radius: 0; }
-  .settings-section:not(.settings-section--plain) .list__link,
-  .settings-section:not(.settings-section--plain) .list__row--field { padding-left: 0; }
+  .settings-body > .settings-section .settings-section__desc { display: block; }
+  .settings-body > .settings-section > .settings-section__foot { display: none; }
+
+  .settings-body > .settings-section .settings-section__action {
+    min-height: 40px;
+    padding: 0 16px;
+    border-radius: 999px;
+    border: 1px solid var(--line-strong);
+    color: var(--ink);
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .settings-body > .settings-section .settings-section__action:hover { background: var(--surface-2); }
+
+  /* Rows bleed 12px into the card's padding so their hover fill has room
+     while their text lines up with the card title. */
+  .settings-body > .settings-section > .list { margin: 0 -12px; border: none; border-radius: 0; background: none; }
+  .settings-body > .settings-section .list__link,
+  .settings-body > .settings-section .list__row--field,
+  .settings-body > .settings-section .list__row--form,
+  .settings-body > .settings-section .disclosure__body { padding-left: 12px; padding-right: 12px; }
+  .settings-body > .settings-section a.list__link:hover,
+  .settings-body > .settings-section summary.list__link:hover { border-radius: 12px; }
+  .settings-body > .settings-section .settings-list-actions { margin-left: -14px; }
+  .settings-body > .settings-section .list__row--actions { padding: 12px 12px 0; }
+  .settings-body > .settings-section .list__row--actions .list__note { display: none; }
+
+  .settings-signout { flex-direction: row; justify-content: flex-end; }
+  .settings-signout .btn--destructive { min-height: var(--target); font-size: 14px; }
 }
 
 /* ---- Groceries: tabs, grouped list, cart, chips, add field ---- */

@@ -67,21 +67,37 @@ templ Settings(p Page, v SettingsView) {
 		}
 		<div class="settings">
 			<nav class="settings-nav" aria-label={ i18n.T(ctx, "settings.sections") }>
-				<a href="#people">{ i18n.T(ctx, "settings.people") }</a>
-				<a href="#lists">{ i18n.T(ctx, "settings.lists") }</a>
-				<a href="#groceries">{ i18n.T(ctx, "settings.groceries") }</a>
-				<a href="#recipes">{ i18n.T(ctx, "settings.recipes") }</a>
-				<a href="#app">{ i18n.T(ctx, "settings.appAccount") }</a>
+				<a href="#people">
+					@iconPeople()
+					{ i18n.T(ctx, "settings.people") }
+				</a>
+				<a href="#lists">
+					@iconGroceries()
+					{ i18n.T(ctx, "settings.lists") }
+				</a>
+				<a href="#library">
+					@iconRecipes()
+					{ i18n.T(ctx, "settings.groceriesRecipes") }
+				</a>
+				<a href="#app">
+					@iconSliders()
+					{ i18n.T(ctx, "settings.app") }
+				</a>
+				<hr class="settings-nav__rule"/>
+				<a href="/settings/account">
+					@iconUser()
+					{ i18n.T(ctx, "settings.accountAndSecurity") }
+				</a>
 			</nav>
 			<div class="settings-body">
-				<div class="profile-card">
+				<a class="profile-card profile-card--link" href="/settings/account">
 					@avatar(v.Name, v.Color, "md")
 					<span class="profile-card__text">
 						<span class="profile-card__name">{ v.Name }</span>
-						<span class="muted">{ i18n.T(ctx, "settings.signedInAs", v.Username) }</span>
+						<span class="muted">{ "@" + v.Username + " · " + i18n.T(ctx, "settings.accountAndSecurity") }</span>
 					</span>
-					<a class="btn btn--secondary btn--small" href="/settings/account">{ i18n.T(ctx, "settings.account") }</a>
-				</div>
+					@chevron()
+				</a>
 				<section class="settings-section" id="people" aria-labelledby="people-title">
 					<div class="settings-section__head">
 						<span class="settings-section__titles">
@@ -89,7 +105,10 @@ templ Settings(p Page, v SettingsView) {
 							<span class="settings-section__desc">{ i18n.T(ctx, "settings.peopleNote") }</span>
 						</span>
 						if v.Admin {
-							<a class="settings-section__action" href="/settings/invite">{ i18n.T(ctx, "settings.invite") }</a>
+							<a class="settings-section__action" href="/settings/invite">
+								@iconPlus(14)
+								{ i18n.T(ctx, "settings.invite") }
+							</a>
 						}
 					</div>
 					<ul class="list" role="list">
@@ -113,7 +132,7 @@ templ Settings(p Page, v SettingsView) {
 									<span class="avatar avatar--sm avatar--pending" aria-hidden="true">?</span>
 									<span class="list__text">
 										<span>{ inv.Label }</span>
-										<span class="muted">{ inv.Note }</span>
+										<span class="list__note">{ inv.Note }</span>
 									</span>
 									<span class="role-label role-label--pending">{ i18n.T(ctx, "settings.pending") }</span>
 								</span>
@@ -124,9 +143,12 @@ templ Settings(p Page, v SettingsView) {
 					<span class="settings-section__foot">{ i18n.T(ctx, "settings.peopleNote") }</span>
 				</section>
 				@listsSection(v)
-				<section class="settings-section" id="groceries" aria-labelledby="groceries-title">
+				<section class="settings-section" id="library" aria-labelledby="library-title">
 					<div class="settings-section__head">
-						<h2 class="settings-section__title" id="groceries-title">{ i18n.T(ctx, "settings.groceries") }</h2>
+						<span class="settings-section__titles">
+							<h2 class="settings-section__title" id="library-title">{ i18n.T(ctx, "settings.groceriesRecipes") }</h2>
+							<span class="settings-section__desc">{ i18n.T(ctx, "settings.groceriesRecipesNote") }</span>
+						</span>
 					</div>
 					<ul class="list" role="list">
 						<li class="list__row">
@@ -136,13 +158,6 @@ templ Settings(p Page, v SettingsView) {
 								@chevron()
 							</a>
 						</li>
-					</ul>
-				</section>
-				<section class="settings-section" id="recipes" aria-labelledby="recipes-title">
-					<div class="settings-section__head">
-						<h2 class="settings-section__title" id="recipes-title">{ i18n.T(ctx, "settings.recipes") }</h2>
-					</div>
-					<ul class="list" role="list">
 						<li class="list__row">
 							<a class="list__link" href="/settings/tags">
 								<span class="list__text">{ i18n.T(ctx, "settings.tags") }</span>
@@ -155,9 +170,9 @@ templ Settings(p Page, v SettingsView) {
 								<a class="list__link" href="/settings/ai">
 									<span class="list__text">{ i18n.T(ctx, "settings.ai") }</span>
 									if v.AIEnabled {
-										<span class="role-label">{ i18n.T(ctx, "settings.on") }</span>
+										<span class="conn-status conn-status--ok">{ i18n.T(ctx, "settings.on") }</span>
 									} else {
-										<span class="role-label">{ i18n.T(ctx, "settings.off") }</span>
+										<span class="conn-status">{ i18n.T(ctx, "settings.off") }</span>
 									}
 									@chevron()
 								</a>
@@ -167,7 +182,10 @@ templ Settings(p Page, v SettingsView) {
 				</section>
 				<section class="settings-section" id="app" aria-labelledby="app-title">
 					<div class="settings-section__head">
-						<h2 class="settings-section__title" id="app-title">{ i18n.T(ctx, "settings.app") }</h2>
+						<span class="settings-section__titles">
+							<h2 class="settings-section__title" id="app-title">{ i18n.T(ctx, "settings.app") }</h2>
+							<span class="settings-section__desc">{ i18n.T(ctx, "settings.prefsNote") }</span>
+						</span>
 					</div>
 					<form class="list list--form" method="post" action="/settings/preferences">
 						<div class="list__row list__row--field">
@@ -201,14 +219,14 @@ templ Settings(p Page, v SettingsView) {
 							</div>
 						</div>
 						<div class="list__row list__row--actions">
-							<button class="btn btn--secondary btn--small" type="submit">{ i18n.T(ctx, "form.save") }</button>
+							<span class="list__note settings-prefs-note">{ i18n.T(ctx, "settings.prefsNote") }</span>
+							<button class="btn btn--primary btn--small" type="submit">{ i18n.T(ctx, "form.save") }</button>
 						</div>
 					</form>
-					<div class="settings-actions">
-						<a class="btn btn--secondary" href="/settings/account">{ i18n.T(ctx, "settings.accountAndSecurity") }</a>
-						@postButton("/signout", i18n.T(ctx, "settings.signOut"), "btn btn--destructive", nil)
-					</div>
 				</section>
+				<div class="settings-signout">
+					@postButton("/signout", i18n.T(ctx, "settings.signOut"), "btn btn--destructive", nil)
+				</div>
 			</div>
 		</div>
 	}
@@ -224,6 +242,18 @@ templ memberRowBody(m MemberRow) {
 		}
 	</span>
 	<span class="role-label">{ m.Role }</span>
+}
+
+templ iconPeople() {
+	<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="7" r="4"></circle><path d="M2 21a7 7 0 0 1 14 0M16 3.5a4 4 0 0 1 0 7M18 14a6 6 0 0 1 4 6"></path></svg>
+}
+
+templ iconSliders() {
+	<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8M16 5v4M10 15v4"></path></svg>
+}
+
+templ iconUser() {
+	<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"></circle><path d="M4 21a8 8 0 0 1 16 0"></path></svg>
 }
 
 // AccountView is the account page.
@@ -533,16 +563,14 @@ templ listsSection(v SettingsView) {
 							@chevron()
 						</summary>
 						<div class="stack disclosure__body">
-							<form class="stack" method="post" action={ templ.SafeURL("/settings/lists/" + l.ID + "/rename") } novalidate>
+							<form class="inline-field" method="post" action={ templ.SafeURL("/settings/lists/" + l.ID + "/rename") } novalidate>
 								if v.ListFormID == l.ID {
 									@formAlert(v.ListForm)
 								}
 								@textField(Field{ID: "list-name-" + l.ID, Name: "name", Label: i18n.T(ctx, "settings.listName"), Required: true}, listNameForm(v, l))
-								<div>
-									<button class="btn btn--secondary btn--small" type="submit">{ i18n.T(ctx, "settings.rename") }</button>
-								</div>
+								<button class="btn btn--secondary" type="submit">{ i18n.T(ctx, "settings.rename") }</button>
 							</form>
-							<div class="settings-actions">
+							<div class="settings-list-actions">
 								if i > 0 {
 									@postButton("/settings/lists/"+l.ID+"/move", i18n.T(ctx, "settings.moveUp"), "btn btn--ghost btn--small", map[string]string{"to": itoa(i - 1)})
 								}
@@ -557,16 +585,33 @@ templ listsSection(v SettingsView) {
 					</details>
 				</li>
 			}
+			<li class="list__row list__row--form">
+				<form class="new-list" method="post" action="/settings/lists" novalidate>
+					if v.ListFormID == "" {
+						@formAlert(v.ListForm)
+					}
+					<label class="visually-hidden" for="new-list-name">{ i18n.T(ctx, "settings.newList") }</label>
+					<input
+						class="input"
+						id="new-list-name"
+						name="name"
+						type="text"
+						required
+						placeholder={ i18n.T(ctx, "settings.newList") }
+						value={ newListForm(v).Value("name") }
+						if newListForm(v).Error("name") != "" {
+							aria-invalid="true"
+							aria-describedby="new-list-name-error"
+						}
+					/>
+					<button class="btn btn--secondary" type="submit">
+						@iconPlus(16)
+						{ i18n.T(ctx, "settings.createList") }
+					</button>
+					@fieldError("new-list-name-error", newListForm(v).Error("name"))
+				</form>
+			</li>
 		</ul>
-		<form class="card stack" method="post" action="/settings/lists" novalidate>
-			if v.ListFormID == "" {
-				@formAlert(v.ListForm)
-			}
-			@textField(Field{ID: "new-list-name", Name: "name", Label: i18n.T(ctx, "settings.newList"), Required: true}, newListForm(v))
-			<div>
-				<button class="btn btn--secondary btn--small" type="submit">{ i18n.T(ctx, "settings.createList") }</button>
-			</div>
-		</form>
-		<span class="settings-section__foot">{ i18n.T(ctx, "settings.listsNote") }</span>
+		<span class="settings-section__foot">{ i18n.T(ctx, "settings.listsFoot") }</span>
 	</section>
 }
