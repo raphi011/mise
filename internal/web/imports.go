@@ -66,6 +66,9 @@ func (s *Server) importFormPage(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
+	if v.AI && r.URL.Query().Get("tab") == ui.ImportTabText {
+		v.Tab = ui.ImportTabText
+	}
 	s.renderImportForm(w, r, http.StatusOK, v)
 }
 
@@ -77,7 +80,11 @@ func (s *Server) startImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	user := identity(r).UserID
+	tab := ui.ImportTabLink
 	in := ai.ImportInput{URL: r.PostFormValue("url")}
+	if r.PostFormValue("tab") == ui.ImportTabText {
+		tab, in = ui.ImportTabText, ai.ImportInput{Text: r.PostFormValue("text")}
+	}
 	replace, replaceErr := uuid.Parse(r.PostFormValue("replace"))
 	id, err := s.ai.StartImport(ctx, sc, user, in)
 	if err == nil {
@@ -92,10 +99,14 @@ func (s *Server) startImport(w http.ResponseWriter, r *http.Request) {
 		seeOther(w, r, ui.ImportHref(id.String()))
 		return
 	}
-	f := ui.Form{Values: map[string]string{"url": in.URL}}
+	f := ui.Form{Values: map[string]string{"url": r.PostFormValue("url"), "text": r.PostFormValue("text")}}
 	switch {
 	case errors.Is(err, ai.ErrTooManyJobs):
 		f.Alert = i18n.T(ctx, "import.error.tooMany", ai.MaxActiveJobs)
+	case errors.Is(err, ai.ErrDisabled), errors.Is(err, ai.ErrUnreadable):
+		// AI import was turned off (or its key lost) since the form loaded.
+		f.Alert = i18n.T(ctx, "import.error.disabled")
+		tab = ui.ImportTabLink
 	default:
 		var ok bool
 		if f, ok = withErrors(ctx, f, err); !ok {
@@ -110,6 +121,9 @@ func (s *Server) startImport(w http.ResponseWriter, r *http.Request) {
 	}
 	if replaceErr == nil {
 		v.Replace = replace.String()
+	}
+	if v.AI {
+		v.Tab = tab
 	}
 	s.renderImportForm(w, r, http.StatusUnprocessableEntity, v)
 }
@@ -163,8 +177,13 @@ func (s *Server) importPage(w http.ResponseWriter, r *http.Request) {
 		p.Title = i18n.T(ctx, "import.review.title")
 		s.render(w, r, http.StatusOK, ui.ImportReview(p, reviewView(ctx, job)))
 	default:
+		// With AI import on, the failed screen offers pasted text.
+		tab := ui.ImportTabLink
+		if st.Enabled {
+			tab = ui.ImportTabText
+		}
 		v := ui.ImportFormView{
-			Form: ui.Form{Values: map[string]string{"url": job.SourceURL}}, Tab: ui.ImportTabLink,
+			Form: ui.Form{Values: map[string]string{"url": job.SourceURL, "text": job.SourceText}}, Tab: tab,
 			AI: st.Enabled, Model: st.Model, Admin: identity(r).IsAdmin(), Failure: importFailure(ctx, job, st.Enabled),
 			Replace: job.ID.String(),
 		}

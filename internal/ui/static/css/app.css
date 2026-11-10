@@ -2694,3 +2694,8 @@ details.import-activity:not([open]) { gap: 0; }
 }
 .pick-items__btn .pick-row__name { flex: 1; }
 .pick-items__current { color: var(--herb); display: inline-flex; }
+
+/* The import form's Link and Pasted text tabs are radios: only the
+   checked tab's field and button label show, with or without JavaScript. */
+.import-form:has(input[name="tab"][value="text"]:checked) .import-panel--link,
+.import-form:not(:has(input[name="tab"][value="text"]:checked)) .import-panel--text { display: none; }

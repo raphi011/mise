@@ -2,7 +2,9 @@ package web
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
@@ -330,4 +332,100 @@ func TestImportOpenInEditor(t *testing.T) {
 		t.Error("photo toast shown twice")
 	}
 	anna.get(page).expect(t, "job after editor save", http.StatusNotFound)
+}
+
+// recipeModel is an OpenAI-compatible endpoint whose model answers every
+// request with a create_recipe call for a dal, or with no tool call when
+// the text holds no recipe.
+func recipeModel(t *testing.T) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		w.Header().Set("Content-Type", "application/json")
+		if !strings.Contains(string(body), "lentils") {
+			_, _ = io.WriteString(w, `{"id":"c1","object":"chat.completion","created":1,"model":"m","choices":[{"index":0,"finish_reason":"stop",
+				"message":{"role":"assistant","content":"There is no recipe in this text."}}],"usage":{"prompt_tokens":5,"completion_tokens":5,"total_tokens":10}}`)
+			return
+		}
+		args, _ := json.Marshal(map[string]any{
+			"name": "Red lentil dal", "description": "", "prep_min": 5, "cook_min": 25, "servings": 4, "source_url": "", "image_url": "",
+			"ingredients": []map[string]string{{"text": "250 g red lentils", "item": ""}, {"text": "1 onion", "item": ""}},
+			"steps":       []map[string]any{{"text": "Simmer the lentils.", "timer_seconds": 1200}},
+			"tags":        []string{},
+		})
+		res, _ := json.Marshal(map[string]any{
+			"id": "c2", "object": "chat.completion", "created": 1, "model": "m",
+			"choices": []map[string]any{{"index": 0, "finish_reason": "tool_calls", "message": map[string]any{
+				"role": "assistant", "content": nil,
+				"tool_calls": []map[string]any{{"id": "call_1", "type": "function", "function": map[string]any{"name": "create_recipe", "arguments": string(args)}}},
+			}}},
+			"usage": map[string]int{"prompt_tokens": 5, "completion_tokens": 5, "total_tokens": 10},
+		})
+		_, _ = w.Write(res)
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+// TestImportPastedText imports pasted text with AI import on, and shows
+// the Pasted text tab only then.
+func TestImportPastedText(t *testing.T) {
+	_, srv := startImportServer(t, storetest.SQLite(t))
+	anna, _ := household(t, srv)
+	site := newRecipeSite(t)
+
+	if body := anna.get("/recipes/import").body; strings.Contains(body, `name="text"`) || strings.Contains(body, "Pasted text") {
+		t.Error("pasted text offered with AI import off")
+	}
+	off := anna.post("/recipes/import", url.Values{"tab": {"text"}, "text": {"250 g red lentils"}}).expect(t, "text with AI off", http.StatusUnprocessableEntity).body
+	if !strings.Contains(off, "only links can be imported") {
+		t.Errorf("text with AI off:\n%.3000s", off)
+	}
+
+	model := recipeModel(t)
+	anna.post("/settings/ai", url.Values{"enabled": {"on"}, "provider": {"openai"}, "endpoint": {model.URL + "/v1"}, "model": {"m"},
+		"api_key": {"sk-1"}, "allow_search_items": {"on"}}).expect(t, "turn AI on", http.StatusSeeOther)
+
+	form := anna.get("/recipes/import?tab=text").body
+	for _, want := range []string{"Import with AI", `name="tab" value="text" checked`, `name="text"`, "Import text", "Uses m."} {
+		if !strings.Contains(form, want) {
+			t.Errorf("form with AI on lacks %q", want)
+		}
+	}
+	if t.Failed() {
+		t.Fatalf("form:\n%.4000s", form)
+	}
+	empty := anna.post("/recipes/import", url.Values{"tab": {"text"}, "text": {"  "}, "url": {"https://example.com"}}).
+		expect(t, "empty text", http.StatusUnprocessableEntity).body
+	if !strings.Contains(empty, `value="text" checked`) {
+		t.Error("empty text lost the tab")
+	}
+
+	res := anna.post("/recipes/import", url.Values{"tab": {"text"}, "text": {"Dal: 250 g red lentils, 1 onion. Simmer."}, "url": {"ignored"}}).
+		expect(t, "import text", http.StatusSeeOther)
+	page := res.location
+	body := waitForPage(t, anna, page, "Review import")
+	for _, want := range []string{"Red lentil dal", "Read the pasted text", "Built the draft “Red lentil dal”", "250 g red lentils", "Save recipe &amp; 2 new items"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("review lacks %q", want)
+		}
+	}
+	if t.Failed() {
+		t.Fatalf("review:\n%.5000s", body)
+	}
+
+	// Text without a recipe fails; the failed screen keeps it on the
+	// Pasted text tab. A link that fails also offers pasted text.
+	res = anna.post("/recipes/import", url.Values{"tab": {"text"}, "text": {"Just a story."}}).expect(t, "import a story", http.StatusSeeOther)
+	body = waitForPage(t, anna, res.location, "Couldn’t find a recipe in that text")
+	for _, want := range []string{`value="text" checked`, ">Just a story.</textarea>", "Import text", "Type it myself"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("failed text import lacks %q", want)
+		}
+	}
+	job := startImport(t, anna, site.URL+"/missing")
+	body = waitForPage(t, anna, "/imports/"+job, "Couldn’t open that page")
+	if !strings.Contains(body, `value="text" checked`) || !strings.Contains(body, `value="`+site.URL+`/missing"`) {
+		t.Errorf("failed link import with AI on:\n%.4000s", body)
+	}
 }

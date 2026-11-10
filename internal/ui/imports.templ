@@ -30,22 +30,48 @@ templ ImportForm(p Page, v ImportFormView) {
 					}
 				</p>
 			}
-			<form id="import-form" class="stack" method="post" action="/recipes/import" novalidate>
+			<form id="import-form" class="stack import-form" method="post" action="/recipes/import" novalidate>
 				@formAlert(v.Form)
 				if v.Replace != "" {
 					<input type="hidden" name="replace" value={ v.Replace }/>
 				}
-				@textField(Field{ID: "import-url", Name: "url", Type: "url", Label: i18n.T(ctx, "import.form.url"),
-					Attrs: templ.Attributes{"inputmode": "url", "autocomplete": "off", "placeholder": "https://", "autofocus": v.Failure == nil}}, v.Form)
+				if v.AI {
+					<div class="segmented segmented--fill" role="radiogroup" aria-label={ i18n.T(ctx, "import.form.source") }>
+						<label class="segmented__option">
+							<input type="radio" name="tab" value={ ImportTabLink } checked?={ v.Tab != ImportTabText }/>
+							<span>{ i18n.T(ctx, "import.form.tabLink") }</span>
+						</label>
+						<label class="segmented__option">
+							<input type="radio" name="tab" value={ ImportTabText } checked?={ v.Tab == ImportTabText }/>
+							<span>{ i18n.T(ctx, "import.form.tabText") }</span>
+						</label>
+					</div>
+				}
+				<div class="import-panel import-panel--link">
+					@textField(Field{ID: "import-url", Name: "url", Type: "url", Label: i18n.T(ctx, "import.form.url"),
+						Attrs: templ.Attributes{"inputmode": "url", "autocomplete": "off", "placeholder": "https://", "autofocus": v.Failure == nil && v.Tab != ImportTabText}}, v.Form)
+				</div>
+				if v.AI {
+					<div class="import-panel import-panel--text field">
+						<label class="field__label" for="import-text">{ i18n.T(ctx, "import.form.text") }</label>
+						@textarea("import-text", "text", 12, v.Form.Value("text"), v.Form.Error("text"), "")
+						<span class="field__hint">{ i18n.T(ctx, "import.form.textHint") }</span>
+					</div>
+				}
 				<div class="import-actions">
 					if v.Failure != nil {
 						<a class="btn btn--secondary btn--tall" href="/recipes/new">{ i18n.T(ctx, "import.typeItMyself") }</a>
 					}
 					<button class="btn btn--primary" type="submit">
-						if v.Failure != nil {
-							{ i18n.T(ctx, "import.form.again") }
-						} else {
-							{ i18n.T(ctx, "import.form.submit") }
+						<span class="import-panel--link">
+							if v.Failure != nil {
+								{ i18n.T(ctx, "import.form.again") }
+							} else {
+								{ i18n.T(ctx, "import.form.submit") }
+							}
+						</span>
+						if v.AI {
+							<span class="import-panel--text">{ i18n.T(ctx, "import.form.submitText") }</span>
 						}
 					</button>
 				</div>
