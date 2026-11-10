@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Reused by release.yml so nothing is published without the same checks.
+  workflow_call:
 
 permissions:
   contents: read

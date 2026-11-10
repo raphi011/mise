@@ -1,6 +1,6 @@
 image:
-  # No published image yet: build it (see the README) and push it to your registry.
-  repository: mise
+  # Published by the release workflow; override to use your own registry.
+  repository: ghcr.io/raphi011/mise
   # Defaults to the chart's appVersion.
   tag: ""
   pullPolicy: IfNotPresent
