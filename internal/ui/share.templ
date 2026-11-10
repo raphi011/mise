@@ -1,0 +1,150 @@
+package ui
+
+import "github.com/raphi011/mise/internal/i18n"
+
+// PublicLink is the recipe menu's public link entry, patched on its own
+// when the link is created or turned off. Every member sees and manages it.
+templ PublicLink(v RecipeMenuView) {
+	<li class="menu__share" id="public-link">
+		<div class="menu__item menu__item--static">
+			<span class="menu__icon">
+				@iconGlobe()
+			</span>
+			<span class="list__text">
+				<span>{ i18n.T(ctx, "recipes.menu.public") }</span>
+				if v.PublicURL != "" {
+					<span class="muted">{ v.PublicBy }</span>
+				} else {
+					<span class="muted">{ i18n.T(ctx, "recipes.menu.publicNote") }</span>
+				}
+			</span>
+		</div>
+		if v.PublicURL != "" {
+			<div class="link-box">
+				<label class="visually-hidden" for="public-url">{ i18n.T(ctx, "recipes.menu.public") }</label>
+				<input class="link-box__input" id="public-url" type="text" readonly value={ v.PublicURL }/>
+				<button
+					type="button"
+					class="btn btn--secondary btn--small"
+					data-copy="public-url"
+					data-copied={ i18n.T(ctx, "recipes.menu.copied") }
+				>
+					<span aria-live="polite">{ i18n.T(ctx, "recipes.menu.copy") }</span>
+				</button>
+			</div>
+			<form class="menu__share-action" method="post" action={ templ.SafeURL(ShareHref(v.ID) + "/revoke") } data-on:submit={ postForm(ShareHref(v.ID) + "/revoke") }>
+				<button type="submit" class="btn btn--ghost btn--small">{ i18n.T(ctx, "recipes.menu.publicRevoke") }</button>
+			</form>
+		} else {
+			<form method="post" action={ templ.SafeURL(ShareHref(v.ID)) } data-on:submit={ postForm(ShareHref(v.ID)) }>
+				<button type="submit" class="btn btn--secondary btn--block">{ i18n.T(ctx, "recipes.menu.publicCreate") }</button>
+			</form>
+		}
+	</li>
+}
+
+// sharedFrame is the page around a public link: the brand (not a link, so
+// nothing leads into the app), the content and a footer.
+templ sharedFrame(p Page) {
+	@document(p) {
+		<div class="shared">
+			<header class="shared__head">
+				@logo(28)
+				<span class="shared__brand" aria-hidden="true">mise</span>
+			</header>
+			<main class="shared__main" id="main">
+				{ children... }
+			</main>
+			<footer class="shared__foot">{ i18n.T(ctx, "shared.footer") }</footer>
+		</div>
+	}
+}
+
+// SharedRecipePage is a recipe as its public link shows it: read-only, at
+// the recipe's own servings, without anything about the household.
+templ SharedRecipePage(p Page, v SharedRecipeView) {
+	@sharedFrame(p) {
+		<article class="recipe">
+			@PageTitle(v.Name)
+			<div class="recipe-hero">
+				<div class={ "recipe-hero__media avatar--" + v.Tint }>
+					if v.PhotoURL != "" {
+						<img src={ v.PhotoURL } alt=""/>
+					} else {
+						<span class="recipe-hero__initial" aria-hidden="true">{ Initial(v.Name) }</span>
+					}
+				</div>
+				<div class="recipe-hero__text">
+					if v.Description != "" {
+						<p class="recipe-hero__desc">{ v.Description }</p>
+					}
+					<dl class="meta-tiles">
+						if v.Prep != "" {
+							@metaTile(i18n.T(ctx, "recipes.prep"), v.Prep, "")
+						}
+						if v.Cook != "" {
+							@metaTile(i18n.T(ctx, "recipes.cook"), v.Cook, "")
+						}
+						@metaTile(i18n.T(ctx, "recipes.yield"), plural(ctx, v.Servings, "recipes.servingsOne", "recipes.servings"), "")
+					</dl>
+					if v.SourceURL != "" {
+						<p class="recipe-source">
+							<a href={ templ.SafeURL(v.SourceURL) } rel="noopener noreferrer" target="_blank">{ i18n.T(ctx, "recipes.source", v.SourceHost) }</a>
+						</p>
+					}
+				</div>
+			</div>
+			<div class="recipe-body">
+				<section class="recipe-section" aria-labelledby="ingredients-title">
+					<div class="recipe-section__head">
+						<h2 class="recipe-section__title" id="ingredients-title">{ i18n.T(ctx, "recipes.ingredients") }</h2>
+					</div>
+					if len(v.Ingredients) > 0 {
+						<ul class="list ingredients" role="list">
+							for _, ing := range v.Ingredients {
+								<li class="ingredient ingredient--static">
+									<span class="ingredient__name">
+										{ ing.Name }
+										if ing.Optional {
+											<span class="ingredient__opt">{ i18n.T(ctx, "recipes.optional") }</span>
+										}
+									</span>
+									if ing.Amount != "" {
+										<span class="ingredient__amount">{ ing.Amount }</span>
+									}
+								</li>
+							}
+						</ul>
+					} else {
+						<p class="muted">{ i18n.T(ctx, "recipes.noIngredients") }</p>
+					}
+				</section>
+				<section class="recipe-section" aria-labelledby="method-title">
+					<div class="recipe-section__head">
+						<h2 class="recipe-section__title" id="method-title">{ i18n.T(ctx, "recipes.method") }</h2>
+					</div>
+					if len(v.Steps) > 0 {
+						@stepList(v.Steps)
+					} else {
+						<p class="muted">{ i18n.T(ctx, "recipes.noSteps") }</p>
+					}
+				</section>
+			</div>
+		</article>
+	}
+}
+
+// SharedGonePage answers a public link that is unknown or turned off, or
+// whose recipe was deleted. It does not say which.
+templ SharedGonePage(p Page) {
+	@sharedFrame(p) {
+		<section class="empty" role="status">
+			<h1 class="shared__gone-title">{ i18n.T(ctx, "shared.gone.title") }</h1>
+			<p>{ i18n.T(ctx, "shared.gone.body") }</p>
+		</section>
+	}
+}
+
+templ iconGlobe() {
+	<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"></circle><path d="M3.5 12h17M12 3.5c2.3 2.4 3.5 5.3 3.5 8.5s-1.2 6.1-3.5 8.5c-2.3-2.4-3.5-5.3-3.5-8.5s1.2-6.1 3.5-8.5z"></path></svg>
+}

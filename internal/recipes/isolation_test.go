@@ -21,6 +21,7 @@ func TestHouseholdIsolation(t *testing.T) {
 			env
 			recipe, binned Recipe
 			tag, spare     Tag
+			share          Share
 		}
 		setup := func(name string) fixture {
 			e := newEnv(t, db, name)
@@ -35,6 +36,9 @@ func TestHouseholdIsolation(t *testing.T) {
 			}
 			f.tag = f.recipe.Tags[0]
 			var err error
+			if f.share, err = e.s.CreateShare(ctx, e.sc, e.hh.Admin, f.recipe.ID); err != nil {
+				t.Fatal(err)
+			}
 			if f.spare, err = e.s.CreateTag(ctx, e.sc, "Spare"); err != nil {
 				t.Fatal(err)
 			}
@@ -82,6 +86,16 @@ func TestHouseholdIsolation(t *testing.T) {
 			if info, _ := s.DeleteInfo(ctx, sc, own.recipe.ID, me); len(info.Others) != 1 || info.Others[0].ID != own.hh.Member {
 				t.Errorf("delete info lists %+v", info.Others)
 			}
+			if sh, ok, err := s.Share(ctx, sc, own.recipe.ID); err != nil || !ok || sh.Token != own.share.Token {
+				t.Errorf("own share: %+v %v %v", sh, ok, err)
+			}
+			_, _, err = s.Share(ctx, sc, other.recipe.ID)
+			notFound("share of other's recipe", err)
+			_, err = s.Public(ctx, sc, other.recipe.ID)
+			notFound("public view of other's recipe", err)
+			if pub, err := s.Public(ctx, sc, own.recipe.ID); err != nil || pub.ID != own.recipe.ID {
+				t.Errorf("public view of own recipe: %v, %v", pub.ID, err)
+			}
 			st, err := s.ListStatus(ctx, sc, own.recipe.Ingredients)
 			if err != nil || st.List.ID != own.list.ID {
 				t.Errorf("list status on %v, %v", st.List.ID, err)
@@ -93,6 +107,9 @@ func TestHouseholdIsolation(t *testing.T) {
 			notFound("delete", s.Delete(ctx, sc, other.recipe.ID))
 			notFound("restore", s.Restore(ctx, sc, other.binned.ID))
 			notFound("favourite", s.SetFavourite(ctx, sc, me, other.recipe.ID, false))
+			_, err = s.CreateShare(ctx, sc, me, other.recipe.ID)
+			notFound("share other's recipe", err)
+			notFound("revoke other's share", s.RevokeShare(ctx, sc, other.recipe.ID))
 			notFound("rename tag", s.RenameTag(ctx, sc, other.tag.ID, "Hijacked"))
 			notFound("pin tag", s.SetTagPinned(ctx, sc, other.tag.ID, true))
 			notFound("delete tag", s.DeleteTag(ctx, sc, other.spare.ID))
@@ -128,6 +145,9 @@ func TestHouseholdIsolation(t *testing.T) {
 			if got, err := other.s.Get(ctx, other.sc, other.recipe.ID, other.hh.Admin); err != nil ||
 				got.Name != "Dal" || !got.Favourite || len(got.Tags) != 1 || got.Tags[0].Name != "Vegan" || got.Tags[0].Pinned {
 				t.Errorf("other's recipe changed: %+v, %v", got, err)
+			}
+			if sh, ok, err := other.s.Share(ctx, other.sc, other.recipe.ID); err != nil || !ok || sh.Token != other.share.Token {
+				t.Errorf("other's share changed: %+v %v %v", sh, ok, err)
 			}
 			if tags, _ := other.s.Tags(ctx, other.sc); len(tags) != 2 {
 				t.Errorf("other's tags changed: %+v", tags)

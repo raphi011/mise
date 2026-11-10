@@ -4,6 +4,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/google/uuid"
+
 	"github.com/raphi011/mise/internal/store"
 	"github.com/raphi011/mise/internal/store/storetest"
 )
@@ -22,6 +24,11 @@ func TestHouseholdIsolation(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
+		shared := map[uuid.UUID]uuid.UUID{
+			a.household: addSharedRecipe(t, db, a, "token-a"),
+			b.household: addSharedRecipe(t, db, b, "token-b"),
+		}
+		tokens := map[uuid.UUID]string{a.household: "token-a", b.household: "token-b"}
 
 		for _, pair := range []struct{ own, other fixture }{{a, b}, {b, a}} {
 			own, other := pair.own, pair.other
@@ -37,6 +44,12 @@ func TestHouseholdIsolation(t *testing.T) {
 				if m.UserID == other.admin || m.UserID == other.member {
 					t.Errorf("Members returned other household's user %s", m.Name)
 				}
+			}
+
+			// A public link resolves to its own household's recipe only.
+			if sh, err := s.ShareByToken(ctx, tokens[own.household]); err != nil ||
+				sh.HouseholdID != own.household || sh.RecipeID != shared[own.household] {
+				t.Errorf("ShareByToken(own link): %+v, %v", sh, err)
 			}
 
 			if _, err := s.Member(ctx, own.sc, other.member); !errors.Is(err, ErrNotFound) {

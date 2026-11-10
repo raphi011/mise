@@ -235,7 +235,7 @@ func (s *Server) Handler() http.Handler {
 	var h http.Handler = r
 	h = withLocale(h)
 	h = s.requireSetup(h)
-	h = skipForInfra(s.auth.LoadSession, h)
+	h = skipSession(s.auth.LoadSession, h)
 	h = s.csrf.Handler(h)
 	h = securityHeaders(h)
 	h = recoverPanics(s.log, h)
@@ -253,12 +253,14 @@ func isInfra(path string) bool {
 	return strings.HasPrefix(path, ui.StaticPrefix)
 }
 
-// skipForInfra applies mw to every request except infrastructure paths, so
-// asset and probe requests don't query the session table.
-func skipForInfra(mw func(http.Handler) http.Handler, next http.Handler) http.Handler {
+// skipSession applies the session middleware mw to every request except
+// infrastructure paths, so asset and probe requests don't query the session
+// table, and public recipe links, which must not see a member's identity:
+// their only household is the link's (auth.RequireShare).
+func skipSession(mw func(http.Handler) http.Handler, next http.Handler) http.Handler {
 	wrapped := mw(next)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if isInfra(r.URL.Path) {
+		if isInfra(r.URL.Path) || isShare(r.URL.Path) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -322,6 +324,10 @@ func (s *Server) routes(r *router) {
 	r.write(http.MethodPost, "/auth/oidc/start", http.HandlerFunc(s.oidcStart))
 	r.callback(oidcCallbackPath, http.HandlerFunc(s.oidcCallback))
 
+	// Public recipe links: no session (see skipSession).
+	r.read(sharePrefix+"{token}", s.shared(s.sharedRecipePage))
+	r.read(sharePrefix+"{token}/photo/{size}", s.shared(s.sharedPhoto))
+
 	// App.
 	r.read("/{$}", s.user(http.RedirectHandler("/recipes", http.StatusFound).ServeHTTP))
 	r.read("/recipes", s.user(s.libraryPage))
@@ -354,6 +360,8 @@ func (s *Server) routes(r *router) {
 	r.write(http.MethodPost, "/recipes/{id}/restore", s.user(s.restoreRecipe))
 	r.write(http.MethodPost, "/recipes/{id}/cooked", s.user(s.markCooked))
 	r.write(http.MethodPost, "/recipes/{id}/cooked/{event}/undo", s.user(s.undoCooked))
+	r.write(http.MethodPost, "/recipes/{id}/share", s.user(s.createShare))
+	r.write(http.MethodPost, "/recipes/{id}/share/revoke", s.user(s.revokeShare))
 	r.read("/images/{hash}/{size}", s.user(s.image))
 	r.read("/plan", s.user(s.planPage))
 	r.read("/plan/month", s.user(s.planMonthPage))

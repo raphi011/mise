@@ -176,6 +176,8 @@ type RecipeView struct {
 	Favourite  bool
 	// Links are the recipes that go well with this one.
 	Links []LinkView
+	// Shared is true while the recipe has a public link.
+	Shared bool
 	// Gone is set when the recipe was deleted while the page was open.
 	Gone bool
 	// Toast, when set, shows on the page as it loads.
@@ -226,10 +228,39 @@ type StepPart struct {
 
 // RecipeMenuView is the ⋯ menu of a recipe.
 type RecipeMenuView struct {
-	ID       string
-	Name     string
-	ByLabel  string
+	ID      string
+	Name    string
+	ByLabel string
+	// ShareURL is the recipe's address for signed-in members.
 	ShareURL string
+	// PublicURL is the recipe's public link, or "" when it has none;
+	// PublicBy is the translated "Turned on by … on …".
+	PublicURL string
+	PublicBy  string
+}
+
+// ShareHref is the route that creates a recipe's public link;
+// "/revoke" under it removes the link.
+func ShareHref(id string) string { return "/recipes/" + id + "/share" }
+
+// ---- Public link ----
+
+// SharedRecipeView is a recipe as its public link shows it: only what the
+// recipe itself says, nothing about the household.
+type SharedRecipeView struct {
+	// PhotoURL is the photo through the link's own route, or "".
+	PhotoURL    string
+	Tint        string
+	Name        string
+	Description string
+	// Prep and Cook are translated values, or "" when unknown.
+	Prep        string
+	Cook        string
+	Servings    int
+	SourceURL   string
+	SourceHost  string
+	Ingredients []IngredientView
+	Steps       [][]StepPart
 }
 
 // DeleteRecipeView is the delete confirmation.
