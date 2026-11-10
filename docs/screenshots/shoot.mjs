@@ -1,6 +1,6 @@
 // Captures the README screenshots from a seeded instance (see seed.py).
 //
-//   node docs/screenshots/shoot.mjs http://localhost:8084 docs/screenshots
+//   node docs/screenshots/shoot.mjs http://127.0.0.1:8090 docs/screenshots
 //
 // Drives a local Chrome over the DevTools protocol; needs Node 22+ (global
 // WebSocket) and Chrome at CHROME or the macOS default path.
@@ -9,7 +9,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const base = (process.argv[2] ?? "http://localhost:8084").replace(/\/$/, "");
+const base = (process.argv[2] ?? "http://127.0.0.1:8090").replace(/\/$/, "");
 const out = process.argv[3] ?? "docs/screenshots";
 const chrome = process.env.CHROME ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const port = 9222;
@@ -48,15 +48,26 @@ await evaluate(`(() => {
 })()`);
 await sleep(1500);
 
-const recipes = await evaluate(`fetch('/recipes').then(r => r.text()).then(t => [...t.matchAll(/href="(\\/recipes\\/[0-9a-f-]{36})"/g)].map(m => m[1]))`);
-const recipe = recipes[recipes.length - 1];
+// The recipe with a public link is the one shown on the recipe pages.
+const recipes = await evaluate(`fetch('/recipes').then(r => r.text()).then(t => [...new Set([...t.matchAll(/href="(\\/recipes\\/[0-9a-f-]{36})"/g)].map(m => m[1]))])`);
+let recipe, share;
+for (const href of recipes) {
+  const menu = await evaluate(`fetch('${href}/menu').then(r => r.text())`);
+  const m = menu.match(/\/s\/[A-Za-z0-9_-]+/);
+  if (m) { recipe = href; share = m[0]; break; }
+}
+if (!recipe) throw new Error("no recipe with a public link; run seed.py first");
 
-const pages = [
-  ["recipes", "/recipes"],
-  ["recipe", recipe],
-  ["plan", "/plan"],
-  ["groceries", "/groceries"],
-  ["cook", recipe + "/cook"],
+// [file name, path, sizes, schemes]
+// The last entry lists size-scheme pairs to skip.
+const shots = [
+  ["recipes", "/recipes", ["phone", "desktop"], ["light", "dark"]],
+  ["recipe", recipe, ["phone", "desktop"], ["light"]],
+  ["plan", "/plan", ["phone", "desktop"], ["light", "dark"], ["phone-dark"]],
+  ["groceries", "/groceries", ["phone", "desktop"], ["light"]],
+  ["cook", recipe + "/cook", ["phone"], ["light"]],
+  ["settings", "/settings", ["phone", "desktop"], ["light"]],
+  ["share", share, ["phone"], ["light"]],
 ];
 const sizes = {
   phone: { width: 375, height: 812, deviceScaleFactor: 2, mobile: true },
@@ -66,10 +77,16 @@ for (const scheme of ["light", "dark"]) {
   await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: scheme }] });
   for (const [size, metrics] of Object.entries(sizes)) {
     await send("Emulation.setDeviceMetricsOverride", { ...metrics, screenWidth: metrics.width, screenHeight: metrics.height });
-    for (const [name, path] of pages) {
+    for (const [name, path, onSizes, onSchemes, skip = []] of shots) {
+      if (!onSizes.includes(size) || !onSchemes.includes(scheme) || skip.includes(`${size}-${scheme}`)) continue;
+      // Two full rows of the library grid need a taller desktop window.
+      const height = name === "recipes" && size === "desktop" ? 960 : metrics.height;
+      await send("Emulation.setDeviceMetricsOverride", { ...metrics, height, screenWidth: metrics.width, screenHeight: height });
       await go(path);
+      await sleep(500);
       const shot = await send("Page.captureScreenshot", { format: "png" });
-      writeFileSync(join(out, `${name}-${size}-${scheme}.png`), Buffer.from(shot.result.data, "base64"));
+      const file = name === "cook" || name === "share" ? `${name}-${size}.png` : `${name}-${size}-${scheme}.png`;
+      writeFileSync(join(out, file), Buffer.from(shot.result.data, "base64"));
     }
   }
 }

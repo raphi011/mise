@@ -9,7 +9,7 @@ Self-hosted recipes, meal plan and shared shopping lists for your household. One
 
 ## Features
 
-- **Recipes.** Photos, tags, favourites, search by name or ingredient, "goes well with" links, a bin with undo. Scale servings on the page; amounts show in each viewer's units (metric or US).
+- **Recipes.** Photos, tags, favourites, search by name or ingredient, "goes well with" links, a bin with undo, public read-only links you can turn off again. Scale servings on the page; amounts show in each viewer's units (metric or US).
 - **Import.** From a link (schema.org recipes import without any model) or pasted text. An optional AI model, off by default, handles pages without structured data: Anthropic, any OpenAI-compatible API, or a local Ollama.
 - **Meal plan.** A week and a month view, drag meals between days, suggestions for recipes you have not cooked in a while.
 - **Shopping lists.** Add a meal's ingredients to a list in one tap, or type "2 lemons". Lists update live on every device, so two people can shop from one.
@@ -21,14 +21,16 @@ Self-hosted recipes, meal plan and shared shopping lists for your household. One
   <img src="docs/screenshots/recipes-desktop-light.png" alt="The recipe library" width="49%">
   <img src="docs/screenshots/recipe-desktop-light.png" alt="A recipe" width="49%">
   <img src="docs/screenshots/groceries-desktop-light.png" alt="The shopping list" width="49%">
-  <img src="docs/screenshots/plan-desktop-dark.png" alt="The week plan in dark mode" width="49%">
+  <img src="docs/screenshots/settings-desktop-light.png" alt="Household settings" width="49%">
 </p>
 <p>
-  <img src="docs/screenshots/recipe-phone-light.png" alt="A recipe on a phone" width="19%">
-  <img src="docs/screenshots/plan-phone-light.png" alt="The plan on a phone" width="19%">
-  <img src="docs/screenshots/groceries-phone-light.png" alt="The shopping list on a phone" width="19%">
-  <img src="docs/screenshots/cook-phone.png" alt="Cook mode on a phone" width="19%">
-  <img src="docs/screenshots/recipes-phone-dark.png" alt="The library on a phone in dark mode" width="19%">
+  <img src="docs/screenshots/recipe-phone-light.png" alt="A recipe on a phone" width="13.5%">
+  <img src="docs/screenshots/plan-phone-light.png" alt="The plan on a phone" width="13.5%">
+  <img src="docs/screenshots/groceries-phone-light.png" alt="The shopping list on a phone" width="13.5%">
+  <img src="docs/screenshots/cook-phone.png" alt="Cook mode on a phone" width="13.5%">
+  <img src="docs/screenshots/recipes-phone-dark.png" alt="The library on a phone in dark mode" width="13.5%">
+  <img src="docs/screenshots/settings-phone-light.png" alt="Settings on a phone" width="13.5%">
+  <img src="docs/screenshots/share-phone.png" alt="A public recipe link opened on a phone" width="13.5%">
 </p>
 
 ## Quick start
@@ -137,4 +139,4 @@ Pushes to `main` publish `ghcr.io/raphi011/mise:edge`. A `vX.Y.Z` tag publishes 
 
 ### Screenshots
 
-The images in `docs/screenshots` are regenerated against a scratch instance: start the server with an empty `MISE_DATA_DIR`, run `python3 docs/screenshots/seed.py http://localhost:8084` (needs Pillow for the photos), then `node docs/screenshots/shoot.mjs http://localhost:8084 docs/screenshots` (needs Chrome).
+The images in `docs/screenshots` are regenerated against a scratch instance: start the server with an empty `MISE_DATA_DIR` and `MISE_LISTEN=127.0.0.1:8090`, run `python3 docs/screenshots/seed.py http://127.0.0.1:8090`, then `node docs/screenshots/shoot.mjs http://127.0.0.1:8090 docs/screenshots` (needs Chrome). The recipe photos are in `docs/screenshots/photos`, credited in [CREDITS.md](docs/screenshots/CREDITS.md).
