@@ -56,3 +56,6 @@ const MaxToolResult = maxToolResult
 
 // SetJobTimeout shortens the per-job limit.
 func (s *Service) SetJobTimeout(d time.Duration) { s.jobTimeout = d }
+
+// ParseIngredientName exposes the ingredient name reader.
+var ParseIngredientName = parseIngredientName

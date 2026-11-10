@@ -2,7 +2,6 @@ package ai
 
 import (
 	"context"
-	"regexp"
 	"strings"
 	"unicode/utf8"
 
@@ -135,50 +134,48 @@ func (s *Service) draftFromRecipe(ctx context.Context, sc store.Scoped, r Recipe
 // matchIngredient parses an ingredient line and proposes an item.
 func (s *Service) matchIngredient(ctx context.Context, sc store.Scoped, line string, lang language.Tag) (DraftIngredient, error) {
 	line = truncate(line, 300)
-	amount, name := groceries.ParseEntry(line, lang)
-	name = itemName(name)
+	amount, rest := groceries.ParseEntry(line, lang)
+	name := parseIngredientName(rest)
 	ing := DraftIngredient{Text: line, Amount: amount}
-	if name == "" {
+	if name.Phrase == "" {
 		return ing, nil
 	}
-	found, err := s.groceries.SearchItems(ctx, sc, name, 5)
-	if err != nil {
-		return ing, err
-	}
-	if len(found) > 0 && found[0].Match == groceries.MatchExact {
-		id := found[0].Item.ID
-		ing.ItemID, ing.ItemName, ing.Match = &id, found[0].Item.Name, MatchExact
+	set := func(it groceries.Item, m Match) (DraftIngredient, error) {
+		ing.ItemID, ing.ItemName, ing.Match = &it.ID, it.Name, m
 		return ing, nil
 	}
-	within, err := s.groceries.ItemsWithin(ctx, sc, name, 1)
+	// An item named like the first alternative is a match, one named like
+	// a later alternative a probable one; failing that, an item named
+	// within the phrase ("Oil" in "sunflower or vegetable oil"), then one
+	// whose name starts with an option.
+	var near []groceries.Suggestion
+	for i, o := range name.Options {
+		found, err := s.groceries.SearchItems(ctx, sc, o, 5)
+		if err != nil {
+			return ing, err
+		}
+		if len(found) > 0 && found[0].Match == groceries.MatchExact {
+			if i < name.Primary {
+				return set(found[0].Item, MatchExact)
+			}
+			return set(found[0].Item, MatchCheck)
+		}
+		if len(found) > 0 && found[0].Match != groceries.MatchContains && near == nil {
+			near = found
+		}
+	}
+	within, err := s.groceries.ItemsWithin(ctx, sc, name.Phrase, 1)
 	if err != nil {
 		return ing, err
 	}
 	if len(within) > 0 {
-		id := within[0].ID
-		ing.ItemID, ing.ItemName, ing.Match = &id, within[0].Name, MatchCheck
-		return ing, nil
+		return set(within[0], MatchCheck)
 	}
-	if len(found) > 0 && found[0].Match != groceries.MatchContains {
-		id := found[0].Item.ID
-		ing.ItemID, ing.ItemName, ing.Match = &id, found[0].Item.Name, MatchCheck
-		return ing, nil
+	if near != nil {
+		return set(near[0].Item, MatchCheck)
 	}
-	ing.ItemName, ing.Match = groceries.CleanName(name), MatchNew
+	ing.ItemName, ing.Match = groceries.CleanName(name.New), MatchNew
 	return ing, nil
-}
-
-var parenthetical = regexp.MustCompile(`\s*\([^)]*\)`)
-
-// itemName turns what follows an ingredient's amount into an item name:
-// "onion, finely chopped (optional)" is "onion".
-func itemName(name string) string {
-	name = parenthetical.ReplaceAllString(name, "")
-	if i := strings.IndexAny(name, ",;"); i >= 0 {
-		name = name[:i]
-	}
-	name = strings.TrimSpace(strings.Trim(strings.TrimSpace(name), "*-–•"))
-	return truncate(name, maxItemName)
 }
 
 // matchTags keeps the keywords that name existing tags, as those tags.

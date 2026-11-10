@@ -16,8 +16,10 @@ import (
 	"time"
 
 	"github.com/raphi011/mise/internal/ai"
+	"github.com/raphi011/mise/internal/i18n"
 	"github.com/raphi011/mise/internal/store"
 	"github.com/raphi011/mise/internal/store/storetest"
+	"golang.org/x/text/language"
 )
 
 var (
@@ -219,7 +221,7 @@ func TestImportRunningAndCancel(t *testing.T) {
 
 	job := startImport(t, anna, site.URL+"/slow")
 	page := "/imports/" + job
-	body := waitForPage(t, anna, page, "Read the recipe page on 127.0.0.1")
+	body := waitForPage(t, anna, page, "Reading the recipe page on 127.0.0.1…")
 	for _, want := range []string{`<noscript><meta http-equiv="refresh" content="3"></noscript>`, "Cancel import", "/live?page=import&amp;job=" + job, "<progress"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("running page lacks %q", want)
@@ -229,7 +231,7 @@ func TestImportRunningAndCancel(t *testing.T) {
 		t.Fatalf("running page:\n%.4000s", body)
 	}
 	live := anna.openLive("page=import&job=" + job)
-	live.next("running region", 5*time.Second, "import-running", "Read the recipe page")
+	live.next("running region", 5*time.Second, "import-running", "Reading the recipe page")
 
 	// A second and third import may queue; a fourth is refused.
 	second := startImport(t, anna, site.URL+"/slow")
@@ -304,7 +306,7 @@ func TestImportOpenInEditor(t *testing.T) {
 	page := "/imports/" + job
 	waitForPage(t, anna, page, "Review import")
 	editor := anna.get("/recipes/new?import="+job).expect(t, "editor", http.StatusOK).body
-	for _, want := range []string{`value="Crispy tofu"`, `value="400 g"`, `value="Firm tofu"`, `value="Tamari or soy sauce"`, "Fry it until crisp.",
+	for _, want := range []string{`value="Crispy tofu"`, `value="400 g"`, `value="Firm tofu"`, `value="Soy sauce"`, "Fry it until crisp.",
 		`name="import" value="` + job + `"`, `name="import_photo"`, page + "/photo", `href="` + page + `"`} {
 		if !strings.Contains(editor, want) {
 			t.Errorf("editor lacks %q", want)
@@ -469,5 +471,27 @@ func TestImportEntriesAndLibrary(t *testing.T) {
 	}
 	if body := anna.get("/recipes/new?import=" + job).body; strings.Contains(body, "import-card") {
 		t.Error("editor opened from an import offers import")
+	}
+}
+
+// TestStepText words a step in the tense of its state.
+func TestStepText(t *testing.T) {
+	ctx := i18n.WithLocale(t.Context(), language.English)
+	for _, c := range []struct {
+		st   ai.JobStep
+		want string
+	}{
+		{ai.JobStep{Kind: ai.StepReadPage, Text: "bbc.co.uk", State: ai.StepRunning}, "Reading the recipe page on bbc.co.uk…"},
+		{ai.JobStep{Kind: ai.StepReadPage, Text: "bbc.co.uk", State: ai.StepDone}, "Read the recipe page on bbc.co.uk"},
+		{ai.JobStep{Kind: ai.StepFetchPage, Text: "/print", State: ai.StepFailed}, "Couldn’t open /print"},
+		{ai.JobStep{Kind: ai.StepReadText, State: ai.StepRunning}, "Reading the pasted text…"},
+		{ai.JobStep{Kind: ai.StepFindRecipe, State: ai.StepRunning}, "Looking for the recipe…"},
+		{ai.JobStep{Kind: ai.StepNextTurn, State: ai.StepFailed}, "Couldn’t go over the results"},
+		{ai.JobStep{Kind: ai.StepMatch, Text: "3/5", State: ai.StepDone}, "Matched 3 of 5 ingredients to your items"},
+		{ai.JobStep{Kind: "unknown", Text: "as is", State: ai.StepDone}, "as is"},
+	} {
+		if got := stepText(ctx, c.st); got != c.want {
+			t.Errorf("%+v: %q, want %q", c.st, got, c.want)
+		}
 	}
 }

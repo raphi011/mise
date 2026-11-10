@@ -344,7 +344,7 @@ func errorCode(err error) (ErrorCode, string) {
 		return CodeBlockedAddress, ""
 	case errors.Is(err, ErrTooLarge):
 		return CodeTooLarge, ""
-	case errors.Is(err, ErrBadURL), errors.Is(err, ErrContentType), errors.Is(err, ErrTooManyRedirects), errors.As(err, &se),
+	case errors.Is(err, ErrBadURL), errors.Is(err, ErrContentType), errors.Is(err, ErrTooManyRedirects), errors.Is(err, ErrOtherHost), errors.As(err, &se),
 		errors.Is(err, errFetch):
 		return CodeFetchFailed, ""
 	case errors.As(err, &pe):

@@ -187,3 +187,34 @@ func TestFetchLimits(t *testing.T) {
 		t.Errorf("photo: %v", err)
 	}
 }
+
+// A fetch pinned to a host refuses to start on, or be redirected to,
+// another host; redirects on the host are followed.
+func TestFetchOnHost(t *testing.T) {
+	var s *httptest.Server
+	s = serve(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/away":
+			http.Redirect(w, r, strings.Replace(s.URL, "127.0.0.1", "localhost", 1)+"/page", http.StatusFound)
+		case "/here":
+			http.Redirect(w, r, "/page", http.StatusFound)
+		default:
+			w.Header().Set("Content-Type", "text/html")
+			_, _ = w.Write([]byte("page"))
+		}
+	})
+	f := fetcher(t, 0, s)
+	if _, err := f.FetchOnHost(t.Context(), s.URL+"/away", "127.0.0.1"); !errors.Is(err, ai.ErrOtherHost) {
+		t.Errorf("redirect to another host: %v", err)
+	}
+	if _, err := f.FetchOnHost(t.Context(), s.URL+"/page", "example.org"); !errors.Is(err, ai.ErrOtherHost) {
+		t.Errorf("start on another host: %v", err)
+	}
+	if res, err := f.FetchOnHost(t.Context(), s.URL+"/here", "127.0.0.1"); err != nil || string(res.Body) != "page" {
+		t.Errorf("redirect on the host: %v", err)
+	}
+	// Unpinned, the same redirect is followed.
+	if res, err := f.Fetch(t.Context(), s.URL+"/away", ai.KindPage); err != nil || string(res.Body) != "page" {
+		t.Errorf("unpinned redirect: %v", err)
+	}
+}

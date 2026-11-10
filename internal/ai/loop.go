@@ -48,6 +48,10 @@ const (
 	// StepMatch: the server matched the ingredients to items (Text: how
 	// many matched, of how many).
 	StepMatch StepKind = "match"
+	// StepFindRecipe: the model's first turn, reading the content.
+	StepFindRecipe StepKind = "find_recipe"
+	// StepNextTurn: a later model turn, reading the tool results.
+	StepNextTurn StepKind = "next_turn"
 	// StepFetchPage: fetch_page (Text: the URL).
 	StepFetchPage StepKind = "fetch_page"
 	// StepSearchItems: search_items (Text: the query).
@@ -125,21 +129,12 @@ func (s *Service) runLoop(ctx context.Context, sc store.Scoped, m Model, in loop
 	l := &loop{s: s, sc: sc, in: in, p: p}
 	msgs := []Message{{Role: RoleUser, Text: l.firstTurn()}}
 	tools := l.tools()
-	for range maxTurns {
-		res, err := m.Chat(ctx, Request{System: systemPrompt, Messages: msgs, Tools: tools, MaxTokens: maxOutputTokens})
+	for turn := range maxTurns {
+		res, err := l.chat(ctx, m, turn, Request{System: systemPrompt, Messages: msgs, Tools: tools, MaxTokens: maxOutputTokens})
 		if err != nil {
 			return Draft{}, err
 		}
 		msgs = append(msgs, res.Message)
-		switch res.Stop {
-		case StopRefusal:
-			return Draft{}, ErrRefused
-		case StopMaxTokens:
-			return Draft{}, ErrLimit
-		}
-		if len(res.Message.ToolCalls) == 0 {
-			return Draft{}, ErrNoRecipe
-		}
 		results := make([]ToolResult, 0, len(res.Message.ToolCalls))
 		for _, call := range res.Message.ToolCalls {
 			out, done, err := l.call(ctx, call)
@@ -154,6 +149,33 @@ func (s *Service) runLoop(ctx context.Context, sc store.Scoped, m Model, in loop
 		msgs = append(msgs, Message{Role: RoleUser, ToolResults: results})
 	}
 	return Draft{}, ErrLimit
+}
+
+// chat runs one model turn as a step, the longest wait of an import. The
+// step fails when the turn ends the import: an error, a refusal, running
+// out of tokens, or no tool call (no recipe).
+func (l *loop) chat(ctx context.Context, m Model, turn int, req Request) (Response, error) {
+	kind := StepFindRecipe
+	if turn > 0 {
+		kind = StepNextTurn
+	}
+	i := l.p.start(JobStep{Kind: kind})
+	res, err := m.Chat(ctx, req)
+	switch {
+	case err != nil:
+	case res.Stop == StopRefusal:
+		err = ErrRefused
+	case res.Stop == StopMaxTokens:
+		err = ErrLimit
+	case len(res.Message.ToolCalls) == 0:
+		err = ErrNoRecipe
+	}
+	if err != nil {
+		l.p.finish(i, StepFailed)
+		return Response{}, err
+	}
+	l.p.finish(i, StepDone)
+	return res, nil
 }
 
 type loop struct {
@@ -287,7 +309,10 @@ func (l *loop) fetchPage(ctx context.Context, res ToolResult, raw string) (ToolR
 	if err != nil || !strings.EqualFold(u.Hostname(), l.in.SourceURL.Hostname()) {
 		return fail("Only pages on " + l.in.SourceURL.Hostname() + " can be fetched.")
 	}
-	got, err := l.s.fetcher.Fetch(ctx, u.String(), KindPage)
+	got, err := l.s.fetcher.FetchOnHost(ctx, u.String(), l.in.SourceURL.Hostname())
+	if errors.Is(err, ErrOtherHost) {
+		return fail("The page redirects off " + l.in.SourceURL.Hostname() + "; only pages on that site can be fetched.")
+	}
 	if err != nil {
 		if ctx.Err() != nil {
 			return res, nil, ctx.Err()
@@ -457,11 +482,11 @@ func (l *loop) draft(ctx context.Context, in recipeInput) (Draft, string, error)
 		if di.ItemName == "" {
 			continue
 		}
-		_, parsed := groceries.ParseEntry(di.Text, l.in.Lang)
+		_, rest := groceries.ParseEntry(di.Text, l.in.Lang)
 		if id, err := uuid.Parse(ing.Item); err == nil {
 			if it, ok := known[id]; ok {
 				di.ItemID, di.ItemName, di.Match = &it.ID, it.Name, MatchCheck
-				if groceries.NameKey(it.Name) == groceries.NameKey(itemName(parsed)) {
+				if parseIngredientName(rest).primary(it.Name) {
 					di.Match = MatchExact
 				}
 			}

@@ -262,3 +262,38 @@ func storetestEach(t *testing.T, fn func(t *testing.T, e, other *importEnv, base
 		fn(t, e, other, base)
 	})
 }
+
+const notesPage = `<script type="application/ld+json">{"@type":"Recipe","name":"Fried rice",
+ "recipeIngredient":["1 tbsp sunflower or vegetable oil plus a little extra for frying","2 tbsp tamari or soy sauce",
+  "1 tsp sea salt to taste","3 spring onions, sliced","1 tbsp double or single cream"],
+ "recipeInstructions":"Fry."}</script>`
+
+func TestPageDraftNotesAndAlternatives(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		base, f := pages(t, map[string]string{"/rice": notesPage})
+		e := newImportEnv(t, db, "home", f)
+		e.item(t, "Vegetable oil", "Soy sauce", "Sea salt", "Spring onions")
+		d, _, err := e.s.PageDraft(t.Context(), e.sc, base+"/rice", language.English)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := []struct {
+			item  string
+			match ai.Match
+		}{
+			{"Vegetable oil", ai.MatchCheck}, // the second alternative
+			{"Soy sauce", ai.MatchCheck},
+			{"Sea salt", ai.MatchExact}, // "to taste" is a note
+			{"Spring onions", ai.MatchExact},
+			{"Single cream", ai.MatchNew}, // "double" may be short for "double cream"
+		}
+		if len(d.Ingredients) != len(want) {
+			t.Fatalf("ingredients %+v", d.Ingredients)
+		}
+		for i, w := range want {
+			if ing := d.Ingredients[i]; ing.ItemName != w.item || ing.Match != w.match {
+				t.Errorf("ingredient %d: %+v, want %s %s", i, ing, w.item, w.match)
+			}
+		}
+	})
+}

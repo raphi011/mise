@@ -229,7 +229,7 @@ func TestRunImports(t *testing.T) {
 			j.Draft.SourceURL != srv.URL+"/blog" {
 			t.Errorf("blog with AI %+v", j)
 		}
-		if got := stepKinds(j); !slices.Equal(got, []string{"read_page done", "create_recipe done"}) {
+		if got := stepKinds(j); !slices.Equal(got, []string{"read_page done", "find_recipe done", "create_recipe done"}) {
 			t.Errorf("steps %v", got)
 		}
 		// Pasted text.
@@ -287,7 +287,9 @@ func TestRunImportsTimeLimit(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if j := waitJob(t, e, id); j.ErrorCode != ai.CodeLimit || len(j.Steps) != 1 || j.Steps[0].State != ai.StepDone {
+		// The model turn the limit cut short is marked failed.
+		if j := waitJob(t, e, id); j.ErrorCode != ai.CodeLimit || len(j.Steps) != 2 || j.Steps[0].State != ai.StepDone ||
+			j.Steps[1].Kind != ai.StepFindRecipe || j.Steps[1].State != ai.StepFailed {
 			t.Errorf("timed out job %+v", j)
 		}
 	})

@@ -183,8 +183,9 @@ func TestLoopAllTools(t *testing.T) {
 			got = append(got, fmt.Sprintf("%s %s %s", s.Kind, s.Text, s.State))
 		}
 		wantSteps := []string{
-			"search_items tofu done", "search_items soy sauce done", "create_item Maple syrup done",
-			"fetch_page https://elsewhere.example/print failed", "fetch_page /print done", "create_recipe Sticky tofu done",
+			"find_recipe  done", "search_items tofu done", "search_items soy sauce done", "create_item Maple syrup done",
+			"next_turn  done", "fetch_page https://elsewhere.example/print failed", "fetch_page /print done",
+			"next_turn  done", "create_recipe Sticky tofu done",
 		}
 		if !slices.Equal(got, wantSteps) {
 			t.Errorf("steps\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(wantSteps, "\n"))
@@ -237,7 +238,7 @@ func TestLoopPastedTextHasNoFetch(t *testing.T) {
 		if slices.Contains(toolNames(m.reqs[0]), "fetch_page") || !strings.Contains(m.reqs[0].Messages[0].Text, "pasted text") {
 			t.Errorf("pasted text request %+v", m.reqs[0])
 		}
-		if d.SourceURL != "" || d.Ingredients[0].Amount.Unit != "g" || d.Ingredients[0].ItemName != "Linsen" || len(steps) != 1 {
+		if d.SourceURL != "" || d.Ingredients[0].Amount.Unit != "g" || d.Ingredients[0].ItemName != "Linsen" || len(steps) != 2 {
 			t.Errorf("draft %+v, steps %+v", d, steps)
 		}
 	})

@@ -226,10 +226,21 @@ func importSteps(ctx context.Context, steps []ai.JobStep) []ui.ImportStep {
 	return out
 }
 
-// stepText words a step in the viewer's language.
+// stepKeys words each step kind by state: running, done, failed.
+var stepKeys = map[ai.StepKind][3]i18n.Key{
+	ai.StepReadPage:     {"import.step.read_page.running", "import.step.read_page", "import.step.read_page.failed"},
+	ai.StepReadText:     {"import.step.read_text.running", "import.step.read_text", "import.step.read_text.failed"},
+	ai.StepFindRecipe:   {"import.step.find_recipe.running", "import.step.find_recipe", "import.step.find_recipe.failed"},
+	ai.StepNextTurn:     {"import.step.next_turn.running", "import.step.next_turn", "import.step.next_turn.failed"},
+	ai.StepFetchPage:    {"import.step.fetch_page.running", "import.step.fetch_page", "import.step.fetch_page.failed"},
+	ai.StepSearchItems:  {"import.step.search_items.running", "import.step.search_items", "import.step.search_items.failed"},
+	ai.StepCreateItem:   {"import.step.create_item.running", "import.step.create_item", "import.step.create_item.failed"},
+	ai.StepCreateRecipe: {"import.step.create_recipe.running", "import.step.create_recipe", "import.step.create_recipe.failed"},
+}
+
+// stepText words a step in the viewer's language and its state's tense.
 func stepText(ctx context.Context, st ai.JobStep) string {
-	switch st.Kind {
-	case ai.StepMatch:
+	if st.Kind == ai.StepMatch {
 		matched, total, ok := strings.Cut(st.Text, "/")
 		m, err1 := strconv.Atoi(matched)
 		n, err2 := strconv.Atoi(total)
@@ -237,12 +248,22 @@ func stepText(ctx context.Context, st ai.JobStep) string {
 			return i18n.T(ctx, "import.step.matchAny")
 		}
 		return i18n.T(ctx, "import.step.match", m, n)
-	case ai.StepReadText:
-		return i18n.T(ctx, "import.step.read_text")
-	case ai.StepReadPage, ai.StepFetchPage, ai.StepSearchItems, ai.StepCreateItem, ai.StepCreateRecipe:
-		return i18n.T(ctx, i18n.Key("import.step."+string(st.Kind)), st.Text)
 	}
-	return st.Text
+	keys, ok := stepKeys[st.Kind]
+	if !ok {
+		return st.Text
+	}
+	key := keys[1]
+	switch st.State {
+	case ai.StepRunning:
+		key = keys[0]
+	case ai.StepFailed:
+		key = keys[2]
+	}
+	if st.Text == "" {
+		return i18n.T(ctx, key)
+	}
+	return i18n.T(ctx, key, st.Text)
 }
 
 // importFailure words a failed job's error code.

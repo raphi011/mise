@@ -41,7 +41,12 @@ var (
 	ErrContentType = errors.New("ai: unsupported content type")
 	// ErrTooManyRedirects: more than five redirects.
 	ErrTooManyRedirects = errors.New("ai: too many redirects")
+	// ErrOtherHost: a fetch pinned to one host was redirected to another.
+	ErrOtherHost = errors.New("ai: redirected to another host")
 )
+
+// pinnedHost is the context key of the host a fetch must stay on.
+type pinnedHost struct{}
 
 // StatusError is a response with a status other than 200.
 type StatusError struct{ Code int }
@@ -106,6 +111,9 @@ func NewFetcher() *Fetcher {
 			if len(via) > maxRedirects {
 				return ErrTooManyRedirects
 			}
+			if host, ok := req.Context().Value(pinnedHost{}).(string); ok && !strings.EqualFold(req.URL.Hostname(), host) {
+				return ErrOtherHost
+			}
 			return checkURL(req.URL)
 		},
 	}
@@ -126,9 +134,26 @@ func (f *Fetcher) AllowForTest(fn func(netip.AddrPort) bool, timeout time.Durati
 // Fetch gets rawURL, expecting a page (HTML, XHTML or plain text) or an
 // image.
 func (f *Fetcher) Fetch(ctx context.Context, rawURL string, kind Kind) (Fetched, error) {
+	return f.fetch(ctx, rawURL, kind, "")
+}
+
+// FetchOnHost is Fetch for a page that must be on host, redirects
+// included (ErrOtherHost), as fetch_page's pages must be on the source
+// page's host.
+func (f *Fetcher) FetchOnHost(ctx context.Context, rawURL, host string) (Fetched, error) {
+	return f.fetch(ctx, rawURL, KindPage, host)
+}
+
+func (f *Fetcher) fetch(ctx context.Context, rawURL string, kind Kind, host string) (Fetched, error) {
 	u, err := ParseURL(rawURL)
 	if err != nil {
 		return Fetched{}, err
+	}
+	if host != "" {
+		if !strings.EqualFold(u.Hostname(), host) {
+			return Fetched{}, ErrOtherHost
+		}
+		ctx = context.WithValue(ctx, pinnedHost{}, host)
 	}
 	ctx, cancel := context.WithTimeout(ctx, f.timeout)
 	defer cancel()
@@ -172,7 +197,7 @@ func (f *Fetcher) Fetch(ctx context.Context, rawURL string, kind Kind) (Fetched,
 // unwrapFetchErr surfaces our sentinel errors from inside url.Error and
 // net.OpError.
 func unwrapFetchErr(err error) error {
-	for _, target := range []error{ErrBlockedAddress, ErrBadURL, ErrTooManyRedirects} {
+	for _, target := range []error{ErrBlockedAddress, ErrBadURL, ErrTooManyRedirects, ErrOtherHost} {
 		if errors.Is(err, target) {
 			return fmt.Errorf("%w: %w", target, err)
 		}
