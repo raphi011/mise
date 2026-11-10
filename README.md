@@ -79,7 +79,7 @@ Tests run against SQLite and Postgres. Postgres comes from `MISE_TEST_POSTGRES_U
 
 Generated `*_templ.go` files are committed; CI checks they are current.
 
-`internal/ui/static/js/datastar.js` is the Datastar v1.0.4 release bundle with
+`internal/ui/static/js/datastar.js` is the Datastar v1.0.5 release bundle with
 its trailing `sourceMappingURL` comment removed (the source map is not
 vendored). Static assets are served under content-hashed names, so replacing
 the file changes its URL.
