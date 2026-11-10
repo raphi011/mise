@@ -88,6 +88,7 @@ type page struct {
 	status   int
 	location string
 	body     string
+	header   http.Header
 }
 
 func (b *browser) do(req *http.Request) page {
@@ -101,7 +102,7 @@ func (b *browser) do(req *http.Request) page {
 	if err != nil {
 		b.t.Fatal(err)
 	}
-	return page{status: res.StatusCode, location: res.Header.Get("Location"), body: string(body)}
+	return page{status: res.StatusCode, location: res.Header.Get("Location"), body: string(body), header: res.Header}
 }
 
 func (b *browser) get(path string) page {

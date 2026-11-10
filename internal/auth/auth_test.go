@@ -694,7 +694,7 @@ func TestAccount(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if err := s.UpdateProfile(ctx, id, Profile{Name: "Anna B", Email: "", AvatarColor: "sky"}); err != nil {
+		if _, err := s.UpdateProfile(ctx, id, Profile{Name: "Anna B", Email: "", AvatarColor: "sky", CurrentPassword: testPassword}); err != nil {
 			t.Fatal(err)
 		}
 		if err := s.UpdatePreferences(ctx, id, Preferences{Theme: "dark", Language: "de", Units: "us"}); err != nil {

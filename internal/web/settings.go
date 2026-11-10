@@ -239,7 +239,7 @@ func (s *Server) renderAccount(w http.ResponseWriter, r *http.Request, status in
 		return
 	}
 	v := ui.AccountView{
-		Name: id.Name, Username: id.Username, Color: id.AvatarColor,
+		Name: id.Name, Username: id.Username, Email: id.Email, Color: id.AvatarColor,
 		Profile: profile, Password: password, PasswordOpen: password.HasErrors(), Notice: notice,
 	}
 	for _, c := range auth.AvatarColors {
@@ -287,15 +287,35 @@ func colorLabel(r *http.Request, c string) string {
 }
 
 func (s *Server) saveProfile(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	id := identity(r)
 	f := formOf(r, "name", "email", "avatar_color")
-	err := s.auth.UpdateProfile(r.Context(), identity(r), auth.Profile{Name: f.Value("name"), Email: f.Value("email"), AvatarColor: f.Value("avatar_color")})
-	if f, ok := withErrors(r.Context(), f, err); ok {
+	current := r.PostFormValue("current_password")
+	// A submitted current password is checked: limit it like the password
+	// change, which shares the bucket.
+	var attempts []attempt
+	if current != "" {
+		attempts = []attempt{{s.passwordLimit, id.UserID.String()}}
+		if !allowAll(attempts) {
+			f.Alert = i18n.T(ctx, "signin.error.tooMany")
+			s.renderAccount(w, r, http.StatusTooManyRequests, f, ui.Form{}, "")
+			return
+		}
+	}
+	change, err := s.auth.UpdateProfile(ctx, id, auth.Profile{
+		Name: f.Value("name"), Email: f.Value("email"), AvatarColor: f.Value("avatar_color"), CurrentPassword: current,
+	})
+	if f, ok := withErrors(ctx, f, err); ok {
 		s.renderAccount(w, r, http.StatusUnprocessableEntity, f, ui.Form{}, "")
 		return
 	}
 	if err != nil {
 		s.serverError(w, r, err)
 		return
+	}
+	refundAll(attempts)
+	if change != nil && s.mailer != nil {
+		s.sendEmailChanged(id, *change)
 	}
 	seeOther(w, r, "/settings/account?done=saved")
 }

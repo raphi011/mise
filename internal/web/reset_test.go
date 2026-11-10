@@ -181,7 +181,7 @@ func TestResetEmailLanguage(t *testing.T) {
 func TestResetEmailsHaveOwnDeadlines(t *testing.T) {
 	_, srv, rec := startMailServer(t, storetest.SQLite(t))
 	_, ben := household(t, srv)
-	ben.post("/settings/account/profile", url.Values{"name": {"Ben"}, "email": {"anna@example.com"}, "avatar_color": {"sky"}}).
+	ben.post("/settings/account/profile", url.Values{"name": {"Ben"}, "email": {"anna@example.com"}, "avatar_color": {"sky"}, "current_password": {memberPassword}}).
 		expect(t, "share anna's address", http.StatusSeeOther)
 
 	const slow = 300 * time.Millisecond
@@ -216,5 +216,42 @@ func TestResetEmailsHaveOwnDeadlines(t *testing.T) {
 	}
 	if left := time.Until(deadlines[1]); left < mail.Timeout-time.Second {
 		t.Errorf("second send gets %v, want about %v", left, mail.Timeout)
+	}
+}
+
+// TestEmailChangeNotice: an email change takes the current password and
+// tells the old address, so a stolen session cannot quietly redirect
+// password resets.
+func TestEmailChangeNotice(t *testing.T) {
+	s, srv, rec := startMailServer(t, storetest.SQLite(t))
+	anna, _ := household(t, srv)
+	form := url.Values{"name": {"Anna"}, "email": {"thief@example.com"}, "avatar_color": {"sky"}}
+
+	p := anna.post("/settings/account/profile", form).expect(t, "no password", http.StatusUnprocessableEntity)
+	if !strings.Contains(p.body, "Enter your current password to change your email address.") {
+		t.Errorf("no password error:\n%.3000s", p.body)
+	}
+	form.Set("current_password", "wrong password")
+	anna.post("/settings/account/profile", form).expect(t, "wrong password", http.StatusUnprocessableEntity)
+	s.Wait()
+	if n := len(rec.Sent()); n != 0 {
+		t.Fatalf("%d emails after refused changes", n)
+	}
+
+	form.Set("current_password", adminPassword)
+	anna.post("/settings/account/profile", form).expect(t, "change", http.StatusSeeOther, "/settings/account?done=saved")
+	waitMail(t, rec.Wait, 1)
+	msg := rec.Sent()[0]
+	if !strings.Contains(msg.To, "anna@example.com") || msg.Subject != "Your mise email address changed" ||
+		!strings.Contains(msg.Text, "thief@example.com") || !strings.Contains(msg.Text, "/settings/account") {
+		t.Errorf("notice %+v", msg)
+	}
+
+	// Name and colour alone need no password and send nothing.
+	anna.post("/settings/account/profile", url.Values{"name": {"Anna B"}, "email": {"thief@example.com"}, "avatar_color": {"herb"}}).
+		expect(t, "name only", http.StatusSeeOther)
+	s.Wait()
+	if n := len(rec.Sent()); n != 1 {
+		t.Errorf("%d emails after a name change", n)
 	}
 }

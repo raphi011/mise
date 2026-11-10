@@ -233,6 +233,7 @@ func (s *Server) Handler() http.Handler {
 	s.routes(r)
 
 	var h http.Handler = r
+	h = noStoreSignedIn(h)
 	h = withLocale(h)
 	h = s.requireSetup(h)
 	h = skipSession(s.auth.LoadSession, h)

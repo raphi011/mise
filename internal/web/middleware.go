@@ -139,13 +139,35 @@ func recoverPanics(log *slog.Logger, next http.Handler) http.Handler {
 	})
 }
 
-// securityHeaders sets headers every response should carry.
+// contentSecurityPolicy limits what a page may load and run, so an
+// injection bug cannot pull in or send to other origins. Datastar evaluates
+// its expressions with Function, which needs 'unsafe-eval'; the layout's
+// font faces and Datastar-patched elements use inline styles.
+const contentSecurityPolicy = "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; " +
+	"img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+
+// securityHeaders sets headers every response should carry. Handlers may
+// replace the policy with a stricter one (the import photo proxy).
 func securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Referrer-Policy", "same-origin")
 		h.Set("X-Frame-Options", "DENY")
+		h.Set("Content-Security-Policy", contentSecurityPolicy)
+		next.ServeHTTP(w, r)
+	})
+}
+
+// noStoreSignedIn keeps responses to signed-in requests out of caches, so
+// the back button does not show a household's pages after signing out on
+// a shared device. Handlers that set their own Cache-Control (images)
+// replace it.
+func noStoreSignedIn(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := auth.FromContext(r.Context()); ok {
+			w.Header().Set("Cache-Control", "no-store")
+		}
 		next.ServeHTTP(w, r)
 	})
 }

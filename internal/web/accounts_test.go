@@ -273,6 +273,8 @@ func TestAccountPages(t *testing.T) {
 	b.post("/settings/account/profile", url.Values{"name": {"Anna B"}, "email": {"not an email"}, "avatar_color": {"sky"}}).
 		expect(t, "invalid profile", http.StatusUnprocessableEntity)
 	b.post("/settings/account/profile", url.Values{"name": {"Anna B"}, "email": {""}, "avatar_color": {"sky"}}).
+		expect(t, "email removed without password", http.StatusUnprocessableEntity)
+	b.post("/settings/account/profile", url.Values{"name": {"Anna B"}, "email": {""}, "avatar_color": {"sky"}, "current_password": {adminPassword}}).
 		expect(t, "profile", http.StatusSeeOther, "/settings/account?done=saved")
 	p = b.get("/settings/account?done=saved").expect(t, "account", http.StatusOK)
 	if !strings.Contains(p.body, "Saved.") || !strings.Contains(p.body, "avatar--sky") {
@@ -327,5 +329,33 @@ func TestStoredBaseURLLoaded(t *testing.T) {
 	_ = res.Body.Close()
 	if res.StatusCode == http.StatusForbidden {
 		t.Error("stored base URL not trusted as an origin")
+	}
+}
+
+// TestSecurityHeaders: every response carries the content security policy;
+// signed-in pages are not cached, while images and assets keep their own
+// caching.
+func TestSecurityHeaders(t *testing.T) {
+	_, srv := startServer(t, storetest.SQLite(t))
+	b := newBrowser(t, srv.URL)
+	signin := b.get("/signin").expect(t, "setup redirect", http.StatusFound)
+	if signin.header.Get("Content-Security-Policy") != contentSecurityPolicy {
+		t.Errorf("CSP before setup = %q", signin.header.Get("Content-Security-Policy"))
+	}
+	b.post("/setup", setupForm(srv.URL)).expect(t, "setup", http.StatusSeeOther)
+
+	p := b.get("/settings/account").expect(t, "account", http.StatusOK)
+	if got := p.header.Get("Cache-Control"); got != "no-store" {
+		t.Errorf("signed-in page Cache-Control = %q", got)
+	}
+	if got := p.header.Get("Content-Security-Policy"); got != contentSecurityPolicy {
+		t.Errorf("signed-in page CSP = %q", got)
+	}
+	signedOut := newBrowser(t, srv.URL).get("/signin").expect(t, "sign-in page", http.StatusOK)
+	if got := signedOut.header.Get("Cache-Control"); got != "" {
+		t.Errorf("signed-out page Cache-Control = %q", got)
+	}
+	if got := b.get("/sw.js").expect(t, "service worker", http.StatusOK).header.Get("Cache-Control"); got != "no-cache" {
+		t.Errorf("service worker Cache-Control = %q", got)
 	}
 }

@@ -851,5 +851,13 @@
   "account.sso.notLinked": "Nicht verknüpft. Eine Anmeldung darüber verknüpft dieses Konto über seine E-Mail-Adresse.",
   "account.sso.unlink": "Verknüpfung aufheben",
   "account.sso.needsPassword": "Dein Konto hat kein Passwort, ohne Verknüpfung könntest du dich nicht mehr anmelden. Bitte zuerst einen Admin, eins zu setzen.",
-  "notice.ssoUnlinked": "Verknüpfung aufgehoben. Melde dich ab jetzt mit deinem Passwort an."
+  "notice.ssoUnlinked": "Verknüpfung aufgehoben. Melde dich ab jetzt mit deinem Passwort an.",
+  "account.emailPasswordHint": "Nur nötig, um deine E-Mail-Adresse zu ändern.",
+  "form.error.passwordToChangeEmail": "Gib dein aktuelles Passwort ein, um deine E-Mail-Adresse zu ändern.",
+  "email.emailChanged.subject": "Deine mise-E-Mail-Adresse wurde geändert",
+  "email.emailChanged.body": "die E-Mail-Adresse deines mise-Kontos %s wurde in %s geändert. E-Mails zum Zurücksetzen des Passworts gehen jetzt dorthin.",
+  "email.emailChanged.bodyRemoved": "die E-Mail-Adresse deines mise-Kontos %s wurde entfernt. E-Mails zum Zurücksetzen des Passworts erreichen diese Adresse nicht mehr.",
+  "email.emailChanged.button": "Dein Konto öffnen",
+  "email.emailChanged.note": "Wenn du das nicht warst, melde dich an, ändere dein Passwort, melde deine anderen Geräte ab und setze deine E-Mail-Adresse zurück. Wenn du dich nicht anmelden kannst, frag einen Admin.",
+  "email.emailChanged.ignore": "Wenn du das selbst geändert hast, kannst du diese E-Mail ignorieren."
 }

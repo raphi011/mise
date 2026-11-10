@@ -145,13 +145,16 @@ func TestAccountChangesDropResets(t *testing.T) {
 		keeps  bool
 	}{
 		{"new email", func(t *testing.T, s *Service, f fixture, id *Identity, email string) error {
-			return s.UpdateProfile(t.Context(), id, Profile{Name: "Ben", Email: "ben@elsewhere.example", AvatarColor: AvatarColors[0]})
+			_, err := s.UpdateProfile(t.Context(), id, Profile{Name: "Ben", Email: "ben@elsewhere.example", AvatarColor: AvatarColors[0], CurrentPassword: testPassword})
+			return err
 		}, false},
 		{"email removed", func(t *testing.T, s *Service, f fixture, id *Identity, email string) error {
-			return s.UpdateProfile(t.Context(), id, Profile{Name: "Ben", AvatarColor: AvatarColors[0]})
+			_, err := s.UpdateProfile(t.Context(), id, Profile{Name: "Ben", AvatarColor: AvatarColors[0], CurrentPassword: testPassword})
+			return err
 		}, false},
 		{"same email, other case", func(t *testing.T, s *Service, f fixture, id *Identity, email string) error {
-			return s.UpdateProfile(t.Context(), id, Profile{Name: "Benjamin", Email: strings.ToUpper(email), AvatarColor: AvatarColors[0]})
+			_, err := s.UpdateProfile(t.Context(), id, Profile{Name: "Benjamin", Email: strings.ToUpper(email), AvatarColor: AvatarColors[0]})
+			return err
 		}, true},
 		{"password change", func(t *testing.T, s *Service, f fixture, id *Identity, email string) error {
 			return s.ChangePassword(t.Context(), id, testPassword, "a brand new secret")
@@ -191,6 +194,53 @@ func TestAccountChangesDropResets(t *testing.T) {
 					t.Errorf("link survived: %v", err)
 				}
 			})
+		}
+	})
+}
+
+// TestEmailChangeNeedsPassword: whoever holds a session must not be able to
+// point the account's address at themselves (and reset the password from
+// there) without knowing the password. Other profile changes need none.
+func TestEmailChangeNeedsPassword(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		ctx := t.Context()
+		s, _ := newService(t, db)
+		f := addHousehold(t, db, "h")
+		setEmail(t, db, f.member, "ben@example.com", nil)
+		session, err := s.SignIn(ctx, "h-member", testPassword, "ua")
+		if err != nil {
+			t.Fatal(err)
+		}
+		id, _, err := s.Authenticate(ctx, session)
+		if err != nil {
+			t.Fatal(err)
+		}
+		profile := func(email, password string) Profile {
+			return Profile{Name: "Ben", Email: email, AvatarColor: AvatarColors[1], CurrentPassword: password}
+		}
+
+		var fe FieldErrors
+		if _, err := s.UpdateProfile(ctx, id, profile("thief@example.com", "")); !errors.As(err, &fe) || fe["current_password"] != "form.error.passwordToChangeEmail" {
+			t.Errorf("no password: %v", err)
+		}
+		if _, err := s.UpdateProfile(ctx, id, profile("thief@example.com", "not the password")); !errors.As(err, &fe) || fe["current_password"] != "form.error.currentPassword" {
+			t.Errorf("wrong password: %v", err)
+		}
+		if _, err := s.UpdateProfile(ctx, id, profile("", "")); !errors.As(err, &fe) {
+			t.Errorf("removed without password: %v", err)
+		}
+		if change, err := s.UpdateProfile(ctx, id, profile("BEN@example.com", "")); err != nil || change != nil {
+			t.Errorf("case change: %+v, %v", change, err)
+		}
+		change, err := s.UpdateProfile(ctx, id, profile("ben@elsewhere.example", testPassword))
+		if err != nil || change == nil || change.Old != "BEN@example.com" || change.New != "ben@elsewhere.example" {
+			t.Errorf("with password: %+v, %v", change, err)
+		}
+		if change, err := s.UpdateProfile(ctx, id, profile("", testPassword)); err != nil || change == nil || change.New != "" {
+			t.Errorf("removed: %+v, %v", change, err)
+		}
+		if change, err := s.UpdateProfile(ctx, id, profile("ben@example.com", testPassword)); err != nil || change != nil {
+			t.Errorf("added to an empty address: %+v, %v", change, err)
 		}
 	})
 }

@@ -31,7 +31,9 @@ func (s *Server) absoluteURL(path string) (string, error) {
 func composeEmail(ctx context.Context, to netmail.Address, v ui.EmailView) (mail.Message, error) {
 	v.Lang = i18n.Locale(ctx).String()
 	v.Fallback = i18n.T(ctx, "email.fallback")
-	v.Ignore = i18n.T(ctx, "email.ignore")
+	if v.Ignore == "" {
+		v.Ignore = i18n.T(ctx, "email.ignore")
+	}
 	var html strings.Builder
 	if err := ui.Email(v).Render(ctx, &html); err != nil {
 		return mail.Message{}, err
@@ -72,6 +74,46 @@ func resetEmail(ctx context.Context, t auth.ResetTicket, link string) (mail.Mess
 		Link:     link,
 		Note:     i18n.T(ctx, "email.reset.note"),
 	})
+}
+
+// emailChangedEmail tells the old address that the account's email
+// address changed, in the account's language.
+func emailChangedEmail(ctx context.Context, id *auth.Identity, change auth.EmailChange, link string) (mail.Message, error) {
+	ctx = i18n.WithLocale(ctx, i18n.Match(id.Language, id.HouseholdLanguage))
+	body := i18n.T(ctx, "email.emailChanged.body", id.Username, change.New)
+	if change.New == "" {
+		body = i18n.T(ctx, "email.emailChanged.bodyRemoved", id.Username)
+	}
+	return composeEmail(ctx, netmail.Address{Name: id.Name, Address: change.Old}, ui.EmailView{
+		Title:    i18n.T(ctx, "email.emailChanged.subject"),
+		Greeting: i18n.T(ctx, "email.reset.greeting", id.Name),
+		Body:     body,
+		Button:   i18n.T(ctx, "email.emailChanged.button"),
+		Link:     link,
+		Note:     i18n.T(ctx, "email.emailChanged.note"),
+		Ignore:   i18n.T(ctx, "email.emailChanged.ignore"),
+	})
+}
+
+// sendEmailChanged tells the old address about an email change, after the
+// response, so a slow SMTP server does not hold up the save.
+func (s *Server) sendEmailChanged(id *auth.Identity, change auth.EmailChange) {
+	s.bg.Add(1)
+	go func() {
+		defer s.bg.Done()
+		ctx, cancel := context.WithTimeout(context.Background(), mail.Timeout)
+		defer cancel()
+		link, err := s.absoluteURL("/settings/account")
+		if err == nil {
+			var msg mail.Message
+			if msg, err = emailChangedEmail(ctx, id, change, link); err == nil {
+				err = s.mailer.Send(ctx, msg)
+			}
+		}
+		if err != nil {
+			s.log.Error("send email change notice", slog.String("user", id.UserID.String()), slog.Any("err", err))
+		}
+	}()
 }
 
 // sendInvite emails an invite link. The caller shows the link either way.

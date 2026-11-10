@@ -12,26 +12,50 @@ type Profile struct {
 	Name        string
 	Email       string
 	AvatarColor string
+	// CurrentPassword confirms a change of email address: whoever holds a
+	// session could otherwise point the address at themselves and take the
+	// account over with a password reset or an SSO link. Other changes do
+	// not need it.
+	CurrentPassword string
 }
 
-// UpdateProfile saves the user's name, email and avatar colour.
-func (s *Service) UpdateProfile(ctx context.Context, id *Identity, p Profile) error {
+// EmailChange is a changed email address, for telling the old one.
+type EmailChange struct {
+	// Old is the previous address; New the address now stored, empty when
+	// it was removed.
+	Old, New string
+}
+
+// UpdateProfile saves the user's name, email and avatar colour. Changing
+// the email address, other than in case, takes the current password. When
+// the address changed from a non-empty one, it returns the change.
+func (s *Service) UpdateProfile(ctx context.Context, id *Identity, p Profile) (*EmailChange, error) {
 	p.Name, p.Email = clean(p.Name), clean(p.Email)
 	errs := FieldErrors{}
 	checkName(errs, "name", p.Name)
 	checkEmail(errs, "email", p.Email)
 	checkChoice(errs, "avatar_color", p.AvatarColor, AvatarColors)
 	if err := errs.orNil(); err != nil {
-		return err
+		return nil, err
 	}
-	return s.db.System().Tx(ctx, func(ctx context.Context, q store.Querier) error {
-		var old *string
-		if err := q.Get(ctx, &old, `SELECT email FROM users WHERE id = ?`, id.UserID); err != nil {
-			return err
+	var stored struct {
+		Email        *string
+		PasswordHash string
+	}
+	if err := s.db.System().Read().Get(ctx, &stored, `SELECT email, password_hash FROM users WHERE id = ?`, id.UserID); err != nil {
+		return nil, err
+	}
+	old := deref(stored.Email)
+	// Addresses match case-insensitively, as in RequestPasswordReset.
+	changed := !strings.EqualFold(old, p.Email)
+	if changed {
+		if err := confirmPassword(stored.PasswordHash, p.CurrentPassword); err != nil {
+			return nil, err
 		}
+	}
+	err := s.db.System().Tx(ctx, func(ctx context.Context, q store.Querier) error {
 		// Reset links went to the old address; they must not outlive it.
-		// Addresses match case-insensitively, as in RequestPasswordReset.
-		if old != nil && !strings.EqualFold(*old, p.Email) {
+		if changed {
 			if err := dropResets(ctx, q, id.UserID); err != nil {
 				return err
 			}
@@ -40,6 +64,30 @@ func (s *Service) UpdateProfile(ctx context.Context, id *Identity, p Profile) er
 			p.Name, nullable(p.Email), p.AvatarColor, s.clock(), id.UserID)
 		return err
 	})
+	if err != nil {
+		return nil, err
+	}
+	if !changed || old == "" {
+		return nil, nil
+	}
+	return &EmailChange{Old: old, New: p.Email}, nil
+}
+
+// confirmPassword checks the current password a sensitive change needs,
+// returning a FieldErrors for the current_password field when it is
+// missing or wrong.
+func confirmPassword(hash, password string) error {
+	if password == "" {
+		return FieldErrors{"current_password": "form.error.passwordToChangeEmail"}
+	}
+	ok, err := VerifyPassword(hash, password)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return FieldErrors{"current_password": "form.error.currentPassword"}
+	}
+	return nil
 }
 
 // Preferences are the user's display settings.
