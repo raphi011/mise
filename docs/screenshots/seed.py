@@ -12,6 +12,7 @@ demo / demo-password-123.
 """
 
 import datetime
+import html
 import pathlib
 import re
 import sys
@@ -80,7 +81,7 @@ RECIPES = [
                 ("Simmer uncovered until the sauce clings to the chickpeas. Cook the rice alongside.", "20"),
                 ("Fold in the spinach until wilted, taste for salt and lemon, and serve over rice.", "")]),
     dict(name="Lemon spaghetti", photo="lemon-spaghetti", servings=2, prep=5, cook=15, tags="Vegetarian, Pasta, Quick",
-         ing=[("200 g", "Spaghetti"), ("2", "Unwaxed lemons"), ("40 g", "Butter"), ("1", "Garlic clove"),
+         ing=[("200 g", "Spaghetti"), ("2", "Unwaxed lemons"), ("40 g", "Butter"), ("1", "Garlic cloves"),
               ("50 g", "Parmesan"), ("2 handfuls", "Rocket"), ("1 pinch", "Chilli flakes")],
          steps=[("Boil the spaghetti in well-salted water and keep a mugful of the cooking water before draining.", "10"),
                 ("Melt the butter with the crushed garlic, the zest of both lemons and the juice of one.", ""),
@@ -137,17 +138,21 @@ def main():
         url, _ = post("/recipes", fields, files)
         ids[r["name"]] = re.search(r"/recipes/([0-9a-f-]{36})", url).group(1)
 
-    # Plan this week; the ingredients of the first two meals go on the list.
+    # Plan next week, so no day is in the past whenever this runs (shoot.mjs
+    # opens that week), plus tonight's dinner; the ingredients of the first
+    # two meals go on the list.
     today = datetime.date.today()
-    monday = today - datetime.timedelta(days=today.weekday())
+    monday = today - datetime.timedelta(days=today.weekday()) + datetime.timedelta(days=7)
     week = [("Chickpea curry", 0), ("Lemon spaghetti", 1), ("Tonkotsu-style ramen", 2), ("Shakshuka", 3),
             ("Greek salad", 4), ("Blueberry pancakes", 5), ("Roast chicken with garlic", 6), ("Tiramisu", 6)]
     servings = {r["name"]: r["servings"] for r in RECIPES}
-    for i, (name, offset) in enumerate(week):
+    # (recipe, date): tonight first, then next week.
+    meals = [("Lemon spaghetti", today)] + [(n, monday + datetime.timedelta(days=d)) for n, d in week]
+    for i, (name, day) in enumerate(meals):
         rid = ids[name]
         _, page = get(f"/recipes/{rid}")
-        ing = sorted(set(re.findall(rf"/recipes/{rid}/ingredients/([0-9a-f-]{{36}})/toggle", page))) if i < 2 else []
-        date = (monday + datetime.timedelta(days=offset)).isoformat()
+        ing = sorted(set(re.findall(rf"/recipes/{rid}/ingredients/([0-9a-f-]{{36}})/toggle", page))) if 1 <= i <= 2 else []
+        date = day.isoformat()
         post("/plan", {"recipe": rid, "date": date, "servings": str(servings[name]), "ingredient": ing,
                        "back": f"/plan?week={monday.isoformat()}"})
 
@@ -157,8 +162,41 @@ def main():
     # A few loose entries on the shopping list.
     url, page = get("/groceries")
     lid = re.search(r"/groceries/lists/([0-9a-f-]{36})", url + page).group(1)
-    for text in ["1 l oat milk", "Bananas", "Dishwasher tabs", "Kitchen roll"]:
+    for text in ["1 l oat milk", "Bananas", "Dishwasher tabs", "Kitchen roll", "Sourdough bread"]:
         post(f"/groceries/lists/{lid}/entries", {"text": text})
+
+    # Sort the list into aisles through each entry's edit form (the category
+    # is remembered per item name, like a member would do it).
+    KEEP = {"Baby spinach", "Chickpeas", "Coconut milk", "Curry powder", "Basmati rice", "Spaghetti",
+            "Unwaxed lemons", "Parmesan", "Butter", "Oat milk", "Bananas", "Dishwasher tabs", "Kitchen roll", "Sourdough bread"}
+    aisles = {
+        "Pantry": ["coconut"],
+        "Produce": ["spinach", "banana", "lemon", "onion", "garlic", "pepper", "tomato", "rocket", "cucumber", "ginger",
+                    "parsley", "carrot", "potato", "spring onion", "thyme", "blueberr"],
+        "Fridge": ["butter", "parmesan", "feta", "milk", "egg", "mascarpone", "cream"],
+        "Bakery": ["bread"],
+        "Household": ["tabs", "kitchen roll"],
+    }
+
+    def aisle(name):
+        low = name.lower()
+        for cat, words in aisles.items():
+            if any(w in low for w in words):
+                return cat
+        return "Pantry"
+
+    _, page = get(f"/groceries/lists/{lid}")
+    for eid in dict.fromkeys(re.findall(r"/groceries/entries/([0-9a-f-]{36})/edit", page)):
+        _, form = get(f"/groceries/entries/{eid}/edit")
+        name = html.unescape(re.search(r'name="name" type="text" value="([^"]*)"', form).group(1))
+        if name not in KEEP:  # keep the demo list short: most ingredients are in the cupboard
+            post(f"/groceries/entries/{eid}/remove", {})
+            continue
+        amount = html.unescape(re.search(r'name="amount" type="text" value="([^"]*)"', form).group(1))
+        cats = {html.unescape(label): val for val, label in
+                re.findall(r'name="category" value="([0-9a-f-]*)"[^>]*> <span>([^<]*)</span>', form)}
+        post(f"/groceries/entries/{eid}/edit", {"name": name, "amount": amount, "category": cats[aisle(name)],
+                                                "new_category": "", "note": ""})
     print("seeded; sign in as demo /", PASSWORD)
 
 

@@ -139,4 +139,4 @@ Pushes to `main` publish `ghcr.io/raphi011/mise:edge`. A `vX.Y.Z` tag publishes 
 
 ### Screenshots
 
-The images in `docs/screenshots` are regenerated against a scratch instance: start the server with an empty `MISE_DATA_DIR` and `MISE_LISTEN=127.0.0.1:8090`, run `python3 docs/screenshots/seed.py http://127.0.0.1:8090`, then `node docs/screenshots/shoot.mjs http://127.0.0.1:8090 docs/screenshots` (needs Chrome). The recipe photos are in `docs/screenshots/photos`, credited in [CREDITS.md](docs/screenshots/CREDITS.md).
+The images in `docs/screenshots` are regenerated against a scratch instance: start the server with an empty `MISE_DATA_DIR` and `MISE_LISTEN=127.0.0.1:8090`, run `python3 docs/screenshots/seed.py http://127.0.0.1:8090`, then `node docs/screenshots/shoot.mjs http://127.0.0.1:8090 docs/screenshots` (needs Chrome and ImageMagick; it also shrinks the PNGs). The recipe photos are in `docs/screenshots/photos`, credited in [CREDITS.md](docs/screenshots/CREDITS.md).

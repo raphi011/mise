@@ -3,9 +3,9 @@
 //   node docs/screenshots/shoot.mjs http://127.0.0.1:8090 docs/screenshots
 //
 // Drives a local Chrome over the DevTools protocol; needs Node 22+ (global
-// WebSocket) and Chrome at CHROME or the macOS default path.
-import { spawn } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+// WebSocket), ImageMagick (`magick`) and Chrome at CHROME or the macOS default path.
+import { execFileSync, spawn } from "node:child_process";
+import { mkdtempSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -58,12 +58,17 @@ for (const href of recipes) {
 }
 if (!recipe) throw new Error("no recipe with a public link; run seed.py first");
 
+// seed.py plans next week, so no day is in the past.
+const d = new Date();
+d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7));
+const nextMonday = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
 // [file name, path, sizes, schemes]
-// The last entry lists size-scheme pairs to skip.
+// An optional last entry lists size-scheme pairs to skip.
 const shots = [
-  ["recipes", "/recipes", ["phone", "desktop"], ["light", "dark"]],
+  ["recipes", "/recipes", ["phone", "desktop"], ["light", "dark"], ["desktop-dark"]],
   ["recipe", recipe, ["phone", "desktop"], ["light"]],
-  ["plan", "/plan", ["phone", "desktop"], ["light", "dark"], ["phone-dark"]],
+  ["plan", `/plan?week=${nextMonday}`, ["phone", "desktop"], ["light"]],
   ["groceries", "/groceries", ["phone", "desktop"], ["light"]],
   ["cook", recipe + "/cook", ["phone"], ["light"]],
   ["settings", "/settings", ["phone", "desktop"], ["light"]],
@@ -92,3 +97,8 @@ for (const scheme of ["light", "dark"]) {
 }
 ws.close();
 proc.kill();
+
+// The screenshots are photo-heavy; 256 colours keep them small (needs ImageMagick).
+for (const f of readdirSync(out).filter((f) => f.endsWith(".png"))) {
+  execFileSync("magick", [join(out, f), "-colors", "256", "-define", "png:compression-level=9", "-strip", `PNG8:${join(out, f)}`]);
+}
