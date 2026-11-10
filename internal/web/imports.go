@@ -307,6 +307,31 @@ func reviewView(ctx context.Context, job ai.Job) ui.ImportReviewView {
 	return v
 }
 
+// importRows are the viewer's imports as the library lists them.
+func (s *Server) importRows(ctx context.Context, sc store.Scoped, user uuid.UUID) ([]ui.ImportJobRow, error) {
+	jobs, err := s.ai.Jobs(ctx, sc, user)
+	if err != nil {
+		return nil, err
+	}
+	var rows []ui.ImportJobRow
+	for _, j := range jobs {
+		row := ui.ImportJobRow{Href: ui.ImportHref(j.ID.String()), Title: importSource(ctx, j), State: "running"}
+		switch j.Status {
+		case ai.JobReady:
+			row.State = "ready"
+			if j.Draft != nil && j.Draft.Name != "" {
+				row.Title = j.Draft.Name
+			}
+		case ai.JobFailed:
+			row.State = "failed"
+		case ai.JobCanceled:
+			continue
+		}
+		rows = append(rows, row)
+	}
+	return rows, nil
+}
+
 // ---- Actions ----
 
 // cancelImport stops a running import or discards a draft or failure.

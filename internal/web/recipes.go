@@ -177,6 +177,9 @@ func (s *Server) libraryView(ctx context.Context, sc store.Scoped, id *auth.Iden
 	for _, c := range cards {
 		v.Cards = append(v.Cards, s.cardOf(ctx, c, id.UserID))
 	}
+	if v.Imports, err = s.importRows(ctx, sc, id.UserID); err != nil {
+		return ui.LibraryView{}, err
+	}
 
 	mine := len(f.AddedBy) == 1 && f.AddedBy[0] == id.UserID
 	mineF := f
@@ -453,7 +456,10 @@ func (s *Server) libraryLive(w http.ResponseWriter, r *http.Request, sc store.Sc
 			}
 			return sse.PatchElementTempl(ui.NavTags(v))
 		},
-		// The plan changes the "tonight" card.
-		Relevant: func(e live.Event) bool { return e.Kind == live.RecipesChanged || e.Kind == live.PlanChanged },
+		// The plan changes the "tonight" card; the viewer's imports (only
+		// theirs reach this stream) the import list.
+		Relevant: func(e live.Event) bool {
+			return e.Kind == live.RecipesChanged || e.Kind == live.PlanChanged || e.Kind == live.ImportChanged
+		},
 	})
 }

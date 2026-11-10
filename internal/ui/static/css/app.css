@@ -2699,3 +2699,77 @@ details.import-activity:not([open]) { gap: 0; }
    checked tab's field and button label show, with or without JavaScript. */
 .import-form:has(input[name="tab"][value="text"]:checked) .import-panel--link,
 .import-form:not(:has(input[name="tab"][value="text"]:checked)) .import-panel--text { display: none; }
+
+/* The viewer's imports above the library. */
+.import-jobs { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.import-job {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 8px 14px;
+  border-radius: var(--radius-field);
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  color: var(--ink);
+  text-decoration: none;
+}
+.import-job:hover { color: var(--ink); background: var(--surface-2); }
+.import-job--ready { border-color: var(--herb); }
+.import-job__mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 14px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-2);
+  color: var(--herb);
+}
+.import-job--ready .import-job__mark { background: var(--herb-soft); }
+.import-job--failed .import-job__mark { background: var(--amber-soft); color: var(--amber-ink); }
+.import-job__spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--line-strong);
+  border-top-color: var(--herb);
+  animation: import-spin 0.9s linear infinite;
+}
+@keyframes import-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .import-job__spinner { animation: none; } }
+.import-job__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.import-job__state { font-size: 12px; font-weight: 600; color: var(--muted); }
+.import-job--ready .import-job__state { color: var(--herb); }
+.import-job--failed .import-job__state { color: var(--amber-ink); }
+.import-job__title { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* "Have a link? Import it with AI" on a new recipe. */
+.import-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: var(--space-4);
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: var(--strong);
+  color: var(--on-strong);
+  text-decoration: none;
+}
+.import-card:hover { color: var(--on-strong); }
+.import-card__icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--herb);
+  color: var(--on-herb);
+}
+.import-card__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.import-card__title { font-size: 14px; font-weight: 600; }
+.import-card__note { font-size: 13px; opacity: 0.75; }
+@media (max-width: 899px) { .library-import { width: var(--target); padding: 0; } }

@@ -25,6 +25,10 @@ templ Library(p Page, v LibraryView, undo *Toast) {
 
 // LibraryActions are the Recipes page's header buttons.
 templ LibraryActions() {
+	<a class="btn btn--secondary btn--small library-import" href="/recipes/import" aria-label={ i18n.T(ctx, "recipes.import") }>
+		@iconImport(16)
+		<span class="only-wide" aria-hidden="true">{ i18n.T(ctx, "recipes.import") }</span>
+	</a>
 	<a class="btn btn--strong btn--small" href="/recipes/new">
 		@iconPlus(16)
 		{ i18n.T(ctx, "recipes.new") }
@@ -59,6 +63,31 @@ templ NavTags(v LibraryView) {
 // LibraryRegion is the live part of the Recipes page.
 templ LibraryRegion(v LibraryView) {
 	<div id="recipes-live" class="recipes__live">
+		if len(v.Imports) > 0 {
+			<ul class="import-jobs" role="list" aria-label={ i18n.T(ctx, "recipes.imports") }>
+				for _, j := range v.Imports {
+					<li>
+						<a class={ "import-job", "import-job--" + j.State } href={ templ.SafeURL(j.Href) }>
+							<span class="import-job__mark" aria-hidden="true">
+								switch j.State {
+									case "ready":
+										@iconCheck(14)
+									case "failed":
+										@iconAlert(14)
+									default:
+										<span class="import-job__spinner"></span>
+								}
+							</span>
+							<span class="import-job__text">
+								<span class="import-job__state">{ i18n.T(ctx, i18n.Key("recipes.imports." + j.State)) }</span>
+								<span class="import-job__title">{ j.Title }</span>
+							</span>
+							@chevron()
+						</a>
+					</li>
+				}
+			</ul>
+		}
 		if v.Tonight != nil && !v.Filtered {
 			@tonightCard(*v.Tonight)
 		}
@@ -445,4 +474,12 @@ templ iconLink() {
 
 templ iconPhoto() {
 	<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"></rect><circle cx="9" cy="10" r="1.8"></circle><path d="M21 16l-5-5-8 8"></path></svg>
+}
+
+templ iconImport(size int) {
+	<svg width={ size } height={ size } viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"></path></svg>
+}
+
+templ iconSparkle(size int) {
+	<svg width={ size } height={ size } viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"></path><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"></path></svg>
 }

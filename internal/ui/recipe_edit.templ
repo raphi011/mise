@@ -19,6 +19,27 @@ templ RecipeEdit(p Page, v RecipeEditView) {
 			data-signals="{newing: ''}"
 		>
 			@formAlert(v.Form)
+			if v.ImportCard != "" {
+				<a class="import-card" href="/recipes/import">
+					<span class="import-card__icon" aria-hidden="true">
+						if v.ImportCard == "ai" {
+							@iconSparkle(20)
+						} else {
+							@iconImport(20)
+						}
+					</span>
+					<span class="import-card__text">
+						if v.ImportCard == "ai" {
+							<span class="import-card__title">{ i18n.T(ctx, "recipes.edit.importAI") }</span>
+							<span class="import-card__note">{ i18n.T(ctx, "recipes.edit.importAINote") }</span>
+						} else {
+							<span class="import-card__title">{ i18n.T(ctx, "recipes.edit.import") }</span>
+							<span class="import-card__note">{ i18n.T(ctx, "recipes.edit.importNote") }</span>
+						}
+					</span>
+					@chevron()
+				</a>
+			}
 			if v.Import != "" {
 				<input type="hidden" name="import" value={ v.Import }/>
 				if v.ImportPhoto {

@@ -325,6 +325,16 @@ func (s *Server) recipeEditView(ctx context.Context, sc store.Scoped, id string,
 		if imp, err := uuid.Parse(st.vals.Get("import")); err == nil {
 			v.Import = imp.String()
 			v.ImportPhoto = st.vals.Get("import_photo") != "" && st.vals.Get("remove_photo") == ""
+		} else {
+			// A new recipe offers import; links import without AI too.
+			aiSettings, err := s.ai.Settings(ctx, sc)
+			if err != nil {
+				return ui.RecipeEditView{}, err
+			}
+			v.ImportCard = "link"
+			if aiSettings.Enabled {
+				v.ImportCard = "ai"
+			}
 		}
 	}
 	for _, t := range tags {

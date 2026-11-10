@@ -429,3 +429,45 @@ func TestImportPastedText(t *testing.T) {
 		t.Errorf("failed link import with AI on:\n%.4000s", body)
 	}
 }
+
+// TestImportEntriesAndLibrary checks the ways into import (the editor's
+// card, the library's Import button) and the viewer's imports above the
+// library, which follow the jobs live.
+func TestImportEntriesAndLibrary(t *testing.T) {
+	_, srv := startImportServer(t, storetest.SQLite(t))
+	anna, ben := household(t, srv)
+	site := newRecipeSite(t)
+
+	editor := anna.get("/recipes/new").body
+	if !strings.Contains(editor, `class="import-card" href="/recipes/import"`) || !strings.Contains(editor, "Import a recipe") {
+		t.Errorf("new recipe with AI off lacks the import card:\n%.4000s", editor)
+	}
+	recipeID := createRecipe(t, anna, stickyTofu())
+	if body := anna.get("/recipes/" + recipeID + "/edit").body; strings.Contains(body, "import-card") {
+		t.Error("editing a recipe offers import")
+	}
+	library := anna.get("/recipes").body
+	if !strings.Contains(library, `href="/recipes/import"`) || strings.Contains(library, "import-jobs") {
+		t.Errorf("library before imports:\n%.4000s", library)
+	}
+
+	live := anna.openLive("page=recipes")
+	live.next("library opens", 5*time.Second, "recipes-live")
+	job := startImport(t, anna, site.URL+"/slow")
+	live.next("import listed", 5*time.Second, "Importing…", `href="/imports/`+job+`"`, "127.0.0.1")
+	if body := ben.get("/recipes").body; strings.Contains(body, "import-jobs") {
+		t.Error("another member sees the import")
+	}
+	site.unblock()
+	live.next("import ready", 5*time.Second, "Ready to review", "Crispy tofu")
+	failed := startImport(t, anna, site.URL+"/missing")
+	live.next("import failed", 5*time.Second, "Import failed", `href="/imports/`+failed+`"`)
+
+	anna.post("/settings/ai", url.Values{"enabled": {"on"}, "provider": {"ollama"}, "model": {"m"}}).expect(t, "turn AI on", http.StatusSeeOther)
+	if body := anna.get("/recipes/new").body; !strings.Contains(body, "Have a link? Import it with AI") {
+		t.Errorf("new recipe with AI on:\n%.4000s", body)
+	}
+	if body := anna.get("/recipes/new?import=" + job).body; strings.Contains(body, "import-card") {
+		t.Error("editor opened from an import offers import")
+	}
+}

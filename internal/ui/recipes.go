@@ -48,6 +48,17 @@ type LibraryView struct {
 	Filtered bool
 	// Tonight is "Suggested for tonight", or nil.
 	Tonight *TonightCard
+	// Imports are the viewer's import jobs, newest first.
+	Imports []ImportJobRow
+}
+
+// ImportJobRow is one of the viewer's imports above the library: running,
+// ready to review or failed.
+type ImportJobRow struct {
+	Href  string
+	Title string
+	// State is "running", "ready" or "failed".
+	State string
 }
 
 // RecipeCard is one recipe in the library grid.
@@ -230,6 +241,9 @@ type RecipeEditView struct {
 	// removed or replaced.
 	Import      string
 	ImportPhoto bool
+	// ImportCard offers import on a new recipe: "ai" when AI import is on,
+	// "link" when only links import, empty for none.
+	ImportCard string
 }
 
 // StepRow is one step of the editor: its text and its timer in minutes,
