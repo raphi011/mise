@@ -61,7 +61,7 @@ func (s *Server) renderAISettings(w http.ResponseWriter, r *http.Request, status
 		v.Providers = append(v.Providers, ui.Option{Value: string(p), Label: i18n.T(ctx, providerLabel(p))})
 	}
 	p := s.page(r, i18n.T(ctx, "ai.settings.title"), ui.NavSettings)
-	p.BackHref, p.BackLabel = "/settings#recipes", i18n.T(ctx, "settings.back")
+	p.BackHref, p.BackLabel = "/settings#library", i18n.T(ctx, "settings.back")
 	s.render(w, r, status, ui.AISettings(p, v))
 }
 

@@ -156,7 +156,7 @@ func (s *Server) renderCategories(w http.ResponseWriter, r *http.Request, status
 		return
 	}
 	p := s.page(r, i18n.T(ctx, "categories.title"), ui.NavSettings)
-	p.BackHref, p.BackLabel = "/settings#groceries", i18n.T(ctx, "settings.back")
+	p.BackHref, p.BackLabel = "/settings#library", i18n.T(ctx, "settings.back")
 	s.render(w, r, status, ui.Categories(p, v))
 }
 
