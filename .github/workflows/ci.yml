@@ -57,7 +57,7 @@ jobs:
 
       - uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.14.0
+          version: v2.15.0
 
       - name: Test (SQLite + Postgres)
         run: go test -race ./...
@@ -66,7 +66,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: azure/setup-helm@v4
+      - uses: azure/setup-helm@v5
       - run: helm lint charts/mise
       - run: helm template mise charts/mise --set smtp.host=mail,smtp.from=mise@example.com >/dev/null
       - run: helm template mise charts/mise --set oidc.issuer=https://id.example.com,oidc.clientId=mise,oidc.existingSecret.name=mise-oidc >/dev/null

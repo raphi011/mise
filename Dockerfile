@@ -11,7 +11,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o /out/mise-server ./cmd/mise-server \
  && mkdir -p /out/data
 
-FROM gcr.io/distroless/static-debian12:nonroot
+FROM gcr.io/distroless/static-debian13:nonroot
 COPY --from=build /out/mise-server /mise-server
 COPY --from=build --chown=nonroot:nonroot /out/data /data
 ENV MISE_DATA_DIR=/data \
