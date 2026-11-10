@@ -255,3 +255,45 @@ func TestEmailChangeNotice(t *testing.T) {
 		t.Errorf("%d emails after a name change", n)
 	}
 }
+
+// TestEmailChangeWithoutPassword: an account without a password (SSO only)
+// cannot change its email address and is told why, never with a server
+// error; the page asks it for no password, and name changes still save.
+func TestEmailChangeWithoutPassword(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		s, srv, rec := startMailServer(t, db)
+		anna, _ := household(t, srv)
+		err := db.System().Tx(t.Context(), func(ctx context.Context, q store.Querier) error {
+			_, err := q.Exec(ctx, `UPDATE users SET password_hash = '' WHERE username_key = 'anna'`)
+			return err
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if p := anna.get("/settings/account").expect(t, "account", http.StatusOK); strings.Contains(p.body, "account-email-password") {
+			t.Error("account page asks a passwordless account for its password")
+		}
+
+		const msg = "Your account has no password. Ask an admin to set one before changing your email address."
+		form := url.Values{"name": {"Anna"}, "email": {"thief@example.com"}, "avatar_color": {"sky"}}
+		p := anna.post("/settings/account/profile", form).expect(t, "no password", http.StatusUnprocessableEntity)
+		if !strings.Contains(p.body, msg) {
+			t.Errorf("no message:\n%.3000s", p.body)
+		}
+		form.Set("current_password", adminPassword)
+		p = anna.post("/settings/account/profile", form).expect(t, "typed password", http.StatusUnprocessableEntity)
+		if !strings.Contains(p.body, msg) {
+			t.Errorf("no message with a typed password:\n%.3000s", p.body)
+		}
+
+		anna.post("/settings/account/profile", url.Values{"name": {"Anna B"}, "email": {"anna@example.com"}, "avatar_color": {"herb"}}).
+			expect(t, "name only", http.StatusSeeOther, "/settings/account?done=saved")
+		if p := anna.get("/settings/account").expect(t, "account", http.StatusOK); !strings.Contains(p.body, "Anna B") {
+			t.Error("name change not saved")
+		}
+		s.Wait()
+		if n := len(rec.Sent()); n != 0 {
+			t.Errorf("%d emails sent", n)
+		}
+	})
+}

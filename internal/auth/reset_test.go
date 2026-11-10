@@ -244,3 +244,39 @@ func TestEmailChangeNeedsPassword(t *testing.T) {
 		}
 	})
 }
+
+// TestEmailChangeWithoutPassword: an account without a password (SSO only)
+// has nothing to confirm an email change with, so the change is refused
+// on the email field, whatever is typed as the password, while name and
+// colour changes still save.
+func TestEmailChangeWithoutPassword(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		ctx := t.Context()
+		s, _ := newService(t, db)
+		f := addHousehold(t, db, "h")
+		setEmail(t, db, f.member, "ben@example.com", nil)
+		session, err := s.SignIn(ctx, "h-member", testPassword, "ua")
+		if err != nil {
+			t.Fatal(err)
+		}
+		id, _, err := s.Authenticate(ctx, session)
+		if err != nil {
+			t.Fatal(err)
+		}
+		setPasswordHash(t, db, f.member, "")
+		if has, err := s.HasPassword(ctx, id); err != nil || has {
+			t.Errorf("HasPassword = %v, %v", has, err)
+		}
+
+		for _, password := range []string{"", testPassword} {
+			var fe FieldErrors
+			_, err := s.UpdateProfile(ctx, id, Profile{Name: "Ben", Email: "thief@example.com", AvatarColor: AvatarColors[1], CurrentPassword: password})
+			if !errors.As(err, &fe) || fe["email"] != "form.error.noPasswordForEmail" {
+				t.Errorf("password %q: %v", password, err)
+			}
+		}
+		if change, err := s.UpdateProfile(ctx, id, Profile{Name: "Benjamin", Email: "BEN@example.com", AvatarColor: AvatarColors[2]}); err != nil || change != nil {
+			t.Errorf("name change: %+v, %v", change, err)
+		}
+	})
+}

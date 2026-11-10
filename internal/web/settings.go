@@ -242,6 +242,10 @@ func (s *Server) renderAccount(w http.ResponseWriter, r *http.Request, status in
 		Name: id.Name, Username: id.Username, Email: id.Email, Color: id.AvatarColor,
 		Profile: profile, Password: password, PasswordOpen: password.HasErrors(), Notice: notice,
 	}
+	if v.HasPassword, err = s.auth.HasPassword(ctx, id); err != nil {
+		s.serverError(w, r, err)
+		return
+	}
 	for _, c := range auth.AvatarColors {
 		v.Colors = append(v.Colors, ui.Option{Value: c, Label: colorLabel(r, c)})
 	}

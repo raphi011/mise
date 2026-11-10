@@ -27,8 +27,9 @@ type EmailChange struct {
 }
 
 // UpdateProfile saves the user's name, email and avatar colour. Changing
-// the email address, other than in case, takes the current password. When
-// the address changed from a non-empty one, it returns the change.
+// the email address, other than in case, takes the current password, so
+// an account without a password cannot change it. When the address
+// changed from a non-empty one, it returns the change.
 func (s *Service) UpdateProfile(ctx context.Context, id *Identity, p Profile) (*EmailChange, error) {
 	p.Name, p.Email = clean(p.Name), clean(p.Email)
 	errs := FieldErrors{}
@@ -49,6 +50,13 @@ func (s *Service) UpdateProfile(ctx context.Context, id *Identity, p Profile) (*
 	// Addresses match case-insensitively, as in RequestPasswordReset.
 	changed := !strings.EqualFold(old, p.Email)
 	if changed {
+		// An account without a password (signing in only with SSO) has
+		// nothing to confirm the change with; a reset to the new address
+		// would give whoever holds the session a password. An admin sets
+		// one first.
+		if stored.PasswordHash == "" {
+			return nil, FieldErrors{"email": "form.error.noPasswordForEmail"}
+		}
 		if err := confirmPassword(stored.PasswordHash, p.CurrentPassword); err != nil {
 			return nil, err
 		}
@@ -71,6 +79,16 @@ func (s *Service) UpdateProfile(ctx context.Context, id *Identity, p Profile) (*
 		return nil, nil
 	}
 	return &EmailChange{Old: old, New: p.Email}, nil
+}
+
+// HasPassword reports whether the user can sign in with a password; an
+// account linked to an SSO provider may have none.
+func (s *Service) HasPassword(ctx context.Context, id *Identity) (bool, error) {
+	var hash string
+	if err := s.db.System().Read().Get(ctx, &hash, `SELECT password_hash FROM users WHERE id = ?`, id.UserID); err != nil {
+		return false, err
+	}
+	return hash != "", nil
 }
 
 // confirmPassword checks the current password a sensitive change needs,

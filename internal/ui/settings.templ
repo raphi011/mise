@@ -258,11 +258,14 @@ type AccountView struct {
 	Name     string
 	Username string
 	// Email is the stored address; changing it takes the current password.
-	Email    string
-	Color    string
-	Colors   []Option
-	Profile  Form
-	Password Form
+	Email string
+	// HasPassword is false for an account that signs in only with SSO: it
+	// cannot change its email address, so the page asks for no password.
+	HasPassword bool
+	Color       string
+	Colors      []Option
+	Profile     Form
+	Password    Form
 	// PasswordOpen expands the change-password form, e.g. after an error.
 	PasswordOpen bool
 	Sessions     []SessionRow
@@ -312,12 +315,14 @@ templ Account(p Page, v AccountView) {
 					@textField(Field{ID: "account-name", Name: "name", Label: i18n.T(ctx, "field.name"), Autocomplete: "name", Required: true}, v.Profile)
 					@textField(Field{ID: "account-email", Name: "email", Label: i18n.T(ctx, "field.email"), Type: "email", Autocomplete: "email", LabelNote: i18n.T(ctx, "field.emailNote"),
 						Attrs: templ.Attributes{"data-bind:_newemail": true}}, v.Profile)
-					// Without JavaScript the field is always there; with it, only
+					// Without JavaScript the password field is always there; with it, only
 					// once the address differs from the stored one.
-					<div data-signals={ "{_oldemail: " + jsString(v.Email) + "}" } data-show="$_newemail.trim().toLowerCase() !== $_oldemail.toLowerCase()">
-						@textField(Field{ID: "account-email-password", Name: "current_password", Label: i18n.T(ctx, "field.currentPassword"), Type: "password", Autocomplete: "current-password",
-							Hint: i18n.T(ctx, "account.emailPasswordHint")}, v.Profile)
-					</div>
+					if v.HasPassword {
+						<div data-signals={ "{_oldemail: " + jsString(v.Email) + "}" } data-show="$_newemail.trim().toLowerCase() !== $_oldemail.toLowerCase()">
+							@textField(Field{ID: "account-email-password", Name: "current_password", Label: i18n.T(ctx, "field.currentPassword"), Type: "password", Autocomplete: "current-password",
+								Hint: i18n.T(ctx, "account.emailPasswordHint")}, v.Profile)
+						</div>
+					}
 					<span class="field__hint">{ i18n.T(ctx, "account.visibleNote") }</span>
 					<div>
 						<button class="btn btn--primary" type="submit">{ i18n.T(ctx, "form.save") }</button>
