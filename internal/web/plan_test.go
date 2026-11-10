@@ -2,6 +2,7 @@ package web
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/raphi011/mise/internal/store"
 	"github.com/raphi011/mise/internal/store/storetest"
+	"github.com/raphi011/mise/internal/ui"
 )
 
 var (
@@ -92,7 +94,9 @@ func TestPlanWeekByTap(t *testing.T) {
 		// The add sheet as a page: day, servings and ingredient chips.
 		add := anna.get("/plan/add?recipe="+tofu).expect(t, "add sheet", http.StatusOK)
 		contains(t, "add sheet", add.body, "Add to plan", "Also put on Shopping list", "Firm tofu", "Soy sauce",
-			`value="2026-11-09" required checked`)
+			`value="2026-11-09" required checked`,
+			// Datastar runs on the page too, so it declares the sheet's signals.
+			"planservings: 2}")
 		ings := ingredientRe.FindAllStringSubmatch(add.body, -1)
 		if len(ings) != 2 {
 			t.Fatalf("ingredient chips: %v", ings)
@@ -122,7 +126,7 @@ func TestPlanWeekByTap(t *testing.T) {
 
 		// The menu as pages; move to Thursday.
 		menu := anna.get("/plan/meals/"+meal).expect(t, "menu", http.StatusOK)
-		contains(t, "menu", menu.body, "Open recipe", "Move to…", "Change servings", "Swap recipe", "Remove from plan")
+		contains(t, "menu", menu.body, "mealservings: 4,", "Open recipe", "Move to…", "Change servings", "Swap recipe", "Remove from plan")
 		if strings.Contains(menu.body, "I made this") {
 			t.Error("a future meal offers I made this")
 		}
@@ -143,7 +147,7 @@ func TestPlanWeekByTap(t *testing.T) {
 
 		// Plan a meal on an empty day: the picker lists the library.
 		pick := anna.get("/plan/pick?date=2026-11-13").expect(t, "picker", http.StatusOK)
-		contains(t, "picker", pick.body, "Friday, 13 November", "All recipes", "/plan/add?back=")
+		contains(t, "picker", pick.body, "{pickq: ", "Friday, 13 November", "All recipes", "/plan/add?back=")
 		pick = anna.get("/plan/pick?date=2026-11-13&q=soy").expect(t, "picker search", http.StatusOK)
 		contains(t, "picker search", pick.body, "Results", "Sticky tofu")
 
@@ -421,6 +425,68 @@ func TestLinkedRecipes(t *testing.T) {
 		anna.post("/recipes/"+curryID+"/edit", curry).expect(t, "unlink", http.StatusSeeOther)
 		if strings.Contains(anna.get("/recipes/"+riceID).body, "Goes well with") {
 			t.Error("rice still lists the curry")
+		}
+	})
+}
+
+// TestPlanPickerPaging: the recipe picker and the meal menu's swap list
+// show the library a page at a time, with "Show more" as a link without
+// JavaScript and as a fetch of the list with it.
+func TestPlanPickerPaging(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		s, srv := startTimedServer(t, db)
+		s.clock = func() time.Time { return planClock }
+		anna, _ := household(t, srv)
+		n := ui.LibraryPageSize + 2
+		ids := make([]string, n)
+		for i := range n {
+			form := stickyTofu()
+			form.Set("name", fmt.Sprintf("Tofu %02d", i))
+			ids[i] = createRecipe(t, anna, form)
+		}
+		last := fmt.Sprintf("Tofu %02d", n-1)
+		signals := func(name string) string { return "&datastar=" + url.QueryEscape(`{"`+name+`":""}`) }
+
+		// The picker: the first page by name, then all of them.
+		pick := anna.get("/plan/pick?date=2026-11-13").expect(t, "picker", http.StatusOK)
+		more := fmt.Sprintf(`href="/plan/pick?back=%%2Fplan%%3Fweek%%3D2026-11-09&amp;date=2026-11-13&amp;shown=%d"`, 2*ui.LibraryPageSize)
+		contains(t, "picker", pick.body, fmt.Sprintf("Showing %d of %d recipes", ui.LibraryPageSize, n), more)
+		if strings.Contains(pick.body, last) {
+			t.Errorf("first page shows %s", last)
+		}
+		pick = anna.get(fmt.Sprintf("/plan/pick?date=2026-11-13&shown=%d", 2*ui.LibraryPageSize)).expect(t, "picker page 2", http.StatusOK)
+		if !strings.Contains(pick.body, last) || strings.Contains(pick.body, "Show more") {
+			t.Errorf("second page: %s shown %v, Show more %v", last, strings.Contains(pick.body, last), strings.Contains(pick.body, "Show more"))
+		}
+		res := anna.datastar(http.MethodGet, fmt.Sprintf("/plan/pick/results?date=2026-11-13&shown=%d", 2*ui.LibraryPageSize)+signals("pickq"), nil).
+			expect(t, "picker results page 2", http.StatusOK)
+		if !strings.Contains(res.body, `id="plan-pick-results"`) || !strings.Contains(res.body, last) || strings.Contains(res.body, "Show more") {
+			t.Errorf("Datastar Show more does not patch the full list:\n%.2000s", res.body)
+		}
+		// A search lists every match, unpaged.
+		res = anna.datastar(http.MethodGet, "/plan/pick/results?date=2026-11-13&datastar="+url.QueryEscape(`{"pickq":"tofu"}`), nil).
+			expect(t, "picker search", http.StatusOK)
+		if !strings.Contains(res.body, last) || strings.Contains(res.body, "Show more") {
+			t.Error("picker search is paged")
+		}
+
+		// The swap list leaves out the meal's recipe from the count.
+		anna.post("/plan", url.Values{"recipe": {ids[0]}, "date": {"2026-11-10"}, "servings": {"2"}}).
+			expect(t, "plan meal", http.StatusSeeOther)
+		meal := mealIDs(t, anna.get("/plan?week=2026-11-09").body)[0]
+		swap := anna.get("/plan/meals/"+meal+"?view=swap").expect(t, "swap", http.StatusOK)
+		contains(t, "swap", swap.body, fmt.Sprintf("Showing %d of %d recipes", ui.LibraryPageSize, n-1),
+			fmt.Sprintf(`href="/plan/meals/%s?back=`, meal), fmt.Sprintf("shown=%d", 2*ui.LibraryPageSize))
+		if strings.Contains(swap.body, last) {
+			t.Errorf("first swap page shows %s", last)
+		}
+		swap = anna.datastar(http.MethodGet, fmt.Sprintf("/plan/meals/%s?view=swap&part=results&shown=%d", meal, 2*ui.LibraryPageSize)+signals("swapq"), nil).
+			expect(t, "swap results page 2", http.StatusOK)
+		if !strings.Contains(swap.body, `id="meal-swap-results"`) || !strings.Contains(swap.body, last) || strings.Contains(swap.body, "Show more") {
+			t.Errorf("swap Show more does not patch the full list:\n%.2000s", swap.body)
+		}
+		if strings.Contains(swap.body, `value="`+ids[0]+`"`) {
+			t.Error("swap list offers the meal's own recipe")
 		}
 	})
 }

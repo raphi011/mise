@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/raphi011/mise/internal/auth"
+	"github.com/raphi011/mise/internal/groceries"
 	"github.com/raphi011/mise/internal/i18n"
 	"github.com/raphi011/mise/internal/store"
 	"github.com/raphi011/mise/internal/ui"
@@ -49,6 +50,14 @@ func noticeFor(r *http.Request) string {
 func identity(r *http.Request) *auth.Identity {
 	id, _ := auth.FromContext(r.Context())
 	return id
+}
+
+// unitSystem returns the measurement system the user reads amounts in.
+func unitSystem(id *auth.Identity) groceries.System {
+	if id != nil && groceries.System(id.Units) == groceries.US {
+		return groceries.US
+	}
+	return groceries.Metric
 }
 
 // location returns the household's time zone for displaying times.
@@ -129,6 +138,10 @@ func (s *Server) renderSettings(w http.ResponseWriter, r *http.Request, status i
 			{Value: "light", Label: i18n.T(ctx, "theme.light")},
 			{Value: "dark", Label: i18n.T(ctx, "theme.dark")},
 		},
+		Units: []ui.Option{
+			{Value: "metric", Label: i18n.T(ctx, "units.metric")},
+			{Value: "us", Label: i18n.T(ctx, "units.us")},
+		},
 		Languages: languageOptions(r),
 	}
 	if id.IsAdmin() {
@@ -143,7 +156,7 @@ func (s *Server) renderSettings(w http.ResponseWriter, r *http.Request, status i
 		v.Lists = append(v.Lists, ui.ListTab{ID: l.ID.String(), Name: l.Name, Open: l.Open})
 	}
 	if v.Prefs.Values == nil {
-		v.Prefs.Values = map[string]string{"theme": id.Theme, "language": id.Language}
+		v.Prefs.Values = map[string]string{"theme": id.Theme, "language": id.Language, "units": id.Units}
 	}
 	for _, m := range members {
 		row := ui.MemberRow{Name: m.Name, Color: m.AvatarColor, Role: roleLabel(r, m.Role), You: m.UserID == id.UserID}
@@ -194,8 +207,10 @@ func daysLeft(r *http.Request, left time.Duration) string {
 }
 
 func (s *Server) savePreferences(w http.ResponseWriter, r *http.Request) {
-	f := formOf(r, "theme", "language")
-	err := s.auth.UpdatePreferences(r.Context(), identity(r), auth.Preferences{Theme: f.Value("theme"), Language: f.Value("language")})
+	f := formOf(r, "theme", "language", "units")
+	err := s.auth.UpdatePreferences(r.Context(), identity(r), auth.Preferences{
+		Theme: f.Value("theme"), Language: f.Value("language"), Units: f.Value("units"),
+	})
 	if f, ok := withErrors(r.Context(), f, err); ok {
 		s.renderSettings(w, r, http.StatusUnprocessableEntity, settingsState{prefs: f})
 		return

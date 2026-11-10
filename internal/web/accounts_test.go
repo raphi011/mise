@@ -259,7 +259,7 @@ func TestAccountPages(t *testing.T) {
 	other := newBrowser(t, srv.URL)
 	other.post("/signin", url.Values{"username": {"anna"}, "password": {adminPassword}}).expect(t, "second device", http.StatusSeeOther)
 
-	b.post("/settings/preferences", url.Values{"theme": {"dark"}, "language": {"de"}}).expect(t, "preferences", http.StatusSeeOther)
+	b.post("/settings/preferences", url.Values{"theme": {"dark"}, "language": {"de"}, "units": {"metric"}}).expect(t, "preferences", http.StatusSeeOther)
 	p := b.get("/settings").expect(t, "settings", http.StatusOK)
 	if !strings.Contains(p.body, `<html lang="de" data-theme="dark"`) {
 		t.Errorf("theme or language not applied:\n%.300s", p.body)
@@ -268,7 +268,7 @@ func TestAccountPages(t *testing.T) {
 	if !strings.Contains(p.body, ">English<") || !strings.Contains(p.body, ">Deutsch<") {
 		t.Error("language options not named in their own language")
 	}
-	b.post("/settings/preferences", url.Values{"theme": {"system"}, "language": {""}}).expect(t, "reset preferences", http.StatusSeeOther)
+	b.post("/settings/preferences", url.Values{"theme": {"system"}, "language": {""}, "units": {"metric"}}).expect(t, "reset preferences", http.StatusSeeOther)
 
 	b.post("/settings/account/profile", url.Values{"name": {"Anna B"}, "email": {"not an email"}, "avatar_color": {"sky"}}).
 		expect(t, "invalid profile", http.StatusUnprocessableEntity)

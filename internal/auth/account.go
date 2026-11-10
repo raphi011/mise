@@ -48,12 +48,15 @@ type Preferences struct {
 	Theme string
 	// Language is a code from Languages, or empty for the household default.
 	Language string
+	// Units is one of UnitSystems.
+	Units string
 }
 
-// UpdatePreferences saves the user's theme and language.
+// UpdatePreferences saves the user's theme, language and units.
 func (s *Service) UpdatePreferences(ctx context.Context, id *Identity, p Preferences) error {
 	errs := FieldErrors{}
 	checkChoice(errs, "theme", p.Theme, Themes)
+	checkChoice(errs, "units", p.Units, UnitSystems)
 	if p.Language != "" {
 		checkChoice(errs, "language", p.Language, Languages())
 	}
@@ -61,8 +64,8 @@ func (s *Service) UpdatePreferences(ctx context.Context, id *Identity, p Prefere
 		return err
 	}
 	return s.db.System().Tx(ctx, func(ctx context.Context, q store.Querier) error {
-		_, err := q.Exec(ctx, `UPDATE users SET theme = ?, language = ?, updated_at = ? WHERE id = ?`,
-			p.Theme, nullable(p.Language), s.clock(), id.UserID)
+		_, err := q.Exec(ctx, `UPDATE users SET theme = ?, language = ?, units = ?, updated_at = ? WHERE id = ?`,
+			p.Theme, nullable(p.Language), p.Units, s.clock(), id.UserID)
 		return err
 	})
 }

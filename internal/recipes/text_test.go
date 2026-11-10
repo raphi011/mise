@@ -68,3 +68,27 @@ func TestHighlight(t *testing.T) {
 		}
 	}
 }
+
+func TestConvertTemperatures(t *testing.T) {
+	for _, tc := range []struct {
+		in   string
+		sys  groceries.System
+		want string
+	}{
+		{"Bake at 180°C for 20 minutes.", groceries.US, "Bake at 355°F for 20 minutes."},
+		{"Bake at 180 °C.", groceries.US, "Bake at 355 °F."},
+		{"Heat to 200-220 °C", groceries.US, "Heat to 390-430 °F"},
+		{"Preheat to 350°F.", groceries.Metric, "Preheat to 175°C."},
+		{"Proof at 37,5 ºC", groceries.US, "Proof at 100 ºF"},
+		{"Cool to 100°F", groceries.Metric, "Cool to 38°C"},
+		{"Bake at 180°C.", groceries.Metric, "Bake at 180°C."},
+		{"Bake at 350°F.", groceries.US, "Bake at 350°F."},
+		{"Cook 20-25 min at 180°C", groceries.US, "Cook 20-25 min at 355°F"},
+		{"Rotate 90° and fold.", groceries.US, "Rotate 90° and fold."},
+		{"Use a 20°Celsius room", groceries.US, "Use a 20°Celsius room"},
+	} {
+		if got := ConvertTemperatures(tc.in, tc.sys); got != tc.want {
+			t.Errorf("ConvertTemperatures(%q, %s) = %q, want %q", tc.in, tc.sys, got, tc.want)
+		}
+	}
+}

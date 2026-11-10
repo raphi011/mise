@@ -62,7 +62,8 @@ var Units = []unitDef{
 	{"bottle", []string{"bottle", "bottles", "flasche", "flaschen"}, [2]string{"bottle", "bottles"}, [2]string{"Flasche", "Flaschen"}},
 	{"clove", []string{"clove", "cloves", "zehe", "zehen"}, [2]string{"clove", "cloves"}, [2]string{"Zehe", "Zehen"}},
 	{"slice", []string{"slice", "slices", "scheibe", "scheiben"}, [2]string{"slice", "slices"}, [2]string{"Scheibe", "Scheiben"}},
-	{"oz", []string{"oz"}, [2]string{"oz", "oz"}, [2]string{"oz", "oz"}},
+	{"oz", []string{"oz", "ounce", "ounces", "unze", "unzen"}, [2]string{"oz", "oz"}, [2]string{"oz", "oz"}},
+	{"floz", []string{"floz", "fl oz", "fl. oz", "fl.oz"}, [2]string{"fl oz", "fl oz"}, [2]string{"fl oz", "fl oz"}},
 	{"lb", []string{"lb", "lbs"}, [2]string{"lb", "lb"}, [2]string{"lb", "lb"}},
 }
 
@@ -218,6 +219,12 @@ func leadingAmount(s string, lang language.Tag) (Amount, string, bool) {
 	trimmed := strings.TrimPrefix(after, " ")
 	spaced := len(trimmed) < len(after)
 	word, rest := firstWord(trimmed)
+	// "fl oz" and "fl. oz" are one unit written as two words.
+	if w := strings.ToLower(word); w == "fl" || w == "fl." {
+		if next, tail := firstWord(rest); strings.EqualFold(strings.TrimSuffix(next, "."), "oz") {
+			word, rest = word+" "+next, tail
+		}
+	}
 	unit := ""
 	end := pos
 	switch u, ok := lookupUnit(word); {

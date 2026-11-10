@@ -280,7 +280,7 @@ templ AddPlanSheet(v AddPlanView) {
 			id="plan-add"
 			class="sheet-dialog"
 			aria-labelledby="plan-add-title"
-			data-signals={ "{plandate: " + jsString(v.Days.Date) + ", planservings: " + itoa(v.Servings) + "}" }
+			data-signals={ addPlanSignals(v) }
 			data-init="el.open || el.showModal()"
 			data-on:close="el.remove()"
 		>
@@ -289,10 +289,11 @@ templ AddPlanSheet(v AddPlanView) {
 	</div>
 }
 
-// AddPlanPage is the add-to-plan sheet as a page, without JavaScript.
+// AddPlanPage is the add-to-plan sheet as a page, opened directly or
+// without JavaScript.
 templ AddPlanPage(p Page, v AddPlanView) {
 	@Layout(p) {
-		<div class="narrow sheet">
+		<div class="narrow sheet" data-signals={ addPlanSignals(v) }>
 			@addPlanForm(v, false)
 		</div>
 	}
@@ -491,7 +492,7 @@ templ PlanPickSheet(v PlanPickView) {
 			id="plan-pick"
 			class="sheet-dialog"
 			aria-labelledby="plan-pick-title"
-			data-signals={ "{pickq: " + jsString(v.Query) + "}" }
+			data-signals={ planPickSignals(v) }
 			data-init="el.open || el.showModal()"
 			data-on:close="el.remove()"
 		>
@@ -500,10 +501,11 @@ templ PlanPickSheet(v PlanPickView) {
 	</div>
 }
 
-// PlanPickPage picks a recipe as a page, without JavaScript.
+// PlanPickPage picks a recipe as a page, opened directly or without
+// JavaScript.
 templ PlanPickPage(p Page, v PlanPickView) {
 	@Layout(p) {
-		<div class="narrow sheet">
+		<div class="narrow sheet" data-signals={ planPickSignals(v) }>
 			@planPick(v, false)
 		</div>
 	}
@@ -521,7 +523,7 @@ templ planPick(v PlanPickView, modal bool) {
 			</button>
 		}
 	</div>
-	<form class="search-link search-link--field" method="get" action="/plan/pick" role="search" data-on:submit__prevent={ pickResultsAction(v.Date) }>
+	<form class="search-link search-link--field" method="get" action="/plan/pick" role="search" data-on:submit__prevent={ v.resultsAction() }>
 		@iconSearch(20)
 		<input type="hidden" name="date" value={ v.Date }/>
 		if v.Back != "" {
@@ -537,7 +539,7 @@ templ planPick(v PlanPickView, modal bool) {
 			placeholder={ i18n.T(ctx, "plan.pick.search") }
 			autocomplete="off"
 			data-bind:pickq
-			data-on:input__debounce.200ms={ pickResultsAction(v.Date) }
+			data-on:input__debounce.200ms={ v.resultsAction() }
 		/>
 	</form>
 	@PlanPickResults(v)
@@ -563,6 +565,7 @@ templ PlanPickResults(v PlanPickView) {
 				}
 			</h3>
 			@pickList(v.Recipes)
+			@pickMore(len(v.Recipes), v.Matched, v.MoreHref(), v.moreAction())
 		} else if v.Query != "" {
 			<p class="muted">{ i18n.T(ctx, "plan.pick.none", v.Query) }</p>
 		}
@@ -607,7 +610,7 @@ templ MealMenuSheet(v MealMenuView) {
 			id="meal-menu"
 			class="sheet-dialog"
 			aria-labelledby="meal-title"
-			data-signals={ "{movedate: '', mealservings: " + itoa(v.Servings) + ", swapq: ''}" }
+			data-signals={ mealMenuSignals(v) }
 			data-init="el.open || el.showModal()"
 			data-on:close="el.remove()"
 		>
@@ -617,10 +620,11 @@ templ MealMenuSheet(v MealMenuView) {
 	</div>
 }
 
-// MealMenuPage is the menu as a page, without JavaScript.
+// MealMenuPage is the menu as a page, opened directly or without
+// JavaScript.
 templ MealMenuPage(p Page, v MealMenuView) {
 	@Layout(p) {
-		<div class="narrow sheet">
+		<div class="narrow sheet" data-signals={ mealMenuSignals(v) }>
 			@mealMenuHead(v, false)
 			@MealMenuBody(v, false)
 		</div>
@@ -869,8 +873,21 @@ templ MealSwapResults(v MealMenuView) {
 					</li>
 				}
 			</ul>
+			@pickMore(len(v.Swap), v.SwapMatched, v.SwapMoreHref(), v.swapMoreAction())
 		}
 	</form>
+}
+
+// pickMore is a picker list's "Show more" when it shows fewer recipes than
+// there are: a link to the next page, or with JavaScript a fetch of the
+// list with it.
+templ pickMore(shown, matched int, href, action string) {
+	if shown < matched {
+		<div class="library-more">
+			<p class="library-more__count">{ i18n.T(ctx, "recipes.shownOf", shown, matched) }</p>
+			<a class="btn btn--secondary" href={ templ.SafeURL(href) } data-on:click__prevent={ action }>{ i18n.T(ctx, "recipes.showMore") }</a>
+		</div>
+	}
 }
 
 // ---- Recipe page and library ----

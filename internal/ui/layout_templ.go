@@ -518,7 +518,7 @@ func nav(active NavItem, user *Viewer, extra templ.Component) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 39, "\"><a class=\"nav__brand\" href=\"/\" aria-label=\"mise\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 39, "\"><a class=\"nav__brand\" href=\"/recipes\" aria-label=\"mise\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

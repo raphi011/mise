@@ -127,7 +127,8 @@ func (s *Server) recipeView(ctx context.Context, sc store.Scoped, id *auth.Ident
 		v.NotesWhen = dayMonth(ctx, *rec.NotesAt, loc)
 	}
 
-	amounts := scaledAmounts(ctx, rec, servings)
+	sys := unitSystem(id)
+	amounts := scaledAmounts(ctx, rec, servings, sys)
 	for i, ing := range rec.Ingredients {
 		v.Ingredients = append(v.Ingredients, ui.IngredientView{
 			ID: ing.ID.String(), Name: ing.ItemName, Amount: amounts[i], Optional: ing.Optional, On: st.On[ing.ItemID],
@@ -136,16 +137,19 @@ func (s *Server) recipeView(ctx context.Context, sc store.Scoped, id *auth.Ident
 	on, total := st.Count(rec.Ingredients)
 	v.ListStatus = i18n.T(ctx, "recipes.onList", on, total, st.List.Name)
 
-	v.Steps = stepParts(rec, amounts, firstInMethod)
+	v.Steps = stepParts(rec, amounts, sys, firstInMethod)
 	return v, nil
 }
 
-// scaledAmounts returns the display amount of each ingredient at servings.
-func scaledAmounts(ctx context.Context, rec recipes.Recipe, servings int) []string {
+// scaledAmounts returns the display amount of each ingredient at servings
+// in the unit system sys. Amounts scale in the unit they were written in and
+// convert afterwards, so the converted unit fits the scaled quantity.
+func scaledAmounts(ctx context.Context, rec recipes.Recipe, servings int, sys groceries.System) []string {
 	lang := i18n.Locale(ctx)
 	amounts := make([]string, len(rec.Ingredients))
 	for i, ing := range rec.Ingredients {
-		amounts[i] = recipes.DisplayAmount(recipes.Scale(ing.Amount, rec.Servings, servings, lang), lang)
+		scaled := recipes.Scale(ing.Amount, rec.Servings, servings, lang)
+		amounts[i] = recipes.DisplayAmount(groceries.Convert(scaled, sys, lang), lang)
 	}
 	return amounts
 }
@@ -163,8 +167,8 @@ const (
 )
 
 // stepParts splits each step into text and ingredient mentions carrying
-// their amounts.
-func stepParts(rec recipes.Recipe, amounts []string, scope mentionScope) [][]ui.StepPart {
+// their amounts. Temperatures in the text are shown in the scale of sys.
+func stepParts(rec recipes.Recipe, amounts []string, sys groceries.System, scope mentionScope) [][]ui.StepPart {
 	seen := map[int]bool{}
 	out := make([][]ui.StepPart, 0, len(rec.Steps))
 	for _, step := range rec.Steps {
@@ -176,6 +180,8 @@ func stepParts(rec recipes.Recipe, amounts []string, scope mentionScope) [][]ui.
 			part := ui.StepPart{Text: p.Text}
 			if p.Ingredient >= 0 {
 				part.Mention, part.Amount = true, amounts[p.Ingredient]
+			} else {
+				part.Text = recipes.ConvertTemperatures(p.Text, sys)
 			}
 			parts = append(parts, part)
 		}

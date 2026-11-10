@@ -555,3 +555,60 @@ func TestTagSettings(t *testing.T) {
 		t.Error("recipe gone with its tag")
 	}
 }
+
+// TestUnitsPerUser: a member who reads US units sees a metric recipe, its
+// cook mode and the shopping list in ounces, cups and °F, scaled before
+// converting; the member who wrote it in metric sees it as written.
+func TestUnitsPerUser(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		_, srv := startServer(t, db)
+		anna, ben := household(t, srv)
+		form := stickyTofu()
+		form["ing_key"] = []string{"r0", "r1", "r2"}
+		form["ing_amount"] = []string{"400 g", "3 tbsp", "250 ml"}
+		form["ing_name"] = []string{"Firm tofu", "Soy sauce", "Oat milk"}
+		form["step"] = []string{"Press the tofu for 10 minutes.", "Bake at 180°C until crisp."}
+		id := createRecipe(t, anna, form)
+
+		ben.post("/settings/preferences", url.Values{"theme": {"system"}, "language": {""}, "units": {"us"}}).
+			expect(t, "ben picks US units", http.StatusSeeOther)
+		if s := ben.get("/settings").body; !strings.Contains(s, `name="units" value="us" checked`) {
+			t.Error("settings do not show the saved units")
+		}
+
+		page := ben.get("/recipes/"+id).expect(t, "ben's recipe", http.StatusOK).body
+		for _, want := range []string{"14 oz", "3 tbsp", "1 cup", "Bake at 355°F until crisp."} {
+			if !strings.Contains(page, want) {
+				t.Errorf("US recipe page has no %q", want)
+			}
+		}
+		if strings.Contains(page, "400 g") || strings.Contains(page, "180°C") {
+			t.Error("US recipe page still shows metric")
+		}
+		page = ben.get("/recipes/"+id+"?servings=4").expect(t, "ben's recipe for 4", http.StatusOK).body
+		if !strings.Contains(page, "1.75 lb") || !strings.Contains(page, "2 cups") {
+			t.Error("scaled US amounts are not 1.75 lb tofu and 2 cups oat milk")
+		}
+		cook := ben.get("/recipes/"+id+"/cook").expect(t, "ben's cook mode", http.StatusOK).body
+		if !strings.Contains(cook, "14 oz") || !strings.Contains(cook, "355°F") {
+			t.Error("US cook mode shows metric")
+		}
+
+		page = anna.get("/recipes/"+id).expect(t, "anna's recipe", http.StatusOK).body
+		for _, want := range []string{"400 g", "250 ml", "Bake at 180°C until crisp."} {
+			if !strings.Contains(page, want) {
+				t.Errorf("metric recipe page has no %q", want)
+			}
+		}
+
+		// The shared list shows each member their own units.
+		list := firstList(t, anna)
+		anna.post("/groceries/lists/"+list+"/entries", url.Values{"text": {"500 g flour"}}).expect(t, "add flour", http.StatusSeeOther)
+		if !strings.Contains(anna.get("/groceries/lists/"+list).body, "500 g") {
+			t.Error("anna's list does not show 500 g")
+		}
+		if !strings.Contains(ben.get("/groceries/lists/"+list).body, "1 lb") {
+			t.Error("ben's list does not show 1 lb")
+		}
+	})
+}

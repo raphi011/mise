@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/raphi011/mise/internal/groceries"
 	"github.com/raphi011/mise/internal/recipes"
 	"github.com/raphi011/mise/internal/store"
 	"github.com/raphi011/mise/internal/store/storetest"
@@ -131,7 +132,7 @@ func TestStepPartsMentionScope(t *testing.T) {
 		{firstInMethod, []string{"tofu 400 g", "rice 200 g"}},
 		{firstInStep, []string{"tofu 400 g", "tofu 400 g, rice 200 g"}},
 	} {
-		if got := mentions(stepParts(rec, amounts, tc.scope)); !slices.Equal(got, tc.want) {
+		if got := mentions(stepParts(rec, amounts, groceries.Metric, tc.scope)); !slices.Equal(got, tc.want) {
 			t.Errorf("scope %d: mentions %q, want %q", tc.scope, got, tc.want)
 		}
 	}

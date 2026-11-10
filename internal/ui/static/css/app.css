@@ -230,7 +230,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
     border-right: 1px solid var(--line);
   }
 
-  .nav__brand { display: flex; justify-content: center; }
+  .nav__brand { display: flex; justify-content: center; align-items: center; min-height: var(--target); }
   .nav__brand-name { display: none; }
 
   .nav__links {

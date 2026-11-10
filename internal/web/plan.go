@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -883,7 +884,7 @@ func idList(raw string) (ids []uuid.UUID, ok bool) {
 
 // ---- Recipe picker ----
 
-func (s *Server) pickView(ctx context.Context, sc store.Scoped, id *auth.Identity, date store.Date, q, back string) (ui.PlanPickView, error) {
+func (s *Server) pickView(ctx context.Context, sc store.Scoped, id *auth.Identity, date store.Date, q, back string, shown int) (ui.PlanPickView, error) {
 	cal, err := s.plan.Calendar(ctx, sc)
 	if err != nil {
 		return ui.PlanPickView{}, err
@@ -893,10 +894,11 @@ func (s *Server) pickView(ctx context.Context, sc store.Scoped, id *auth.Identit
 	}
 	back = localPath(back, weekHref(cal.WeekOf(date)))
 	v := ui.PlanPickView{Date: date.String(), DayLabel: fullDate(ctx, date), Query: q, Back: back}
-	cards, err := s.pickCards(ctx, sc, id, q)
+	cards, matched, err := s.pickCards(ctx, sc, id, q, shown, uuid.Nil)
 	if err != nil {
 		return ui.PlanPickView{}, err
 	}
+	v.Shown, v.Matched = clampShown(shown), matched
 	if q == "" {
 		week := cal.WeekOf(date)
 		sugg, err := s.plan.Suggestions(ctx, sc, week, week.AddDays(7), staleShown)
@@ -923,15 +925,19 @@ func (s *Server) pickView(ctx context.Context, sc store.Scoped, id *auth.Identit
 	return v, nil
 }
 
-// pickCards lists every recipe by name, or the ones matching q.
-func (s *Server) pickCards(ctx context.Context, sc store.Scoped, id *auth.Identity, q string) ([]recipes.Card, error) {
+// pickCards lists the recipes to pick from, leaving out exclude (uuid.Nil
+// for none): without a query the first shown by name, in whole pages of
+// ui.LibraryPageSize like the library, else every match of q. It also
+// returns how many recipes there are to pick from in all.
+func (s *Server) pickCards(ctx context.Context, sc store.Scoped, id *auth.Identity, q string, shown int, exclude uuid.UUID) ([]recipes.Card, int, error) {
 	q = strings.TrimSpace(q)
 	if q == "" {
-		return s.recipes.Library(ctx, sc, id.UserID, recipes.Filter{Sort: recipes.SortName})
+		f := recipes.Filter{Sort: recipes.SortName, Exclude: exclude}
+		return s.recipes.LibraryPage(ctx, sc, id.UserID, f, clampShown(shown))
 	}
 	res, err := s.recipes.Search(ctx, sc, id.UserID, q)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	cards := make([]recipes.Card, 0, len(res.Names)+len(res.Ingredients))
 	for _, n := range res.Names {
@@ -940,7 +946,8 @@ func (s *Server) pickCards(ctx context.Context, sc store.Scoped, id *auth.Identi
 	for _, m := range res.Ingredients {
 		cards = append(cards, m.Card)
 	}
-	return cards, nil
+	cards = slices.DeleteFunc(cards, func(c recipes.Card) bool { return c.ID == exclude })
+	return cards, len(cards), nil
 }
 
 func plural(ctx context.Context, n int, one, other i18n.Key) string {
@@ -958,7 +965,7 @@ func (s *Server) pickPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	q := r.URL.Query()
-	v, err := s.pickView(ctx, sc, identity(r), dateParam(q.Get("date")), q.Get("q"), q.Get("back"))
+	v, err := s.pickView(ctx, sc, identity(r), dateParam(q.Get("date")), q.Get("q"), q.Get("back"), shownParam(q))
 	if err != nil {
 		s.serverError(w, r, err)
 		return
@@ -988,7 +995,7 @@ func (s *Server) pickResults(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	q := r.URL.Query()
-	v, err := s.pickView(ctx, sc, identity(r), dateParam(q.Get("date")), sig.Q, q.Get("back"))
+	v, err := s.pickView(ctx, sc, identity(r), dateParam(q.Get("date")), sig.Q, q.Get("back"), shownParam(q))
 	if err != nil {
 		s.serverError(w, r, err)
 		return
@@ -1005,7 +1012,9 @@ type mealMenuState struct {
 	moveTo   store.Date
 	servings int
 	query    string
-	back     string
+	// shown is how many recipes the swap list shows without a query.
+	shown int
+	back  string
 }
 
 func (s *Server) mealMenuView(ctx context.Context, sc store.Scoped, id *auth.Identity, mealID uuid.UUID, st mealMenuState) (ui.MealMenuView, error) {
@@ -1036,14 +1045,12 @@ func (s *Server) mealMenuView(ctx context.Context, sc store.Scoped, id *auth.Ide
 	case "servings":
 		v.Servings = clampServings(st.servings, m.Servings)
 	case "swap":
-		cards, err := s.pickCards(ctx, sc, id, st.query)
+		cards, matched, err := s.pickCards(ctx, sc, id, st.query, st.shown, m.Recipe.ID)
 		if err != nil {
 			return ui.MealMenuView{}, err
 		}
+		v.SwapShown, v.SwapMatched = clampShown(st.shown), matched
 		for _, c := range cards {
-			if c.ID == m.Recipe.ID {
-				continue
-			}
 			v.Swap = append(v.Swap, ui.PickRecipe{ID: c.ID.String(), Name: c.Name, Photo: c.Photo, Meta: cardMeta(ctx, c)})
 		}
 	}
@@ -1104,7 +1111,7 @@ func (s *Server) mealMenu(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	st := mealMenuState{
 		view: q.Get("view"), week: dateParam(q.Get("week")), moveTo: dateParam(q.Get("date")),
-		servings: atoi(q.Get("servings")), query: q.Get("q"), back: q.Get("back"),
+		servings: atoi(q.Get("servings")), query: q.Get("q"), shown: shownParam(q), back: q.Get("back"),
 	}
 	if n := atoi(q.Get("set_servings")); n > 0 {
 		st.servings = n

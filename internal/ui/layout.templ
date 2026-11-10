@@ -121,7 +121,7 @@ templ Layout(p Page) {
 
 templ nav(active NavItem, user *Viewer, extra templ.Component) {
 	<nav class="nav" aria-label={ i18n.T(ctx, "nav.main") }>
-		<a class="nav__brand" href="/" aria-label="mise">
+		<a class="nav__brand" href="/recipes" aria-label="mise">
 			@logo(32)
 			<span class="nav__brand-name" aria-hidden="true">mise</span>
 		</a>

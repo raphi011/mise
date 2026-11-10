@@ -123,7 +123,7 @@ All tables also have `household_id` (except `households`, `users`) and `created_
 | Table | Key columns |
 |---|---|
 | households | id, name, timezone (IANA), week_start (mon/sun), default_language |
-| users | id, username (unique), name, email, password_hash, avatar_color, theme, language |
+| users | id, username (unique), name, email, password_hash, avatar_color, theme, language, units |
 | memberships | household_id, user_id, role (admin, member), removed_at |
 | sessions | id (hash of token), user_id, household_id, expires_at, user_agent, last_seen_at |
 | invites | id, token_hash, email, role, invited_by, expires_at (7 days), used_at |
@@ -325,11 +325,18 @@ Each phase ends with something usable and is merged before the next starts.
 - Detail page: a "Goes well with" list between method and notes. Saving, deleting or restoring a recipe publishes `recipe.changed` for every recipe linked to it, so their open pages follow.
 - Add-to-plan sheet: "Plan with it" chips (unpicked) for the linked recipes; picked ones are planned the same day at the same servings after the meal, in Add's transaction. The toast's Undo removes them with the meal.
 
+### Units
+- Each user reads amounts in Metric or US (`users.units`, migration `00010_units`, default metric), set next to theme and language. Recipes and list entries are stored as written and converted when shown, per viewer, so a shared list or recipe reads in each member's units.
+- Only structured amounts in the other system's units convert: g/kg ↔ oz/lb, ml/cl/dl/l ↔ tsp/tbsp/fl oz/cups, using US measures (1 cup = 236.6 ml). Metric to US: oz below a pound, then lb in quarters; tsp below a tablespoon, tbsp below 2 fl oz, fl oz below a cup, then cups in quarters. US to metric: g/ml to the gram below 100, in fives from 100, kg/l in 0.05 from 1000. mg, tsp, tbsp, pinches, pieces and free text ("1 thumb") stay as written, as do amounts already in the viewer's system. A recipe written in cups (or "Tasse") reads in ml for metric users.
+- A recipe scales in the unit it was written in and converts after, so the unit fits the scaled amount (800 g reads as 1.75 lb, not 28 oz).
+- Temperatures in step text ("180°C", "350 °F", "180–200 °C") convert on the detail page and in cook mode: to five degrees from 100, whole degrees below. The editor always shows what was written. The parser knows `fl oz` ("fl oz", "fl. oz", "floz").
+
 ### Library paging
 - The library shows 48 cards (whole rows at 2, 3, 4 and 6 columns) and "Show more" adds 48. Sorting stays in Go, so every match is read and only the shown cards get their tags. The page size is the `$shown` signal on the live stream, as servings are on the recipe page: raising it reopens the stream and the first render is the longer page; without JavaScript "Show more" links to `?shown=`.
+- The plan's recipe picker ("All recipes") and the meal menu's swap list page the same way, 48 at a time by name. They are not live, so "Show more" links to the next page size (`shown=`) and Datastar fetches just the list with it, as the search does. Searches list every match. The swap list leaves out the meal's own recipe in the query (`recipes.Filter.Exclude`), so its count is right.
 
 ### P5 — Later
-- KitchenOwl import, "always have" staples, tablet polish. (OIDC is done; see Auth.)
+- KitchenOwl import, "always have" staples. (OIDC is done, see Auth; tablet polish is done.)
 
 ### P6 — AI import
 - As decided in AI import above. P5 stays later; P6 goes first.

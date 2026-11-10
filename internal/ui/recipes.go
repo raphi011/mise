@@ -330,7 +330,8 @@ func withQuery(path, query string) string {
 }
 
 // LibraryPageSize is how many cards the library shows at first and adds
-// per "Show more". It fills whole rows at 2, 3, 4 and 6 columns.
+// per "Show more". It fills whole rows at 2, 3, 4 and 6 columns. The plan's
+// recipe pickers page their lists by it too.
 const LibraryPageSize = 48
 
 // libraryLive opens the Recipes page's live stream for a filter. It reads

@@ -290,6 +290,7 @@ func TestLibraryFiltersAndSorts(t *testing.T) {
 			{"not cooked in a month", Filter{NotCookedRecently: true, Sort: SortName}, []string{"Arrabbiata", "Dal"}},
 			{"never cooked", Filter{NeverCooked: true}, []string{"Arrabbiata"}},
 			{"vegan by member", Filter{Tags: []uuid.UUID{tagID["Vegan"]}, AddedBy: []uuid.UUID{e.hh.Member}}, []string{"Arrabbiata"}},
+			{"all but dal", Filter{Exclude: dal.ID, Sort: SortName}, []string{"Arrabbiata", "Banana bread"}},
 		} {
 			cards, err := e.s.Library(ctx, e.sc, e.hh.Admin, tc.f)
 			if err != nil {

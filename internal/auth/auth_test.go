@@ -697,15 +697,18 @@ func TestAccount(t *testing.T) {
 		if err := s.UpdateProfile(ctx, id, Profile{Name: "Anna B", Email: "", AvatarColor: "sky"}); err != nil {
 			t.Fatal(err)
 		}
-		if err := s.UpdatePreferences(ctx, id, Preferences{Theme: "dark", Language: "de"}); err != nil {
+		if err := s.UpdatePreferences(ctx, id, Preferences{Theme: "dark", Language: "de", Units: "us"}); err != nil {
 			t.Fatal(err)
 		}
 		var fe FieldErrors
-		if err := s.UpdatePreferences(ctx, id, Preferences{Theme: "neon"}); !errors.As(err, &fe) {
+		if err := s.UpdatePreferences(ctx, id, Preferences{Theme: "neon", Units: "metric"}); !errors.As(err, &fe) {
 			t.Errorf("bad theme accepted: %v", err)
 		}
+		if err := s.UpdatePreferences(ctx, id, Preferences{Theme: "dark", Units: "imperial"}); !errors.As(err, &fe) || fe["units"] == "" {
+			t.Errorf("bad units accepted: %v", err)
+		}
 		id, _, _ = s.Authenticate(ctx, res.Token)
-		if id.Name != "Anna B" || id.Email != "" || id.AvatarColor != "sky" || id.Theme != "dark" || id.Language != "de" {
+		if id.Name != "Anna B" || id.Email != "" || id.AvatarColor != "sky" || id.Theme != "dark" || id.Language != "de" || id.Units != "us" {
 			t.Errorf("identity after update = %+v", id)
 		}
 

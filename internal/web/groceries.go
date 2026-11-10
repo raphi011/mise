@@ -77,12 +77,12 @@ func (s *Server) groceriesView(ctx context.Context, sc store.Scoped, id *auth.Id
 			group.Name, group.Color = g.Category.Name, g.Category.Color
 		}
 		for _, e := range g.Entries {
-			group.Entries = append(group.Entries, entryRow(e, id.UserID))
+			group.Entries = append(group.Entries, entryRow(ctx, e, id))
 		}
 		v.Groups = append(v.Groups, group)
 	}
 	for _, e := range gv.Cart {
-		v.Cart = append(v.Cart, entryRow(e, id.UserID))
+		v.Cart = append(v.Cart, entryRow(ctx, e, id))
 	}
 	for _, it := range gv.Usual {
 		v.Usual = append(v.Usual, ui.ItemChip{ID: it.ID.String(), Name: it.Name})
@@ -90,12 +90,15 @@ func (s *Server) groceriesView(ctx context.Context, sc store.Scoped, id *auth.Id
 	return v, nil
 }
 
-func entryRow(e groceries.Entry, viewer uuid.UUID) ui.EntryRow {
-	row := ui.EntryRow{ID: e.ID.String(), Name: e.ItemName, Amount: e.Amount.Text, Note: e.Note, Recipe: e.RecipeName}
+// entryRow shows an entry to the viewer id, with its amount in the viewer's
+// unit system.
+func entryRow(ctx context.Context, e groceries.Entry, id *auth.Identity) ui.EntryRow {
+	amount := groceries.Convert(e.Amount, unitSystem(id), i18n.Locale(ctx)).Text
+	row := ui.EntryRow{ID: e.ID.String(), Name: e.ItemName, Amount: amount, Note: e.Note, Recipe: e.RecipeName}
 	if e.Category != nil {
 		row.Color = e.Category.Color
 	}
-	if e.AddedBy != viewer {
+	if e.AddedBy != id.UserID {
 		row.By = &ui.Viewer{Name: e.AddedByName, Color: e.AddedByColor}
 	}
 	return row
@@ -303,7 +306,7 @@ func (s *Server) suggest(w http.ResponseWriter, r *http.Request) {
 		exact := false
 		for _, sg := range found {
 			exact = exact || sg.Match == groceries.MatchExact
-			v.Options = append(v.Options, suggestOption(ctx, sg))
+			v.Options = append(v.Options, suggestOption(ctx, sg, unitSystem(identity(r))))
 			opts = append(opts, sg.Item.ID.String())
 		}
 		if !exact {
@@ -327,7 +330,7 @@ func (s *Server) suggest(w http.ResponseWriter, r *http.Request) {
 // these often".
 const oftenBought = 3
 
-func suggestOption(ctx context.Context, sg groceries.Suggestion) ui.SuggestOption {
+func suggestOption(ctx context.Context, sg groceries.Suggestion, sys groceries.System) ui.SuggestOption {
 	o := ui.SuggestOption{ItemID: sg.Item.ID.String(), Name: sg.Item.Name, OnList: sg.OnList != nil}
 	category := i18n.T(ctx, "groceries.uncategorised")
 	if sg.Item.Category != nil {
@@ -335,7 +338,7 @@ func suggestOption(ctx context.Context, sg groceries.Suggestion) ui.SuggestOptio
 	}
 	switch {
 	case sg.OnList != nil && sg.OnList.Text != "":
-		o.Detail = i18n.T(ctx, "groceries.suggest.onListAmount", sg.OnList.Text)
+		o.Detail = i18n.T(ctx, "groceries.suggest.onListAmount", groceries.Convert(*sg.OnList, sys, i18n.Locale(ctx)).Text)
 	case sg.OnList != nil:
 		o.Detail = i18n.T(ctx, "groceries.suggest.onList")
 	case sg.Item.PurchaseCount >= oftenBought:

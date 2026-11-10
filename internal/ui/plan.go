@@ -223,6 +223,9 @@ type PlanPickView struct {
 	Query     string
 	Suggested []PickRecipe
 	Recipes   []PickRecipe
+	// Shown is the page size of Recipes without a query; Matched counts
+	// the recipes there are in all.
+	Shown, Matched int
 	// Status announces the results.
 	Status string
 	Back   string
@@ -238,8 +241,30 @@ type PickRecipe struct {
 	Href string
 }
 
-func pickResultsAction(date string) string {
-	return "@get('/plan/pick/results?date=" + url.QueryEscape(date) + "', {filterSignals: {include: /^pickq$/}})"
+// pickQuery is the picker's date and back, plus shown when it is set.
+func (v PlanPickView) pickQuery(shown int) string {
+	q := url.Values{"date": {v.Date}}
+	if v.Back != "" {
+		q.Set("back", v.Back)
+	}
+	if shown > 0 {
+		q.Set("shown", itoa(shown))
+	}
+	return q.Encode()
+}
+
+// resultsAction re-renders the picker's list for the search signal.
+func (v PlanPickView) resultsAction() string {
+	return "@get('/plan/pick/results?" + v.pickQuery(0) + "', {filterSignals: {include: /^pickq$/}})"
+}
+
+// MoreHref is "Show more" without JavaScript: the picker page with the
+// next page of recipes.
+func (v PlanPickView) MoreHref() string { return "/plan/pick?" + v.pickQuery(v.Shown+LibraryPageSize) }
+
+// moreAction is "Show more" with JavaScript: the list with the next page.
+func (v PlanPickView) moreAction() string {
+	return "@get('/plan/pick/results?" + v.pickQuery(v.Shown+LibraryPageSize) + "', {filterSignals: {include: /^pickq$/}})"
 }
 
 // ---- Meal menu ----
@@ -260,10 +285,13 @@ type MealMenuView struct {
 	// Cooked offers "I made this" (today's and past meals).
 	Cooked bool
 	Move   PlanPicker
-	// Swap lists recipes to swap in; Query is the swap search.
-	Swap  []PickRecipe
-	Query string
-	Back  string
+	// Swap lists recipes to swap in; Query is the swap search. SwapShown
+	// is the page size without a query; SwapMatched counts the recipes
+	// there are in all.
+	Swap                   []PickRecipe
+	SwapShown, SwapMatched int
+	Query                  string
+	Back                   string
 }
 
 // MenuHref is the meal menu at a view.
@@ -303,6 +331,27 @@ func (v MealMenuView) moveDaysAction(week string) string {
 // swapResultsAction searches recipes to swap in.
 func (v MealMenuView) swapResultsAction() string {
 	return "@get('/plan/meals/" + v.ID + "?view=swap&part=results', {filterSignals: {include: /^swapq$/}})"
+}
+
+// swapMoreQuery is the swap view with the next page of recipes.
+func (v MealMenuView) swapMoreQuery() url.Values {
+	q := url.Values{"view": {"swap"}, "shown": {itoa(v.SwapShown + LibraryPageSize)}}
+	if v.Back != "" {
+		q.Set("back", v.Back)
+	}
+	return q
+}
+
+// SwapMoreHref is the swap list's "Show more" without JavaScript.
+func (v MealMenuView) SwapMoreHref() string {
+	return "/plan/meals/" + v.ID + "?" + v.swapMoreQuery().Encode()
+}
+
+// swapMoreAction is the swap list's "Show more" with JavaScript.
+func (v MealMenuView) swapMoreAction() string {
+	q := v.swapMoreQuery()
+	q.Set("part", "results")
+	return "@get('/plan/meals/" + v.ID + "?" + q.Encode() + "', {filterSignals: {include: /^swapq$/}})"
 }
 
 // replaceAction swaps the meal's recipe for recipeID.
@@ -345,4 +394,17 @@ func dropOn(date string) string {
 	return "$_drag.startsWith('m:') ? @post('/plan/meals/' + $_drag.slice(2) + '/move', {payload: {date: " + d + ", mode: 'swap'}})" +
 		" : $_drag.startsWith('r:') && @post('/plan', {payload: {recipe: $_drag.slice(2), date: " + d + "}});" +
 		" $_drag = ''; $_over = ''"
+}
+
+// The plan sheets' signals, declared on the dialog and on the page that
+// stands in for it when opened directly, so Datastar has them either way.
+
+func addPlanSignals(v AddPlanView) string {
+	return "{plandate: " + jsString(v.Days.Date) + ", planservings: " + itoa(v.Servings) + "}"
+}
+
+func planPickSignals(v PlanPickView) string { return "{pickq: " + jsString(v.Query) + "}" }
+
+func mealMenuSignals(v MealMenuView) string {
+	return "{movedate: '', mealservings: " + itoa(v.Servings) + ", swapq: ''}"
 }

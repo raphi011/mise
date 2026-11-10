@@ -15,6 +15,7 @@ import (
 	"github.com/starfederation/datastar-go/datastar"
 
 	"github.com/raphi011/mise/internal/auth"
+	"github.com/raphi011/mise/internal/groceries"
 	"github.com/raphi011/mise/internal/i18n"
 	"github.com/raphi011/mise/internal/images"
 	"github.com/raphi011/mise/internal/live"
@@ -381,14 +382,14 @@ func (s *Server) searchView(ctx context.Context, sc store.Scoped, id *auth.Ident
 	if err != nil {
 		return ui.SearchView{}, err
 	}
-	lang := i18n.Locale(ctx)
+	lang, sys := i18n.Locale(ctx), unitSystem(id)
 	for _, m := range res.Names {
 		h := ui.SearchHit{ID: m.ID.String(), Name: m.Name, Photo: m.Photo, Meta: cardMeta(ctx, m.Card)}
 		h.Pre, h.Hit, h.Post = split(m.Name, m.Span)
 		v.Names = append(v.Names, h)
 	}
 	for _, m := range res.Ingredients {
-		h := ui.SearchHit{ID: m.ID.String(), Name: m.Name, Photo: m.Photo, Amount: recipes.DisplayAmount(m.Amount, lang)}
+		h := ui.SearchHit{ID: m.ID.String(), Name: m.Name, Photo: m.Photo, Amount: recipes.DisplayAmount(groceries.Convert(m.Amount, sys, lang), lang)}
 		h.Pre, h.Hit, h.Post = split(m.ItemName, m.Span)
 		v.Ingredients = append(v.Ingredients, h)
 	}

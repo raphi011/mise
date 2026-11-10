@@ -12,10 +12,11 @@ type SettingsView struct {
 	Admin    bool
 	Members  []MemberRow
 	Invites  []InviteRow
-	// Prefs holds the theme and language values and errors.
+	// Prefs holds the theme, language and units values and errors.
 	Prefs     Form
 	Themes    []Option
 	Languages []Option
+	Units     []Option
 	// Notice is a translated status message after a change.
 	Notice string
 	// Lists are the household's shopping lists.
@@ -187,6 +188,17 @@ templ Settings(p Page, v SettingsView) {
 									<option value={ o.Value } selected?={ v.Prefs.Value("language") == o.Value }>{ o.Label }</option>
 								}
 							</select>
+						</div>
+						<div class="list__row list__row--field">
+							<span class="list__label" id="pref-units">{ i18n.T(ctx, "settings.units") }</span>
+							<div class="segmented" role="radiogroup" aria-labelledby="pref-units">
+								for _, o := range v.Units {
+									<label class="segmented__option">
+										<input type="radio" name="units" value={ o.Value } checked?={ v.Prefs.Value("units") == o.Value }/>
+										<span>{ o.Label }</span>
+									</label>
+								}
+							</div>
 						</div>
 						<div class="list__row list__row--actions">
 							<button class="btn btn--secondary btn--small" type="submit">{ i18n.T(ctx, "form.save") }</button>

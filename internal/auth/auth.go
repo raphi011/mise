@@ -112,6 +112,9 @@ var AvatarColors = []string{"amber", "sky", "sand", "herb", "coral", "plum"}
 // Themes a user can choose; "system" follows the OS preference.
 var Themes = []string{"system", "light", "dark"}
 
+// Unit systems a user can read amounts and temperatures in.
+var UnitSystems = []string{"metric", "us"}
+
 // Config configures a Service.
 type Config struct {
 	// Now returns the current time; defaults to time.Now. Tests use it to
@@ -178,6 +181,8 @@ type Identity struct {
 	// Language is the user's UI language, or empty to use the household
 	// default.
 	Language string
+	// Units is one of UnitSystems.
+	Units string
 
 	HouseholdName     string
 	HouseholdLanguage string

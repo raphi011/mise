@@ -87,6 +87,7 @@ type sessionRow struct {
 	AvatarColor       string
 	Theme             string
 	Language          *string
+	Units             string
 	HouseholdName     string
 	HouseholdLanguage string
 	Timezone          string
@@ -105,7 +106,7 @@ func (s *Service) Authenticate(ctx context.Context, token string) (id *Identity,
 	err = s.db.System().Read().Get(ctx, &row, `
 		SELECT s.id, s.user_id, s.household_id, s.expires_at, s.last_seen_at,
 		       m.role, m.removed_at,
-		       u.username, u.name, u.email, u.avatar_color, u.theme, u.language,
+		       u.username, u.name, u.email, u.avatar_color, u.theme, u.language, u.units,
 		       h.name AS household_name, h.default_language AS household_language, h.timezone, h.week_start
 		FROM sessions s
 		JOIN memberships m ON m.household_id = s.household_id AND m.user_id = s.user_id
@@ -147,6 +148,7 @@ func (s *Service) Authenticate(ctx context.Context, token string) (id *Identity,
 		AvatarColor:       row.AvatarColor,
 		Theme:             row.Theme,
 		Language:          deref(row.Language),
+		Units:             row.Units,
 		HouseholdName:     row.HouseholdName,
 		HouseholdLanguage: row.HouseholdLanguage,
 		Timezone:          row.Timezone,

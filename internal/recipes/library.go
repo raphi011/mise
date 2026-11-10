@@ -58,6 +58,9 @@ type Filter struct {
 	NotCookedRecently bool
 	NeverCooked       bool
 	Sort              Sort
+	// Exclude leaves out one recipe, such as the one a picker would
+	// replace. It is not a filter the viewer chose, so IsZero ignores it.
+	Exclude uuid.UUID
 }
 
 // NotCookedWindow is "a month" for Filter.NotCookedRecently.
@@ -175,6 +178,10 @@ func (s *Service) matching(ctx context.Context, sc store.Scoped, viewer uuid.UUI
 	}
 	if f.NeverCooked {
 		query += ` AND NOT EXISTS (SELECT 1 FROM cook_events ce WHERE ce.household_id = r.household_id AND ce.recipe_id = r.id)`
+	}
+	if f.Exclude != uuid.Nil {
+		query += ` AND r.id <> ?`
+		args = append(args, f.Exclude)
 	}
 	var rows []cardRow
 	if err := sc.Read().Select(ctx, &rows, query, args...); err != nil {
