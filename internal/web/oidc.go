@@ -48,7 +48,12 @@ func linkBinding(id *auth.Identity) string {
 // it is configured and the base URL for the callback is known.
 func (s *Server) ssoAvailable() bool { return s.sso != nil && s.BaseURL() != nil }
 
-func (s *Server) oidcRedirectURL() string { return s.BaseURL().JoinPath(oidcCallbackPath).String() }
+// oidcRedirectURL is where the provider sends the browser back to: the
+// callback on the host the flow started on, since the flow cookie is
+// host-only. Each such URL must be registered with the provider.
+func (s *Server) oidcRedirectURL(r *http.Request) string {
+	return s.requestBaseURL(r).JoinPath(oidcCallbackPath).String()
+}
 
 func (s *Server) setFlowCookie(w http.ResponseWriter, r *http.Request, value string, maxAge int) {
 	http.SetCookie(w, &http.Cookie{
@@ -85,7 +90,7 @@ func (s *Server) linkSSO(w http.ResponseWriter, r *http.Request) {
 // provider's authorization endpoint.
 func (s *Server) sendToProvider(w http.ResponseWriter, r *http.Request, flow oidcFlow) {
 	ctx := r.Context()
-	target, err := s.sso.AuthURL(ctx, s.oidcRedirectURL(), flow.Flow)
+	target, err := s.sso.AuthURL(ctx, s.oidcRedirectURL(r), flow.Flow)
 	if err != nil {
 		s.log.WarnContext(ctx, "oidc: start", slog.Any("err", err))
 		s.oidcFailed(w, r, http.StatusServiceUnavailable, flow.Next, "oidc.error.unavailable", s.cfg.OIDC.Name)
@@ -142,7 +147,7 @@ func (s *Server) oidcCallback(w http.ResponseWriter, r *http.Request) {
 		s.oidcFailed(w, r, http.StatusTooManyRequests, flow.Next, "signin.error.tooMany")
 		return
 	}
-	id, err := s.sso.Exchange(ctx, s.oidcRedirectURL(), flow.Flow, q.Get("code"))
+	id, err := s.sso.Exchange(ctx, s.oidcRedirectURL(r), flow.Flow, q.Get("code"))
 	if errors.Is(err, sso.ErrUnavailable) {
 		s.log.WarnContext(ctx, "oidc: callback", slog.Any("err", err))
 		s.oidcFailed(w, r, http.StatusServiceUnavailable, flow.Next, "oidc.error.unavailable", s.cfg.OIDC.Name)

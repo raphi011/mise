@@ -11,6 +11,11 @@ imagePullSecrets: []
 # Secure cookie flag and as a trusted origin behind a proxy.
 baseURL: ""
 
+# Further public URLs mise is reached at, e.g. a tailnet name. Single sign-on
+# returns to the one the sign-in started on; register each one's
+# /auth/oidc/callback at the provider too.
+extraBaseURLs: []
+
 # Addresses or CIDRs of the reverse proxies whose X-Forwarded-For is trusted.
 trustedProxies: []
 

@@ -95,6 +95,7 @@ Add `--version x.y.z` to pin a release; the chart's default image tag is its app
 | `MISE_DATA_DIR` | `./data` (`/data` in the image) | images, SQLite file, generated secrets |
 | `MISE_LISTEN` | `:8080` | |
 | `MISE_BASE_URL` | | public URL, e.g. `https://mise.example.com`; needed behind a proxy that rewrites `Host`. No path: mise runs at the root of its own host |
+| `MISE_EXTRA_BASE_URLS` | | comma-separated further public URLs, e.g. a tailnet name; single sign-on works on each (register each callback at the provider) |
 | `MISE_TRUSTED_PROXIES` | | CIDRs whose `X-Forwarded-For` is trusted |
 | `MISE_SECRET_KEY` | generated into `$MISE_DATA_DIR/secret.key` | base64, 32 bytes; encrypts the AI provider key |
 | `MISE_LOG_FORMAT` | `json` | `json` or `text` |

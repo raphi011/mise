@@ -34,6 +34,7 @@ func TestLoadEnvAndFlags(t *testing.T) {
 	env := envMap(map[string]string{
 		"MISE_DATA_DIR":        "/srv/mise",
 		"MISE_BASE_URL":        "https://mise.example.com/",
+		"MISE_EXTRA_BASE_URLS": " https://mise.tail1234.ts.net/, ,http://mise.lan:8080",
 		"MISE_TRUSTED_PROXIES": "10.0.0.0/8, 192.168.1.5",
 		"MISE_LISTEN":          ":9000",
 	})
@@ -50,6 +51,13 @@ func TestLoadEnvAndFlags(t *testing.T) {
 	if got := cfg.BaseURL.String(); got != "https://mise.example.com" {
 		t.Errorf("BaseURL = %q", got)
 	}
+	var extras []string
+	for _, u := range cfg.ExtraBaseURLs {
+		extras = append(extras, u.String())
+	}
+	if got := strings.Join(extras, " "); got != "https://mise.tail1234.ts.net http://mise.lan:8080" {
+		t.Errorf("ExtraBaseURLs = %q", got)
+	}
 	want := []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8"), netip.MustParsePrefix("192.168.1.5/32")}
 	if len(cfg.TrustedProxies) != 2 || cfg.TrustedProxies[0] != want[0] || cfg.TrustedProxies[1] != want[1] {
 		t.Errorf("TrustedProxies = %v", cfg.TrustedProxies)
@@ -62,6 +70,9 @@ func TestLoadInvalid(t *testing.T) {
 		"base url path":     {"MISE_BASE_URL": "https://example.com/mise"},
 		"base url query":    {"MISE_BASE_URL": "https://mise.example.com/?a=1"},
 		"base url userinfo": {"MISE_BASE_URL": "https://u:p@mise.example.com"},
+		"extra url path":    {"MISE_EXTRA_BASE_URLS": "https://mise.example.net/mise"},
+		"extra url twice":   {"MISE_EXTRA_BASE_URLS": "https://mise.example.net, http://MISE.example.net"},
+		"extra url is base": {"MISE_BASE_URL": "https://mise.example.com", "MISE_EXTRA_BASE_URLS": "http://mise.example.com"},
 		"bad proxy":         {"MISE_TRUSTED_PROXIES": "not-an-ip"},
 		"bad log format":    {"MISE_LOG_FORMAT": "xml"},
 		"bad log level":     {"MISE_LOG_LEVEL": "loud"},

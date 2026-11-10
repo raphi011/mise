@@ -63,6 +63,10 @@ spec:
             - name: MISE_BASE_URL
               value: {{ . | quote }}
             {{- end }}
+            {{- with .Values.extraBaseURLs }}
+            - name: MISE_EXTRA_BASE_URLS
+              value: {{ join "," . | quote }}
+            {{- end }}
             {{- with .Values.trustedProxies }}
             - name: MISE_TRUSTED_PROXIES
               value: {{ join "," . | quote }}

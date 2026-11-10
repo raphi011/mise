@@ -168,6 +168,11 @@ func New(cfg config.Config, db *store.DB, log *slog.Logger) (*Server, error) {
 			return nil, err
 		}
 	}
+	for _, u := range cfg.ExtraBaseURLs {
+		if err := s.AddTrustedOrigin(u.Scheme + "://" + u.Host); err != nil {
+			return nil, err
+		}
+	}
 	return s, nil
 }
 
@@ -241,6 +246,20 @@ func (s *Server) setBaseURL(u *url.URL) error {
 // BaseURL returns the public base URL, or nil before setup when
 // MISE_BASE_URL is unset.
 func (s *Server) BaseURL() *url.URL { return s.baseURL.Load() }
+
+// requestBaseURL returns the public URL r came in on: the extra base URL
+// whose host is r's, else the base URL (nil before setup when
+// MISE_BASE_URL is unset). Links that leave the browser (emails, shares)
+// use BaseURL instead; this is for flows that must come back to the same
+// host, whose cookies are host-only.
+func (s *Server) requestBaseURL(r *http.Request) *url.URL {
+	for _, u := range s.cfg.ExtraBaseURLs {
+		if strings.EqualFold(u.Host, r.Host) {
+			return u
+		}
+	}
+	return s.BaseURL()
+}
 
 // secureCookie reports whether cookies need the Secure attribute.
 func (s *Server) secureCookie(r *http.Request) bool {

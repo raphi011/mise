@@ -104,6 +104,20 @@ Routes, assets, cookies and the service worker all live at `/`, so mise
 refuses a base URL with a path at startup and in the setup form. Give it a
 subdomain instead of a path on a shared one.
 
+### `MISE_EXTRA_BASE_URLS`
+
+Comma-separated further public URLs mise is reached at, e.g. a tailnet name
+next to the public one: `https://mise.tail1234.ts.net`. Same rules as
+`MISE_BASE_URL` (no path), and each host once. Single sign-on returns to the
+URL the sign-in started on, so it works on each of them; register each
+one's callback at the provider (see [Single sign-on](#single-sign-on-oidc)).
+Each is also a trusted origin for form posts. Links in emails and recipe
+share links keep using `MISE_BASE_URL`.
+
+mise tells the URLs apart by the request's `Host` header, so the proxy in
+front of an extra URL must pass it through unchanged. A request on any
+other host is treated as coming in on `MISE_BASE_URL`.
+
 ### `MISE_TRUSTED_PROXIES`
 
 Comma-separated addresses or CIDRs of the proxies in front of mise, e.g.
@@ -316,8 +330,11 @@ Authelia, Keycloak, ...). The password form stays; SSO is an extra
 client:
 
 - Redirect URI: `<MISE_BASE_URL>/auth/oidc/callback`, e.g.
-  `https://mise.example.com/auth/oidc/callback`. Without a base URL (set or
-  stored at setup) mise logs a warning and hides the button.
+  `https://mise.example.com/auth/oidc/callback`, plus
+  `<url>/auth/oidc/callback` for each of `MISE_EXTRA_BASE_URLS`: the
+  provider sends the browser back to the host the sign-in started on, whose
+  cookies hold the flow. Without a base URL (set or stored at setup) mise
+  logs a warning and hides the button.
 - Scopes: `openid email profile`. The flow is the authorization code flow
   with PKCE (S256).
 

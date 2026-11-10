@@ -4,6 +4,7 @@ import (
 	"context"
 	"html"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -133,6 +134,60 @@ func TestOIDCSignIn(t *testing.T) {
 		for _, next := range []string{"//evil.example/x", "https://evil.example/", "/\\evil.example"} {
 			ssoSignIn(t, newBrowser(t, base), idp, next, ssotest.Claims{Subject: "sub-anna"}).
 				expect(t, "next "+next, http.StatusSeeOther, "/")
+		}
+	})
+}
+
+// TestOIDCExtraBaseURL: on a host from MISE_EXTRA_BASE_URLS the provider
+// sends the browser back to that host, where its flow and session cookies
+// live, not to the base URL.
+func TestOIDCExtraBaseURL(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		idp := ssotest.New(t)
+		srv := httptest.NewUnstartedServer(nil)
+		// The base URL setup stores is 127.0.0.1; localhost is the extra.
+		_, port, err := net.SplitHostPort(srv.Listener.Addr().String())
+		if err != nil {
+			t.Fatal(err)
+		}
+		extra, err := url.Parse("http://localhost:" + port)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cfg := config.Config{ExtraBaseURLs: []*url.URL{extra}, OIDC: config.OIDC{
+			Issuer: idp.URL, ClientID: ssotest.ClientID, ClientSecret: ssotest.ClientSecret, Name: "Pocket ID",
+		}}
+		s := newServer(t, cfg, db, slog.New(slog.DiscardHandler))
+		srv.Config.Handler = s.Handler()
+		srv.Start()
+		t.Cleanup(func() { srv.Close(); s.Wait() })
+		newBrowser(t, srv.URL).post("/setup", setupForm(srv.URL)).expect(t, "setup", http.StatusSeeOther)
+
+		redirectURI := func(start string) string {
+			u, err := url.Parse(start)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return u.Query().Get("redirect_uri")
+		}
+		if got, want := redirectURI(ssoStart(t, newBrowser(t, srv.URL), "/")), srv.URL+oidcCallbackPath; got != want {
+			t.Errorf("base host: redirect_uri %q, want %q", got, want)
+		}
+		if got, want := redirectURI(ssoStart(t, newBrowser(t, extra.String()), "/")), extra.String()+oidcCallbackPath; got != want {
+			t.Errorf("extra host: redirect_uri %q, want %q", got, want)
+		}
+
+		// Link and sign in entirely on the extra host.
+		anna := ssotest.Claims{Subject: "sub-anna"}
+		ssoLink(t, annaSignedIn(t, extra.String()), idp, anna).expect(t, "link on extra host", http.StatusSeeOther, "/settings/account?done=linked")
+		b := newBrowser(t, extra.String())
+		ssoSignIn(t, b, idp, "/plan", anna).expect(t, "sign-in on extra host", http.StatusSeeOther, "/plan")
+		b.get("/settings").expect(t, "signed in on extra host", http.StatusOK)
+
+		// Any other host gets the base URL.
+		r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "http://other.example/auth/oidc/start", nil)
+		if got, want := s.oidcRedirectURL(r), srv.URL+oidcCallbackPath; got != want {
+			t.Errorf("unlisted host: %q, want %q", got, want)
 		}
 	})
 }

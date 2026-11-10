@@ -27,6 +27,10 @@ type Config struct {
 	Listen string
 	// BaseURL is the public URL. Optional until first-run setup stores one.
 	BaseURL *url.URL
+	// ExtraBaseURLs are further public URLs mise is reached at, e.g. a
+	// tailnet name next to the public one. Single sign-on returns to the
+	// one the request came in on; links in emails and shares use BaseURL.
+	ExtraBaseURLs []*url.URL
 	// TrustedProxies are the networks whose X-Forwarded-For is trusted.
 	TrustedProxies []netip.Prefix
 	// LogFormat is "json" or "text".
@@ -105,6 +109,7 @@ func load(args []string, getenv func(string) string, out io.Writer) (Config, err
 	db := str("db", "MISE_DB", "", "database URL, sqlite://path or postgres://...; default sqlite in data dir")
 	listen := str("listen", "MISE_LISTEN", ":8080", "listen address")
 	baseURL := str("base-url", "MISE_BASE_URL", "", "public base URL")
+	extraBaseURLs := str("extra-base-urls", "MISE_EXTRA_BASE_URLS", "", "comma-separated further public URLs mise is reached at, e.g. a tailnet name")
 	proxies := str("trusted-proxies", "MISE_TRUSTED_PROXIES", "", "comma-separated CIDRs of trusted reverse proxies")
 	logFormat := str("log-format", "MISE_LOG_FORMAT", "json", "log format, json or text")
 	logLevel := str("log-level", "MISE_LOG_LEVEL", "info", "log level")
@@ -162,6 +167,9 @@ func load(args []string, getenv func(string) string, out io.Writer) (Config, err
 			cfg.BaseURL = u
 		}
 	}
+	extras, err := parseExtraBaseURLs(*extraBaseURLs, cfg.BaseURL)
+	errs = append(errs, err)
+	cfg.ExtraBaseURLs = extras
 	for p := range strings.SplitSeq(*proxies, ",") {
 		p = strings.TrimSpace(p)
 		if p == "" {
@@ -191,6 +199,36 @@ func load(args []string, getenv func(string) string, out io.Writer) (Config, err
 		cfg.OIDC = o
 	}
 	return cfg, errors.Join(errs...)
+}
+
+// parseExtraBaseURLs parses a comma-separated list of further public URLs.
+// Requests are matched to them by host, so each host appears once, and
+// not as base's.
+func parseExtraBaseURLs(list string, base *url.URL) ([]*url.URL, error) {
+	var urls []*url.URL
+	var errs []error
+	hosts := map[string]bool{}
+	if base != nil {
+		hosts[strings.ToLower(base.Host)] = true
+	}
+	for raw := range strings.SplitSeq(list, ",") {
+		if raw = strings.TrimSpace(raw); raw == "" {
+			continue
+		}
+		u, err := ParseBaseURL(raw)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("extra %w", err))
+			continue
+		}
+		host := strings.ToLower(u.Host)
+		if hosts[host] {
+			errs = append(errs, fmt.Errorf("extra base URL %q: host %s is listed twice", raw, u.Host))
+			continue
+		}
+		hosts[host] = true
+		urls = append(urls, u)
+	}
+	return urls, errors.Join(errs...)
 }
 
 // parseOIDC validates the single sign-on settings given any of them.
