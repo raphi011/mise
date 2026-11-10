@@ -103,6 +103,15 @@ templ RecipeRegion(v RecipeView) {
 							<a href={ templ.SafeURL(v.SourceURL) } rel="noopener noreferrer" target="_blank">{ i18n.T(ctx, "recipes.source", v.SourceHost) }</a>
 						</p>
 					}
+					if v.Shared {
+						<p class="recipe-public">
+							@iconGlobe()
+							<a
+								href={ templ.SafeURL("/recipes/" + v.ID + "/menu") }
+								data-on:click__prevent={ getAction("/recipes/" + v.ID + "/menu") }
+							>{ i18n.T(ctx, "recipes.public.on") }</a>
+						</p>
+					}
 				</div>
 			</div>
 			<div class="recipe-body">
@@ -136,27 +145,7 @@ templ RecipeRegion(v RecipeView) {
 						}
 					</div>
 					if len(v.Steps) > 0 {
-						<ol class="steps">
-							for i, parts := range v.Steps {
-								<li class="step">
-									<span class="step__n" aria-hidden="true">{ itoa(i + 1) }</span>
-									<p class="step__text">
-										for _, part := range parts {
-											if part.Mention {
-												<span class="mention">
-													{ part.Text }
-													if part.Amount != "" {
-														<span class="mention__amount">{ part.Amount }</span>
-													}
-												</span>
-											} else {
-												{ part.Text }
-											}
-										}
-									</p>
-								</li>
-							}
-						</ol>
+						@stepList(v.Steps)
 						<p class="muted">{ i18n.T(ctx, "recipes.method.hint") }</p>
 					} else {
 						<p class="muted">{ i18n.T(ctx, "recipes.noSteps") }</p>
@@ -211,6 +200,31 @@ templ RecipeRegion(v RecipeView) {
 			</div>
 		}
 	</div>
+}
+
+// stepList is the numbered method with ingredient mentions.
+templ stepList(steps [][]StepPart) {
+	<ol class="steps">
+		for i, parts := range steps {
+			<li class="step">
+				<span class="step__n" aria-hidden="true">{ itoa(i + 1) }</span>
+				<p class="step__text">
+					for _, part := range parts {
+						if part.Mention {
+							<span class="mention">
+								{ part.Text }
+								if part.Amount != "" {
+									<span class="mention__amount">{ part.Amount }</span>
+								}
+							</span>
+						} else {
+							{ part.Text }
+						}
+					}
+				</p>
+			</li>
+		}
+	</ol>
 }
 
 templ metaTile(label, value, class string) {
@@ -349,6 +363,7 @@ templ recipeMenu(v RecipeMenuView, modal bool) {
 				</button>
 			</div>
 		</li>
+		@PublicLink(v)
 	</ul>
 	<a
 		class="btn btn--destructive btn--block"

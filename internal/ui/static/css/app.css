@@ -1891,6 +1891,26 @@ a.menu__item:hover { color: var(--ink); background: var(--surface-2); }
 .menu__item--static { background: transparent; padding-left: 14px; }
 .menu__icon { display: flex; color: var(--ink-2); }
 .menu__share { display: flex; flex-direction: column; gap: 4px; }
+.menu__share-action { display: flex; justify-content: flex-end; }
+
+.recipe-public { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; font-weight: 500; color: var(--ink-2); }
+.recipe-public svg { flex-shrink: 0; }
+
+/* Public link page: no app shell, no navigation. */
+.shared {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: calc(16px + env(safe-area-inset-top)) var(--gutter) calc(28px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.shared__head { display: flex; align-items: center; gap: 8px; }
+.shared__brand { font-family: var(--font-display); font-size: 20px; font-weight: 700; }
+.shared__foot { padding-top: 8px; border-top: 1px solid var(--line-soft); font-size: 13px; color: var(--muted); }
+.shared__gone-title { margin: 0; font-size: 16px; font-weight: 600; color: var(--ink); }
+.ingredient--static { padding-right: 14px; }
 
 .confirm-dialog__icon--danger { background: var(--coral-soft); color: var(--danger); }
 .btn--danger { min-height: 52px; background: var(--coral); color: var(--surface); font-weight: 600; }

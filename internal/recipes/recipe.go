@@ -47,6 +47,8 @@ type Recipe struct {
 	Favourite    bool
 	TimesCooked  int
 	LastCookedAt *time.Time
+	// Shared is true when the recipe has a public link (see share.go).
+	Shared bool
 }
 
 // TotalMin is prep plus cook time, or nil when neither is known.
@@ -554,6 +556,7 @@ type recipeRow struct {
 	Favourite    bool
 	TimesCooked  int
 	LastCookedAt *store.Time
+	Shared       bool
 }
 
 // Get returns a recipe as the member viewer sees it, or ErrNotFound.
@@ -568,7 +571,8 @@ func (s *Service) Get(ctx context.Context, sc store.Scoped, id, viewer uuid.UUID
 			r.created_at, r.updated_at,
 			EXISTS (SELECT 1 FROM favourites f WHERE f.household_id = r.household_id AND f.recipe_id = r.id AND f.user_id = ?) AS favourite,
 			(SELECT count(*) FROM cook_events ce WHERE ce.household_id = r.household_id AND ce.recipe_id = r.id) AS times_cooked,
-			(SELECT max(ce.cooked_at) FROM cook_events ce WHERE ce.household_id = r.household_id AND ce.recipe_id = r.id) AS last_cooked_at
+			(SELECT max(ce.cooked_at) FROM cook_events ce WHERE ce.household_id = r.household_id AND ce.recipe_id = r.id) AS last_cooked_at,
+			EXISTS (SELECT 1 FROM recipe_shares sh WHERE sh.household_id = r.household_id AND sh.recipe_id = r.id) AS shared
 		FROM recipes r
 		JOIN users cu ON cu.id = r.created_by
 		JOIN users uu ON uu.id = r.updated_by
@@ -585,11 +589,28 @@ func (s *Service) Get(ctx context.Context, sc store.Scoped, id, viewer uuid.UUID
 		UpdatedBy: Person{ID: r.UpdatedBy, Name: r.UpdatedName, Color: r.UpdatedColor},
 		CreatedAt: r.CreatedAt.Time, UpdatedAt: r.UpdatedAt.Time,
 		Favourite: r.Favourite, TimesCooked: r.TimesCooked, LastCookedAt: timePtr(r.LastCookedAt),
+		Shared: r.Shared,
 	}
 	if r.NotesBy != nil {
 		out.NotesBy = &Person{ID: *r.NotesBy, Name: deref(r.NotesByName), Color: deref(r.NotesByColor)}
 	}
 
+	if err := loadMethod(ctx, q, hh, id, &out); err != nil {
+		return Recipe{}, err
+	}
+	if err := q.Select(ctx, &out.Tags, `SELECT t.id, t.name, t.pinned, 0 AS count FROM tags t
+		JOIN recipe_tags rt ON rt.household_id = t.household_id AND rt.tag_id = t.id
+		WHERE t.household_id = ? AND rt.recipe_id = ? ORDER BY t.name_key`, hh, id); err != nil {
+		return Recipe{}, err
+	}
+	if out.Links, err = links(ctx, q, sc, id); err != nil {
+		return Recipe{}, err
+	}
+	return out, nil
+}
+
+// loadMethod reads a recipe's ingredients and steps into out.
+func loadMethod(ctx context.Context, q store.Reader, hh, id uuid.UUID, out *Recipe) error {
 	var ings []struct {
 		ID         uuid.UUID
 		ItemID     uuid.UUID
@@ -602,7 +623,7 @@ func (s *Service) Get(ctx context.Context, sc store.Scoped, id, viewer uuid.UUID
 	if err := q.Select(ctx, &ings, `SELECT ri.id, ri.item_id, i.name AS item_name, ri.quantity, ri.unit, ri.amount_text, ri.optional
 		FROM recipe_ingredients ri JOIN items i ON i.household_id = ri.household_id AND i.id = ri.item_id
 		WHERE ri.household_id = ? AND ri.recipe_id = ? ORDER BY ri.position`, hh, id); err != nil {
-		return Recipe{}, err
+		return err
 	}
 	for _, ri := range ings {
 		out.Ingredients = append(out.Ingredients, Ingredient{
@@ -610,19 +631,8 @@ func (s *Service) Get(ctx context.Context, sc store.Scoped, id, viewer uuid.UUID
 			Amount: groceries.Amount{Quantity: ri.Quantity, Unit: deref(ri.Unit), Text: ri.AmountText},
 		})
 	}
-	if err := q.Select(ctx, &out.Steps, `SELECT id, text, timer_seconds FROM steps
-		WHERE household_id = ? AND recipe_id = ? ORDER BY position`, hh, id); err != nil {
-		return Recipe{}, err
-	}
-	if err := q.Select(ctx, &out.Tags, `SELECT t.id, t.name, t.pinned, 0 AS count FROM tags t
-		JOIN recipe_tags rt ON rt.household_id = t.household_id AND rt.tag_id = t.id
-		WHERE t.household_id = ? AND rt.recipe_id = ? ORDER BY t.name_key`, hh, id); err != nil {
-		return Recipe{}, err
-	}
-	if out.Links, err = links(ctx, q, sc, id); err != nil {
-		return Recipe{}, err
-	}
-	return out, nil
+	return q.Select(ctx, &out.Steps, `SELECT id, text, timer_seconds FROM steps
+		WHERE household_id = ? AND recipe_id = ? ORDER BY position`, hh, id)
 }
 
 // DeleteInfo is what the delete confirmation tells the member.

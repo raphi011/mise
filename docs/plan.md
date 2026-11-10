@@ -75,7 +75,7 @@ internal/config/
 internal/store/           DB pools, dialect, rebind, time codec, tx helper, Scoped / System access
 internal/store/migrations/{sqlite,postgres}/
 internal/tenant/          household + user in request context
-internal/auth/            sessions, passwords, invites, reset tokens, middleware, rate limit
+internal/auth/            sessions, passwords, invites, reset tokens, public link tokens, middleware, rate limit
 internal/i18n/            catalog, T(ctx, key), locale-aware number parsing
 internal/groceries/       items, categories, lists, entries, amount parser
 internal/recipes/         recipes, ingredients, steps, tags, favourites, search
@@ -97,8 +97,8 @@ Domain packages own their SQL and business rules; `web` handlers parse requests,
 - References to people (`added_by`, `created_by`, `updated_by`, `notes_by`, `favourites.user_id`, `cook_events.user_id`, `invites.invited_by`) are composite FKs to `memberships(household_id, user_id)`, so attribution is household-checked too.
 - **Composite FKs use `ON DELETE RESTRICT`, never `SET NULL`.** `SET NULL` on a composite FK would also null `household_id`, and SQLite has no column-list form. Where a reference should become NULL (category deleted → items uncategorised; recipe hard-deleted → list entries lose their recipe tag), the domain code nulls the child column in the same transaction before deleting the parent. `ON DELETE CASCADE` is fine for owned children (steps, ingredients, recipe_tags).
 - Removing a member: membership row stays with `removed_at` set (attribution keeps working, sign-in is refused); hard removal only when they own nothing. Their recipes stay, as the feature doc requires.
-- Repositories take a `store.Scoped` value built from the request context. Code without a request (sweeps, AI jobs, SSE renders) uses `store.ScopeFor(householdID)`; global tables (users, sessions, invites by token, households) go through `store.System()`. Both are greppable, and a custom lint check restricts them to `internal/jobs`, `internal/ai`, `internal/live` and `internal/auth`.
-- Every index used for lookups starts with `household_id`.
+- Repositories take a `store.Scoped` value built from the request context. Code without a request (sweeps, AI jobs, SSE renders) uses `store.ScopeFor(householdID)`; global tables (users, sessions, invites by token, households) go through `store.System()`. Both are greppable, and a custom lint check restricts them to `internal/jobs`, `internal/ai`, `internal/live` and `internal/auth`. Public recipe links are bearer tokens like sessions, so `internal/auth` resolves them too and hands the request a context whose only household is the link's (see Public recipe links).
+- Every index used for lookups starts with `household_id`, except the global token lookups (`sessions.id`, `invites.token_hash`, `password_resets.token_hash`, `recipe_shares.token`).
 - A test walks every scoped repository method against a two-household fixture and asserts no rows of the other household come back.
 - First run: setup page creates the household and the first admin. With one household, the household picker never renders.
 
@@ -143,6 +143,7 @@ All tables also have `household_id` (except `households`, `users`) and `created_
 | import_jobs | id, user_id, source_url, source_text, status, steps (JSON), draft (JSON), error_code, error_detail, started_at, finished_at (P6) |
 | user_identities | issuer, subject (primary key), user_id (unique per issuer, cascades with the user), created_at; global like sessions |
 | recipe_links | recipe_id, linked_id; one row per direction, written and deleted in pairs ("Goes well with", see Linked recipes) |
+| recipe_shares | recipe_id (one link per recipe), token (unique, stored as issued), created_by (see Public recipe links) |
 
 Derived, not stored: "on a list" per ingredient, times cooked (count of `cook_events`), "not cooked in a month", suggestion ranking.
 
@@ -206,7 +207,7 @@ Derived, not stored: "on a list" per ingredient, times cooked (count of `cook_ev
 - EXIF orientation is read and applied before re-encoding (which strips all metadata).
 - Output: original capped at 2400 px long edge and a 600 px thumbnail, both JPEG.
 - Path: `$MISE_DATA_DIR/images/<household_id>/<sha256>-<size>.jpg`, content-addressed.
-- Served through an authenticated handler that checks household ownership; `Cache-Control: private, max-age=31536000, immutable`.
+- Served through an authenticated handler that checks household ownership; `Cache-Control: private, max-age=31536000, immutable`. A public recipe link serves its recipe's photo through its own route instead (see Public recipe links).
 - Orphan sweep removes files no recipe references.
 
 ### AI import
@@ -334,6 +335,17 @@ Each phase ends with something usable and is merged before the next starts.
 ### Library paging
 - The library shows 48 cards (whole rows at 2, 3, 4 and 6 columns) and "Show more" adds 48. Sorting stays in Go, so every match is read and only the shown cards get their tags. The page size is the `$shown` signal on the live stream, as servings are on the recipe page: raising it reopens the stream and the first render is the longer page; without JavaScript "Show more" links to `?shown=`.
 - The plan's recipe picker ("All recipes") and the meal menu's swap list page the same way, 48 at a time by name. They are not live, so "Show more" links to the next page size (`shown=`) and Datastar fetches just the list with it, as the search does. Searches list every match. The swap list leaves out the meal's own recipe in the query (`recipes.Filter.Exclude`), so its count is right.
+
+### Public recipe links
+- A member turns on a recipe's public link in its ⋯ menu ("Public link": "Create public link", then the address with Copy and "Turn off public link"). Anyone with the address reads the recipe at `/s/{token}` without signing in. Every member sees and manages the link, as with the recipe itself; the menu says who turned it on and when. The detail page says "Public link on" while it is, live (`recipe.changed`), so nobody forgets a recipe is public.
+- The page shows what the recipe itself says: photo, name, description, prep and cook time, servings, source link, ingredients and the method with its ingredient mentions, at the recipe's own servings. Nothing about the household: no people, notes, tags, times cooked, linked recipes, list state, edit controls or links into the app (the brand is not a link). It is plain HTML without the app's scripts or manifest. Amounts read in US units when the visitor's first `Accept-Language` names the US (or Liberia, Myanmar) explicitly, metric otherwise; the language follows `Accept-Language`.
+- **Token:** 32 bytes from `crypto/rand`, base64url (43 characters, 256 bits), so links cannot be guessed or enumerated; no rate limit is needed. One link per recipe: creating again returns the existing link (two members at once get the same one); turning it off deletes the row, and a new link gets a new token.
+- **Stored as issued, not hashed.** Members copy the link again whenever they want, so the server must be able to show it; a hash would make the link show-once like an invite. Hashing would not protect anything either: the token only grants reading one recipe, and whoever can read `recipe_shares` (a database or backup leak) can read `recipes` directly. Sessions and invites are hashed because they grant more than the database holds (acting as a user, joining a household).
+- **Revocation is immediate:** every request looks the token up (no cache), and the page is `Cache-Control: no-store`. A recipe in the bin answers like a revoked link and comes back with its link when restored; a hard delete cascades. Removing a member does not turn off links: anyone who had the address keeps it until a member turns it off, like a copy of the recipe they could have made.
+- **Isolation:** `/s/` paths skip the session middleware, so a member's identity never reaches them. `auth.RequireShare` resolves the token with `store.System()` (lint-allowed in `internal/auth`, next to sessions, invites and reset tokens) to `(household_id, recipe_id)` from the stored row and puts only that household in the request context; handlers then use `db.Scope(ctx)` like any other, and `recipes.Public` reads only the shareable columns, joined on the link. The recipe ID never comes from the URL, so a token cannot reach another recipe or household. No lint change was needed.
+- **Photo:** `/s/{token}/photo/{full|thumb}` serves the shared recipe's current photo from the link's household. It takes no image hash, so a link cannot open any other image, and the members' `/images/` route stays authenticated. `Cache-Control: private, no-cache` with an ETag: browsers revalidate each time (a cheap 304), so a turned-off link stops serving the photo too.
+- **Headers** on every `/s/` response, 404s included: `X-Robots-Tag: noindex, nofollow, noarchive`, `Referrer-Policy: no-referrer` (the token is in the URL; the source link also has `rel="noreferrer"`), `Cache-Control: no-store` (the photo as above); the page repeats robots and referrer as `<meta>`. An unknown, revoked or binned link answers 404 "This link doesn't work" without the app shell and without saying which. Logs record the route pattern, never the token.
+- Routes: `POST /recipes/{id}/share` (create), `POST /recipes/{id}/share/revoke`; both answer Datastar with the menu's link entry and a toast, and a form post with a redirect to the menu page. Schema: `recipe_shares` (migration `00011_recipe_shares`): household_id, recipe_id (primary key with household_id; composite FK to recipes, cascade), token (unique), created_by (composite FK to memberships), created_at, updated_at.
 
 ### P5 — Later
 - KitchenOwl import, "always have" staples. (OIDC is done, see Auth; tablet polish is done.)

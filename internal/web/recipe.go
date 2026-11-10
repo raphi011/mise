@@ -101,7 +101,7 @@ func (s *Server) recipeView(ctx context.Context, sc store.Scoped, id *auth.Ident
 		Servings: servings, Base: rec.Servings,
 		By:     ui.Viewer{Name: rec.CreatedBy.Name, Color: rec.CreatedBy.Color},
 		ListID: st.List.ID.String(), ListName: st.List.Name,
-		Notes: rec.Notes, Favourite: rec.Favourite,
+		Notes: rec.Notes, Favourite: rec.Favourite, Shared: rec.Shared,
 	}
 	v.SourceURL, v.SourceHost = sourceLink(rec.SourceURL)
 	for _, l := range rec.Links {
@@ -392,8 +392,10 @@ func (s *Server) recipeMenu(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	v := ui.RecipeMenuView{
-		ID: recipeID.String(), Name: rec.Name, ByLabel: personLabel(ctx, rec.CreatedBy, id.UserID), ShareURL: s.shareURL(r, recipeID),
+	v, err := s.menuView(r, sc, rec)
+	if err != nil {
+		s.serverError(w, r, err)
+		return
 	}
 	if isDatastar(r) {
 		s.sendPatches(w, r, patchTempl(ui.RecipeMenuSheet(v)))
