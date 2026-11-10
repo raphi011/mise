@@ -297,3 +297,36 @@ func TestEmailChangeWithoutPassword(t *testing.T) {
 		}
 	})
 }
+
+// TestPasswordChangeWithoutPassword: an account without a password (SSO
+// only) is offered no password change, a posted one is refused with 422,
+// and a password sign-in is refused like a wrong password.
+func TestPasswordChangeWithoutPassword(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		_, srv := startServer(t, db)
+		anna, _ := household(t, srv)
+		err := db.System().Tx(t.Context(), func(ctx context.Context, q store.Querier) error {
+			_, err := q.Exec(ctx, `UPDATE users SET password_hash = '' WHERE username_key = 'anna'`)
+			return err
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		const msg = "No password set. Ask an admin to set one"
+		p := anna.get("/settings/account").expect(t, "account", http.StatusOK)
+		if strings.Contains(p.body, `action="/settings/account/password"`) || !strings.Contains(p.body, msg) {
+			t.Errorf("account page offers a password change:\n%.3000s", p.body)
+		}
+		for _, current := range []string{"", adminPassword} {
+			p := anna.post("/settings/account/password", url.Values{"current_password": {current}, "new_password": {"a new password 789"}}).
+				expect(t, "change", http.StatusUnprocessableEntity)
+			if !strings.Contains(p.body, msg) {
+				t.Errorf("current %q: page lacks %q", current, msg)
+			}
+		}
+		p = newBrowser(t, srv.URL).post("/signin", url.Values{"username": {"anna"}, "password": {adminPassword}})
+		if p.status < 400 || p.status >= 500 {
+			t.Errorf("password sign-in: status %d", p.status)
+		}
+	})
+}

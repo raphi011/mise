@@ -260,7 +260,8 @@ type AccountView struct {
 	// Email is the stored address; changing it takes the current password.
 	Email string
 	// HasPassword is false for an account that signs in only with SSO: it
-	// cannot change its email address, so the page asks for no password.
+	// cannot change its email address or password, so the page asks for no
+	// password and offers no password change.
 	HasPassword bool
 	Color       string
 	Colors      []Option
@@ -337,21 +338,32 @@ templ Account(p Page, v AccountView) {
 					<h2 class="settings-section__title" id="security-title">{ i18n.T(ctx, "account.security") }</h2>
 				</div>
 				<div class="list">
-					<details class="disclosure" open?={ v.PasswordOpen }>
-						<summary class="list__link">
-							<span class="list__text">{ i18n.T(ctx, "account.changePassword") }</span>
-							@chevron()
-						</summary>
-						<form class="stack disclosure__body" method="post" action="/settings/account/password" novalidate>
-							@formAlert(v.Password)
-							@textField(Field{ID: "account-current-password", Name: "current_password", Label: i18n.T(ctx, "field.currentPassword"), Type: "password", Autocomplete: "current-password", Required: true}, v.Password)
-							@textField(Field{ID: "account-new-password", Name: "new_password", Label: i18n.T(ctx, "field.newPassword"), Type: "password", Autocomplete: "new-password", Required: true, Hint: i18n.T(ctx, "field.passwordHint")}, v.Password)
-							<span class="field__hint">{ i18n.T(ctx, "account.passwordOthersSignedOut") }</span>
-							<div>
-								<button class="btn btn--primary" type="submit">{ i18n.T(ctx, "account.changePassword") }</button>
-							</div>
-						</form>
-					</details>
+					if v.HasPassword {
+						<details class="disclosure" open?={ v.PasswordOpen }>
+							<summary class="list__link">
+								<span class="list__text">{ i18n.T(ctx, "account.changePassword") }</span>
+								@chevron()
+							</summary>
+							<form class="stack disclosure__body" method="post" action="/settings/account/password" novalidate>
+								@formAlert(v.Password)
+								@textField(Field{ID: "account-current-password", Name: "current_password", Label: i18n.T(ctx, "field.currentPassword"), Type: "password", Autocomplete: "current-password", Required: true}, v.Password)
+								@textField(Field{ID: "account-new-password", Name: "new_password", Label: i18n.T(ctx, "field.newPassword"), Type: "password", Autocomplete: "new-password", Required: true, Hint: i18n.T(ctx, "field.passwordHint")}, v.Password)
+								<span class="field__hint">{ i18n.T(ctx, "account.passwordOthersSignedOut") }</span>
+								<div>
+									<button class="btn btn--primary" type="submit">{ i18n.T(ctx, "account.changePassword") }</button>
+								</div>
+							</form>
+						</details>
+					} else {
+						<div class="list__row">
+							<span class="list__link">
+								<span class="list__text">
+									<span>{ i18n.T(ctx, "account.changePassword") }</span>
+									<span class="muted">{ i18n.T(ctx, "account.noPassword") }</span>
+								</span>
+							</span>
+						</div>
+					}
 					if v.SSO != nil {
 						<div class="list__row">
 							<span class="list__link">

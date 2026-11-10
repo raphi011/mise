@@ -95,6 +95,9 @@ func (s *Service) HasPassword(ctx context.Context, id *Identity) (bool, error) {
 // returning a FieldErrors for the current_password field when it is
 // missing or wrong.
 func confirmPassword(hash, password string) error {
+	if hash == "" {
+		return FieldErrors{"current_password": "form.error.noPassword"}
+	}
 	if password == "" {
 		return FieldErrors{"current_password": "form.error.passwordToChangeEmail"}
 	}
@@ -137,18 +140,25 @@ func (s *Service) UpdatePreferences(ctx context.Context, id *Identity, p Prefere
 }
 
 // ChangePassword replaces the user's password after checking the current
-// one, and signs out every other session of the user.
+// one, and signs out every other session of the user. An account without
+// a password cannot set one here.
 func (s *Service) ChangePassword(ctx context.Context, id *Identity, current, next string) error {
+	var stored string
+	if err := s.db.System().Read().Get(ctx, &stored, `SELECT password_hash FROM users WHERE id = ?`, id.UserID); err != nil {
+		return err
+	}
+	// Without a password there is nothing to confirm the change with, and
+	// setting a first one from a session would hand it to whoever holds
+	// that session. An admin sets it.
+	if stored == "" {
+		return FieldErrors{"current_password": "form.error.noPassword"}
+	}
 	errs := FieldErrors{}
 	if current == "" {
 		errs["current_password"] = "form.error.required"
 	}
 	checkNewPassword(errs, "new_password", next)
 	if err := errs.orNil(); err != nil {
-		return err
-	}
-	var stored string
-	if err := s.db.System().Read().Get(ctx, &stored, `SELECT password_hash FROM users WHERE id = ?`, id.UserID); err != nil {
 		return err
 	}
 	ok, err := VerifyPassword(stored, current)

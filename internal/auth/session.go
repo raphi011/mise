@@ -24,7 +24,8 @@ func (s *Service) createSession(ctx context.Context, q store.Querier, userID, ho
 
 // SignIn checks the username and password and starts a session in the
 // user's household. It returns ErrInvalidCredentials for an unknown user, a
-// wrong password, or an account without an active membership.
+// wrong password, an account without a password or one without an active
+// membership.
 func (s *Service) SignIn(ctx context.Context, username, password, userAgent string) (string, error) {
 	if !PlausibleCredentials(username, password) {
 		return "", ErrInvalidCredentials
@@ -35,7 +36,9 @@ func (s *Service) SignIn(ctx context.Context, username, password, userAgent stri
 	}
 	err := s.db.System().Read().Get(ctx, &u, `SELECT id, password_hash FROM users WHERE username_key = ?`, UsernameKey(username))
 	switch {
-	case errors.Is(err, sql.ErrNoRows):
+	case errors.Is(err, sql.ErrNoRows), err == nil && u.PasswordHash == "":
+		// Unknown, or an account without a password (SSO only): hash
+		// anyway so the answer takes as long as a wrong password.
 		_, _ = VerifyPassword(dummyHash, password)
 		return "", ErrInvalidCredentials
 	case err != nil:

@@ -20,7 +20,7 @@ Scope: authentication (passwords, sessions, reset, invites, SSO), CSRF, househol
 1. set the email to an address they control and use `/forgot-password`; the reset signs every other session out, so the owner loses the account;
 2. with SSO configured, set the email to their own provider address and sign in with SSO. `linkByEmail` links their identity to the account, and the link survives a later password change or reset.
 
-**Fix.** Changing the email address requires the current password (rate limited per user like the password change, since it is a password oracle for the session holder). When SMTP is configured, the old address gets a notice naming the new one. Name and colour changes still need no password. An account without a password (SSO only) has nothing to confirm the change with, so its email change is refused with a message on the email field asking an admin to set a password first, and the account page shows it no password field.
+**Fix.** Changing the email address requires the current password (rate limited per user like the password change, since it is a password oracle for the session holder). When SMTP is configured, the old address gets a notice naming the new one. Name and colour changes still need no password. An account without a password (SSO only) has nothing to confirm the change with, so its email change is refused with a message on the email field asking an admin to set a password first, and the account page shows it no password field. The same holds for changing the password, and a password sign-in to such an account is refused like a wrong password; no password is ever checked against an empty hash.
 
 ### F2: SSO links by an unverified, self-entered email
 

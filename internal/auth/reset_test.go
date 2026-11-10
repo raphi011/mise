@@ -280,3 +280,34 @@ func TestEmailChangeWithoutPassword(t *testing.T) {
 		}
 	})
 }
+
+// TestNoPasswordChecks: an account without a password (SSO only) cannot
+// change its password from a session, and signing in with any password
+// is refused like a wrong one; neither checks a password against the
+// empty hash.
+func TestNoPasswordChecks(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		ctx := t.Context()
+		s, _ := newService(t, db)
+		f := addHousehold(t, db, "h")
+		session, err := s.SignIn(ctx, "h-member", testPassword, "ua")
+		if err != nil {
+			t.Fatal(err)
+		}
+		id, _, err := s.Authenticate(ctx, session)
+		if err != nil {
+			t.Fatal(err)
+		}
+		setPasswordHash(t, db, f.member, "")
+
+		for _, current := range []string{"", testPassword} {
+			var fe FieldErrors
+			if err := s.ChangePassword(ctx, id, current, "a new password 789"); !errors.As(err, &fe) || fe["current_password"] != "form.error.noPassword" {
+				t.Errorf("change with current %q: %v", current, err)
+			}
+		}
+		if _, err := s.SignIn(ctx, "h-member", testPassword, "ua"); !errors.Is(err, ErrInvalidCredentials) {
+			t.Errorf("sign-in: %v", err)
+		}
+	})
+}

@@ -855,6 +855,8 @@
   "account.sso.needsPassword": "Your account has no password, so unlinking would lock you out. Ask an admin to set one first.",
   "notice.ssoUnlinked": "Unlinked. Sign in with your password from now on.",
   "account.emailPasswordHint": "Only needed to change your email address.",
+  "form.error.noPassword": "Your account has no password. Ask an admin to set one.",
+  "account.noPassword": "No password set. Ask an admin to set one; until then, sign in with single sign-on.",
   "form.error.noPasswordForEmail": "Your account has no password. Ask an admin to set one before changing your email address.",
   "form.error.passwordToChangeEmail": "Enter your current password to change your email address.",
   "email.emailChanged.subject": "Your mise email address changed",
