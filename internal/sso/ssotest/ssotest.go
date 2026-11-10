@@ -49,6 +49,8 @@ type Provider struct {
 	mu     sync.Mutex
 	down   bool
 	grants map[string]grant
+	// authEndpoint replaces the advertised authorization endpoint.
+	authEndpoint string
 }
 
 type grant struct {
@@ -69,6 +71,9 @@ func New(t *testing.T) *Provider {
 	disc := &oidctest.Server{PublicKeys: []oidctest.PublicKey{{PublicKey: key.Public(), KeyID: keyID, Algorithm: oidc.RS256}}}
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /token", p.token)
+	mux.HandleFunc("GET /.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
+		p.discovery(w, r, disc)
+	})
 	mux.Handle("/", disc)
 	p.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		p.mu.Lock()
@@ -84,6 +89,37 @@ func New(t *testing.T) *Provider {
 	p.URL = p.srv.URL
 	disc.SetIssuer(p.URL)
 	return p
+}
+
+// SetAuthorizationEndpoint advertises endpoint as the authorization
+// endpoint, as providers do whose sign-in page is on another host than
+// the issuer.
+func (p *Provider) SetAuthorizationEndpoint(endpoint string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.authEndpoint = endpoint
+}
+
+// discovery serves disc's discovery document with the authorization
+// endpoint replaced when SetAuthorizationEndpoint was called.
+func (p *Provider) discovery(w http.ResponseWriter, r *http.Request, disc http.Handler) {
+	p.mu.Lock()
+	endpoint := p.authEndpoint
+	p.mu.Unlock()
+	if endpoint == "" {
+		disc.ServeHTTP(w, r)
+		return
+	}
+	rec := httptest.NewRecorder()
+	disc.ServeHTTP(rec, r)
+	var doc map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &doc); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	doc["authorization_endpoint"] = endpoint
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(doc)
 }
 
 // SetDown makes every endpoint answer 503 until called with false.

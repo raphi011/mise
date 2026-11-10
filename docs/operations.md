@@ -325,9 +325,13 @@ Then set `MISE_OIDC_ISSUER` (exactly the `issuer` of the provider's
 discovery document), `MISE_OIDC_CLIENT_ID`, the secret as
 `MISE_OIDC_CLIENT_SECRET` or in a file named by
 `MISE_OIDC_CLIENT_SECRET_FILE`, and optionally `MISE_OIDC_NAME` for the
-button label. mise loads the discovery document on the first sign-in and
-retries until it succeeds, so it starts while the provider is down; SSO
-sign-ins then show an error and the password form keeps working.
+button label. mise loads the discovery document at startup and, if the
+provider is down, retries at each sign-in until it succeeds, so it starts
+while the provider is down; SSO sign-ins then show an error and the
+password form keeps working. The Content-Security-Policy's `form-action`
+lists the origin of the provider's authorization endpoint from discovery
+(the issuer's origin until discovery succeeds), since the SSO button is a
+form post redirected there.
 
 SSO never creates accounts; invites stay the only way in. On someone's
 first SSO sign-in, mise links the provider identity (issuer and subject)

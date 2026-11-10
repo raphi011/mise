@@ -254,3 +254,66 @@ func TestOIDCNeedsBaseURL(t *testing.T) {
 		t.Error("SSO button without OIDC")
 	}
 }
+
+// formAction returns the form-action directive of p's content security
+// policy.
+func formAction(t *testing.T, p page) string {
+	t.Helper()
+	for d := range strings.SplitSeq(p.header.Get("Content-Security-Policy"), ";") {
+		if d = strings.TrimSpace(d); strings.HasPrefix(d, "form-action ") {
+			return d
+		}
+	}
+	t.Fatalf("no form-action in %q", p.header.Get("Content-Security-Policy"))
+	return ""
+}
+
+// TestSSOFormAction: the SSO button posts a form answered with a redirect
+// to the provider, which the browser checks against form-action, so the
+// policy lists the authorization endpoint's origin from discovery.
+func TestSSOFormAction(t *testing.T) {
+	t.Run("issuer origin", func(t *testing.T) {
+		idp := ssotest.New(t)
+		srv := startSSOServer(t, storetest.SQLite(t), idp)
+		p := newBrowser(t, srv).get("/signin").expect(t, "sign-in page", http.StatusOK)
+		if got, want := formAction(t, p), "form-action 'self' "+idp.URL; got != want {
+			t.Errorf("%s, want %s", got, want)
+		}
+	})
+
+	// A provider whose sign-in page is on another host than the issuer.
+	const authOrigin = "https://login.example.net"
+	movedIdP := func(t *testing.T) *ssotest.Provider {
+		idp := ssotest.New(t)
+		idp.SetAuthorizationEndpoint(authOrigin + "/authorize")
+		return idp
+	}
+	t.Run("discovered at the first sign-in", func(t *testing.T) {
+		b := newBrowser(t, startSSOServer(t, storetest.SQLite(t), movedIdP(t)))
+		if target := ssoStart(t, b, ""); !strings.HasPrefix(target, authOrigin+"/authorize?") {
+			t.Fatalf("start redirected to %q", target)
+		}
+		p := b.get("/signin").expect(t, "sign-in page", http.StatusOK)
+		if got, want := formAction(t, p), "form-action 'self' "+authOrigin; got != want {
+			t.Errorf("%s, want %s", got, want)
+		}
+	})
+	t.Run("discovered at startup", func(t *testing.T) {
+		idp := movedIdP(t)
+		db := storetest.SQLite(t)
+		startSSOServer(t, db, idp)
+		// A restarted server: setup stored the base URL, so it discovers the
+		// provider while loading its settings.
+		cfg := config.Config{OIDC: config.OIDC{Issuer: idp.URL, ClientID: ssotest.ClientID, ClientSecret: ssotest.ClientSecret, Name: "Pocket ID"}}
+		s := newServer(t, cfg, db, slog.New(slog.DiscardHandler))
+		srv := httptest.NewServer(s.Handler())
+		t.Cleanup(func() { srv.Close(); s.Wait() })
+		if err := s.LoadSettings(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		p := newBrowser(t, srv.URL).get("/signin").expect(t, "sign-in page", http.StatusOK)
+		if got, want := formAction(t, p), "form-action 'self' "+authOrigin; got != want {
+			t.Errorf("%s, want %s", got, want)
+		}
+	})
+}

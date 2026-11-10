@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 
@@ -31,6 +32,10 @@ type Config struct {
 	ClientSecret string
 	// HTTPClient talks to the provider; nil means one with requestTimeout.
 	HTTPClient *http.Client
+	// OnDiscover, when set, is called once discovery succeeds with the
+	// origin ("scheme://host[:port]") of the authorization endpoint, which
+	// the browser is sent to. It must not call back into the Client.
+	OnDiscover func(authOrigin string)
 }
 
 // Client signs users in with one provider. Discovery happens on first use
@@ -69,8 +74,23 @@ func (c *Client) discover(ctx context.Context) (*oidc.Provider, *oidc.IDTokenVer
 	if err != nil {
 		return nil, nil, fmt.Errorf("%w: %w", ErrUnavailable, err)
 	}
+	auth, err := url.Parse(p.Endpoint().AuthURL)
+	if err != nil || auth.Scheme == "" || auth.Host == "" {
+		return nil, nil, fmt.Errorf("%w: authorization endpoint %q is not an absolute URL", ErrUnavailable, p.Endpoint().AuthURL)
+	}
 	c.provider, c.verifier = p, p.Verifier(&oidc.Config{ClientID: c.cfg.ClientID})
+	if c.cfg.OnDiscover != nil {
+		c.cfg.OnDiscover(auth.Scheme + "://" + auth.Host)
+	}
 	return c.provider, c.verifier, nil
+}
+
+// Discover loads the provider's discovery document unless it already
+// has, so a caller can learn the endpoints (OnDiscover) before the first
+// sign-in. It returns an error wrapping ErrUnavailable on failure.
+func (c *Client) Discover(ctx context.Context) error {
+	_, _, err := c.discover(ctx)
+	return err
 }
 
 func (c *Client) oauth2(p *oidc.Provider, redirectURL string) *oauth2.Config {

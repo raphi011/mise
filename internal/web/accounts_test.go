@@ -339,7 +339,7 @@ func TestSecurityHeaders(t *testing.T) {
 	_, srv := startServer(t, storetest.SQLite(t))
 	b := newBrowser(t, srv.URL)
 	signin := b.get("/signin").expect(t, "setup redirect", http.StatusFound)
-	if signin.header.Get("Content-Security-Policy") != contentSecurityPolicy {
+	if signin.header.Get("Content-Security-Policy") != contentSecurityPolicy() {
 		t.Errorf("CSP before setup = %q", signin.header.Get("Content-Security-Policy"))
 	}
 	b.post("/setup", setupForm(srv.URL)).expect(t, "setup", http.StatusSeeOther)
@@ -348,7 +348,7 @@ func TestSecurityHeaders(t *testing.T) {
 	if got := p.header.Get("Cache-Control"); got != "no-store" {
 		t.Errorf("signed-in page Cache-Control = %q", got)
 	}
-	if got := p.header.Get("Content-Security-Policy"); got != contentSecurityPolicy {
+	if got := p.header.Get("Content-Security-Policy"); got != contentSecurityPolicy() {
 		t.Errorf("signed-in page CSP = %q", got)
 	}
 	signedOut := newBrowser(t, srv.URL).get("/signin").expect(t, "sign-in page", http.StatusOK)

@@ -142,19 +142,29 @@ func recoverPanics(log *slog.Logger, next http.Handler) http.Handler {
 // contentSecurityPolicy limits what a page may load and run, so an
 // injection bug cannot pull in or send to other origins. Datastar evaluates
 // its expressions with Function, which needs 'unsafe-eval'; the layout's
-// font faces and Datastar-patched elements use inline styles.
-const contentSecurityPolicy = "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; " +
-	"img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+// font faces and Datastar-patched elements use inline styles. Forms may
+// submit to the app and to formOrigins: browsers apply form-action to the
+// redirects that follow a submission too, so the SSO button, a form post
+// answered with a redirect to the provider, needs the provider's
+// authorization endpoint listed.
+func contentSecurityPolicy(formOrigins ...string) string {
+	formAction := "'self'"
+	for _, o := range formOrigins {
+		formAction += " " + o
+	}
+	return "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; " +
+		"img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action " + formAction + "; frame-ancestors 'none'"
+}
 
 // securityHeaders sets headers every response should carry. Handlers may
 // replace the policy with a stricter one (the import photo proxy).
-func securityHeaders(next http.Handler) http.Handler {
+func (s *Server) securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Referrer-Policy", "same-origin")
 		h.Set("X-Frame-Options", "DENY")
-		h.Set("Content-Security-Policy", contentSecurityPolicy)
+		h.Set("Content-Security-Policy", *s.csp.Load())
 		next.ServeHTTP(w, r)
 	})
 }

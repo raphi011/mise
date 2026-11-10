@@ -106,6 +106,10 @@ type Server struct {
 
 	// baseURL is the public URL: MISE_BASE_URL, or the one stored by setup.
 	baseURL atomic.Pointer[url.URL]
+	// csp is the Content-Security-Policy every response carries. It is
+	// built in New and rebuilt only when SSO discovery finds the provider's
+	// authorization endpoint (allowSSOOrigin).
+	csp atomic.Pointer[string]
 }
 
 // New returns a Server. db must have been migrated with db.Migrate; until
@@ -128,8 +132,18 @@ func New(cfg config.Config, db *store.DB, log *slog.Logger) (*Server, error) {
 	if cfg.SMTP.Enabled() {
 		s.mailer = mail.NewSMTP(cfg.SMTP)
 	}
+	policy := contentSecurityPolicy()
+	s.csp.Store(&policy)
 	if cfg.OIDC.Enabled() {
-		s.sso = sso.New(sso.Config{Issuer: cfg.OIDC.Issuer, ClientID: cfg.OIDC.ClientID, ClientSecret: cfg.OIDC.ClientSecret})
+		// Until discovery names the authorization endpoint, assume it is on
+		// the issuer's origin, as it is with most providers.
+		issuer, err := url.Parse(cfg.OIDC.Issuer)
+		if err != nil {
+			return nil, fmt.Errorf("web: OIDC issuer %q: %w", cfg.OIDC.Issuer, err)
+		}
+		s.allowSSOOrigin(issuer.Scheme + "://" + issuer.Host)
+		s.sso = sso.New(sso.Config{Issuer: cfg.OIDC.Issuer, ClientID: cfg.OIDC.ClientID, ClientSecret: cfg.OIDC.ClientSecret,
+			OnDiscover: s.allowSSOOrigin})
 	}
 	s.live = live.NewHub()
 	s.groceries = groceries.New(s.live, nil)
@@ -192,7 +206,22 @@ func (s *Server) LoadSettings(ctx context.Context) error {
 	if s.sso != nil && s.BaseURL() == nil {
 		s.log.WarnContext(ctx, "OIDC is configured but no base URL is known, so the SSO button stays hidden; set MISE_BASE_URL or finish setup")
 	}
+	// Discover the provider now, so the sign-in pages served from the start
+	// let the SSO button reach its authorization endpoint.
+	if s.ssoAvailable() {
+		if err := s.sso.Discover(ctx); err != nil {
+			s.log.WarnContext(ctx, "oidc: provider discovery failed; retrying at the first sign-in", slog.Any("err", err))
+		}
+	}
 	return nil
+}
+
+// allowSSOOrigin rebuilds the content security policy so forms may
+// submit, and be redirected, to origin: the SSO provider's authorization
+// endpoint.
+func (s *Server) allowSSOOrigin(origin string) {
+	policy := contentSecurityPolicy(origin)
+	s.csp.Store(&policy)
 }
 
 func (s *Server) setBaseURL(u *url.URL) error {
@@ -238,7 +267,7 @@ func (s *Server) Handler() http.Handler {
 	h = s.requireSetup(h)
 	h = skipSession(s.auth.LoadSession, h)
 	h = s.csrf.Handler(h)
-	h = securityHeaders(h)
+	h = s.securityHeaders(h)
 	h = recoverPanics(s.log, h)
 	h = logRequests(s.log, s.cfg.TrustedProxies, r.pattern, h)
 	return h
