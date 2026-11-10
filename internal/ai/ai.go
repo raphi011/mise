@@ -29,6 +29,9 @@ type Service struct {
 	log         *slog.Logger
 	run         *runner
 	jobTimeout  time.Duration
+	// started is when this process's service was built: queued and
+	// running jobs older than that are a previous process's leftovers.
+	started time.Time
 }
 
 // Config configures a Service.
@@ -67,6 +70,7 @@ func New(cfg Config) *Service {
 	if s.now == nil {
 		s.now = time.Now
 	}
+	s.started = s.now()
 	if s.newProvider == nil {
 		s.newProvider = Clients{}.New
 	}

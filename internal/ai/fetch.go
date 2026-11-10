@@ -112,6 +112,17 @@ func NewFetcher() *Fetcher {
 	return f
 }
 
+// AllowForTest lets f dial addresses allowed by fn and sets a shorter
+// timeout when non-zero. Tests serve pages from loopback on random ports,
+// which the fetcher refuses; never call it outside tests.
+func (f *Fetcher) AllowForTest(fn func(netip.AddrPort) bool, timeout time.Duration) *Fetcher {
+	f.allowed = fn
+	if timeout > 0 {
+		f.timeout = timeout
+	}
+	return f
+}
+
 // Fetch gets rawURL, expecting a page (HTML, XHTML or plain text) or an
 // image.
 func (f *Fetcher) Fetch(ctx context.Context, rawURL string, kind Kind) (Fetched, error) {

@@ -225,6 +225,11 @@ type RecipeEditView struct {
 	Rows  []IngredientRow
 	Steps []StepRow
 	Tags  []TagChoice
+	// Import is the import job a new recipe was opened from. ImportPhoto
+	// shows the draft's photo, which saving downloads unless it is
+	// removed or replaced.
+	Import      string
+	ImportPhoto bool
 }
 
 // StepRow is one step of the editor: its text and its timer in minutes,
@@ -244,6 +249,9 @@ func (v RecipeEditView) Action() string {
 
 // Cancel is where Cancel leads.
 func (v RecipeEditView) Cancel() string {
+	if v.Import != "" {
+		return ImportHref(v.Import)
+	}
 	if v.ID == "" {
 		return "/recipes"
 	}
@@ -336,4 +344,15 @@ func rowLabel(r IngredientRow) string {
 		return r.Name
 	}
 	return r.Amount
+}
+
+// PhotoSrc is the photo the editor shows: the recipe's, else an import's.
+func (v RecipeEditView) PhotoSrc() string {
+	if v.Photo != "" {
+		return ImageURL(v.Photo, "thumb")
+	}
+	if v.ImportPhoto {
+		return ImportHref(v.Import) + "/photo"
+	}
+	return ""
 }

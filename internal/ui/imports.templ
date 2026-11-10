@@ -1,0 +1,280 @@
+package ui
+
+import "github.com/raphi011/mise/internal/i18n"
+
+// ImportForm is the import form, and the failed screen with the error
+// above it.
+templ ImportForm(p Page, v ImportFormView) {
+	@Layout(p) {
+		<div class="import narrow stack-lg">
+			if v.Failure != nil {
+				<section class="import-failure" role="alert">
+					@iconAlert(22)
+					<div class="import-failure__body">
+						<p class="import-failure__title">{ v.Failure.Title }</p>
+						<p class="import-failure__text">{ v.Failure.Body }</p>
+						if v.Failure.Detail != "" {
+							<details class="import-failure__detail">
+								<summary>{ i18n.T(ctx, "import.failed.details") }</summary>
+								<p>{ v.Failure.Detail }</p>
+							</details>
+						}
+					</div>
+				</section>
+			} else {
+				<p class="lead">
+					if v.AI {
+						{ i18n.T(ctx, "import.form.leadAI") }
+					} else {
+						{ i18n.T(ctx, "import.form.lead") }
+					}
+				</p>
+			}
+			<form id="import-form" class="stack" method="post" action="/recipes/import" novalidate>
+				@formAlert(v.Form)
+				if v.Replace != "" {
+					<input type="hidden" name="replace" value={ v.Replace }/>
+				}
+				@textField(Field{ID: "import-url", Name: "url", Type: "url", Label: i18n.T(ctx, "import.form.url"),
+					Attrs: templ.Attributes{"inputmode": "url", "autocomplete": "off", "placeholder": "https://", "autofocus": v.Failure == nil}}, v.Form)
+				<div class="import-actions">
+					if v.Failure != nil {
+						<a class="btn btn--secondary btn--tall" href="/recipes/new">{ i18n.T(ctx, "import.typeItMyself") }</a>
+					}
+					<button class="btn btn--primary" type="submit">
+						if v.Failure != nil {
+							{ i18n.T(ctx, "import.form.again") }
+						} else {
+							{ i18n.T(ctx, "import.form.submit") }
+						}
+					</button>
+				</div>
+			</form>
+			<p class="fine-print import-note">
+				if v.AI {
+					{ i18n.T(ctx, "import.form.noteAI", v.Model) }
+					if v.Admin {
+						{ " " }
+						<a href="/settings/ai">{ i18n.T(ctx, "import.form.change") }</a>
+					}
+				} else {
+					{ i18n.T(ctx, "import.form.note") }
+				}
+			</p>
+		</div>
+	}
+}
+
+// ImportRunning is the screen of a queued or running import. Its region
+// follows the job over the live stream; without JavaScript the page
+// refreshes itself (Page.Refresh).
+templ ImportRunning(p Page, v ImportRunningView) {
+	@Layout(p) {
+		<div class="import narrow stack-lg" data-init={ liveAction("/live?page=import&job=" + v.ID) }>
+			@ImportRunningRegion(v)
+			<p class="muted">{ i18n.T(ctx, "import.running.leave") }</p>
+			<form method="post" action={ templ.SafeURL(ImportHref(v.ID) + "/cancel") }>
+				<button class="btn btn--secondary btn--tall btn--block" type="submit">{ i18n.T(ctx, "import.running.cancel") }</button>
+			</form>
+		</div>
+	}
+}
+
+// ImportRunningRegion is the source, progress and steps of a running
+// import.
+templ ImportRunningRegion(v ImportRunningView) {
+	<div id="import-running" class="stack-lg">
+		<p class="import-source">{ v.Source }</p>
+		<section class="card import-activity" aria-labelledby="import-status">
+			<div class="import-activity__head">
+				<h2 class="import-activity__title" id="import-status">
+					if v.Queued {
+						{ i18n.T(ctx, "import.running.queued") }
+					} else {
+						{ i18n.T(ctx, "import.running.title") }
+					}
+				</h2>
+				<span class="muted">{ i18n.T(ctx, "import.running.usually") }</span>
+			</div>
+			<progress class="import-progress" max="100" value={ itoa(v.Progress) } aria-labelledby="import-status"></progress>
+			<ol class="import-steps" aria-live="polite">
+				for _, st := range v.Steps {
+					@importStep(st)
+				}
+			</ol>
+		</section>
+		<div class="card import-skeleton" aria-hidden="true">
+			<span class="import-skeleton__photo"></span>
+			<span class="import-skeleton__lines">
+				<span></span>
+				<span></span>
+			</span>
+		</div>
+	</div>
+}
+
+templ importStep(st ImportStep) {
+	<li class={ "import-step", "import-step--" + st.State }>
+		<span class="import-step__mark" aria-hidden="true">
+			switch st.State {
+				case StepDone:
+					@iconCheck(13)
+				case StepFailed:
+					@iconAlert(13)
+				default:
+					<span class="import-step__dot"></span>
+			}
+		</span>
+		<span class="import-step__text">
+			<span>{ st.Text }</span>
+			if st.Tool != "" {
+				<span class="import-step__tool">{ st.Tool }</span>
+			}
+		</span>
+	</li>
+}
+
+// ImportReview is the review screen of a ready import.
+templ ImportReview(p Page, v ImportReviewView) {
+	@Layout(p) {
+		<div class="import-review">
+			<details class="card import-activity import-review__activity" data-open-wide>
+				<summary class="import-activity__head">
+					<h2 class="import-activity__title">{ i18n.T(ctx, "import.review.activity") }</h2>
+					if v.Elapsed != "" {
+						<span class="import-activity__done">{ i18n.T(ctx, "import.review.finished", v.Elapsed) }</span>
+					}
+					@chevron()
+				</summary>
+				<ol class="import-steps">
+					for _, st := range v.Steps {
+						@importStep(st)
+					}
+				</ol>
+			</details>
+			<section class="card import-draft" aria-labelledby="draft-name">
+				<div class="import-draft__head">
+					<span class="import-draft__photo">
+						if v.HasPhoto {
+							<img src={ ImportHref(v.ID) + "/photo" } alt=""/>
+						} else {
+							<span class="recipe-card__initial">{ Initial(v.Name) }</span>
+						}
+					</span>
+					<span class="import-draft__text">
+						<span class="import-draft__label">{ i18n.T(ctx, "import.review.draft") }</span>
+						<span class="import-draft__name" id="draft-name">{ v.Name }</span>
+						<span class="muted">{ v.Meta }</span>
+					</span>
+				</div>
+				<div class="import-draft__section" id="ingredients">
+					<div class="import-draft__section-head">
+						<h2 class="import-draft__title">{ i18n.T(ctx, "import.review.ingredients") }</h2>
+						<span class="muted">{ v.Summary }</span>
+					</div>
+					if len(v.Rows) > 0 {
+						<div class="import-table" role="table" aria-label={ i18n.T(ctx, "import.review.ingredients") }>
+							<div class="import-table__row import-table__head" role="row">
+								<span role="columnheader">{ i18n.T(ctx, "import.review.onPage") }</span>
+								<span role="columnheader">{ i18n.T(ctx, "import.review.yourItem") }</span>
+								<span role="columnheader">{ i18n.T(ctx, "import.review.status") }</span>
+							</div>
+							for _, row := range v.Rows {
+								@importRow(v.ID, row)
+							}
+						</div>
+					} else {
+						<p class="muted">{ i18n.T(ctx, "import.review.noIngredients") }</p>
+					}
+				</div>
+				<div class="import-actions import-actions--review">
+					<form method="post" action={ templ.SafeURL(ImportHref(v.ID) + "/discard") } class="inline-form">
+						<button class="btn btn--ghost btn--tall" type="submit">{ i18n.T(ctx, "import.review.discard") }</button>
+					</form>
+					<a class="btn btn--secondary btn--tall" href={ templ.SafeURL("/recipes/new?import=" + v.ID) }>{ i18n.T(ctx, "import.review.editor") }</a>
+					<form method="post" action={ templ.SafeURL(ImportHref(v.ID) + "/save") } class="inline-form">
+						<button class="btn btn--primary import-actions__save" type="submit">
+							{ importSaveLabel(ctx, v.NewItems) }
+						</button>
+					</form>
+				</div>
+			</section>
+		</div>
+	}
+}
+
+templ importRow(id string, row ImportRow) {
+	<div class={ "import-table__row", templ.KV("import-table__row--check", row.Match == "check") } role="row">
+		<span role="cell" class="import-table__text">{ row.Text }</span>
+		<span role="cell" class="import-table__item">
+			<a href={ templ.SafeURL(importPickHref(id, row.Index)) } aria-label={ i18n.T(ctx, "import.review.choose", row.Text) }>{ row.Item }</a>
+			if row.Match == "new" && row.Category != "" {
+				<span class="muted">{ row.Category }</span>
+			}
+		</span>
+		<span role="cell" class="import-table__status">
+			<span class={ matchClass(row.Match) }>{ i18n.T(ctx, i18n.Key("import.match." + row.Match)) }</span>
+			if row.Match == "check" {
+				<form method="post" action={ templ.SafeURL(ImportHref(id) + "/items") } class="inline-form">
+					<input type="hidden" name="row" value={ itoa(row.Index) }/>
+					<input type="hidden" name="item" value={ row.ItemID }/>
+					<button class="btn-link import-table__keep" type="submit" aria-label={ i18n.T(ctx, "import.review.keepLabel", row.Item, row.Text) }>{ i18n.T(ctx, "import.review.keep") }</button>
+				</form>
+			}
+		</span>
+	</div>
+}
+
+// ImportPick is the item picker for one row of a review.
+templ ImportPick(p Page, v ImportPickView) {
+	@Layout(p) {
+		<div class="import narrow stack-lg">
+			<p class="lead">{ i18n.T(ctx, "import.pick.onPage", v.Text) }</p>
+			<form class="search-link search-link--field" method="get" action={ templ.SafeURL(ImportHref(v.ID) + "/items") } role="search">
+				<input type="hidden" name="row" value={ itoa(v.Row) }/>
+				<label class="visually-hidden" for="pick-q">{ i18n.T(ctx, "import.pick.search") }</label>
+				<input class="search-link__input" id="pick-q" name="q" type="search" value={ v.Query } autocomplete="off" placeholder={ i18n.T(ctx, "import.pick.search") }/>
+				<button class="btn btn--secondary btn--small" type="submit">{ i18n.T(ctx, "import.pick.find") }</button>
+			</form>
+			if len(v.Items) > 0 {
+				<ul class="list card pick-items" aria-label={ i18n.T(ctx, "import.pick.items") }>
+					for _, it := range v.Items {
+						<li class="list__row">
+							<form method="post" action={ templ.SafeURL(ImportHref(v.ID) + "/items") } class="pick-items__form">
+								<input type="hidden" name="row" value={ itoa(v.Row) }/>
+								<input type="hidden" name="item" value={ it.ID }/>
+								<button class="pick-items__btn" type="submit" aria-current?={ it.ID == v.Current }>
+									<span class="pick-row__name">{ it.Name }</span>
+									if it.Category != "" {
+										<span class="muted">{ it.Category }</span>
+									}
+									if it.ID == v.Current {
+										<span class="pick-items__current">
+											@iconCheck(16)
+											<span class="visually-hidden">{ i18n.T(ctx, "import.pick.current") }</span>
+										</span>
+									}
+								</button>
+							</form>
+						</li>
+					}
+				</ul>
+			} else {
+				<p class="muted">{ i18n.T(ctx, "import.pick.none") }</p>
+			}
+			<form class="card stack" method="post" action={ templ.SafeURL(ImportHref(v.ID) + "/items") } novalidate>
+				<input type="hidden" name="row" value={ itoa(v.Row) }/>
+				@formAlert(v.Form)
+				@textField(Field{ID: "pick-new", Name: "name", Label: i18n.T(ctx, "import.pick.new"), Hint: i18n.T(ctx, "import.pick.newHint"),
+					Attrs: templ.Attributes{"autocomplete": "off"}}, v.Form)
+				<div>
+					<button class="btn btn--secondary" type="submit">{ i18n.T(ctx, "import.pick.useNew") }</button>
+				</div>
+			</form>
+		</div>
+	}
+}
+
+templ iconAlert(size int) {
+	<svg width={ size } height={ size } viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5M12 16.5v.5"></path></svg>
+}

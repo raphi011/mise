@@ -646,6 +646,8 @@ func (s *Server) liveStream(w http.ResponseWriter, r *http.Request) {
 		s.recipeLive(w, r, sc, id)
 	case "plan":
 		s.planLive(w, r, sc, id)
+	case "import":
+		s.importLive(w, r, sc, id)
 	default:
 		s.notFound(w, r)
 	}

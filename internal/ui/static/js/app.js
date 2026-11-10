@@ -460,8 +460,16 @@ document.addEventListener("input", (e) => {
   if (e.target.id === "search-input") renderRecent();
 });
 
+// Panels marked data-open-wide (the import's activity) start collapsed
+// on phones and open on wider screens.
+function openWide() {
+  if (!window.matchMedia("(min-width: 900px)").matches) return;
+  for (const d of document.querySelectorAll("details[data-open-wide]")) d.open = true;
+}
+
 function init() {
   registerServiceWorker();
+  openWide();
   renderRecent();
   setupRows();
   setupSteps();

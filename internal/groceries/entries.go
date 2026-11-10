@@ -3,6 +3,7 @@ package groceries
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"slices"
 	"time"
 	"unicode/utf8"
@@ -254,11 +255,29 @@ func (s *Service) AddTx(ctx context.Context, q store.Querier, sc store.Scoped, i
 // reports a new item; the caller publishes live.CatalogChanged after commit.
 // name must already be cleaned (CleanName) and checked.
 func EnsureItem(ctx context.Context, q store.Querier, sc store.Scoped, name string, now store.Time) (id uuid.UUID, created bool, err error) {
+	return EnsureItemIn(ctx, q, sc, name, "", now)
+}
+
+// EnsureItemIn is EnsureItem that files a new item under the category
+// named category (compared by NameKey) when the household has one. An
+// existing item keeps its category.
+func EnsureItemIn(ctx context.Context, q store.Querier, sc store.Scoped, name, category string, now store.Time) (id uuid.UUID, created bool, err error) {
 	hh := sc.HouseholdID()
+	var categoryID *uuid.UUID
+	if key := NameKey(category); key != "" {
+		var cid uuid.UUID
+		err := q.Get(ctx, &cid, `SELECT id FROM categories WHERE household_id = ? AND name_key = ?`, hh, key)
+		switch {
+		case err == nil:
+			categoryID = &cid
+		case !errors.Is(err, sql.ErrNoRows):
+			return uuid.Nil, false, err
+		}
+	}
 	key := NameKey(name)
-	res, err := q.Exec(ctx, `INSERT INTO items (id, household_id, name, name_key, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (household_id, name_key) DO NOTHING`,
-		store.NewID(), hh, name, key, now, now)
+	res, err := q.Exec(ctx, `INSERT INTO items (id, household_id, name, name_key, category_id, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (household_id, name_key) DO NOTHING`,
+		store.NewID(), hh, name, key, categoryID, now, now)
 	if err != nil {
 		return uuid.Nil, false, err
 	}

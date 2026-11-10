@@ -114,8 +114,8 @@ func (s *Service) unregister(id uuid.UUID) bool {
 	return j != nil && j.canceled
 }
 
-// Run marks jobs a previous process left queued or running as failed,
-// then runs queued jobs with Workers workers until ctx ends. Jobs still
+// Run marks jobs a previous process left queued or running as failed
+// (jobs created since New are this process's own), then runs queued jobs with Workers workers until ctx ends. Jobs still
 // running then are marked failed as interrupted.
 func (s *Service) Run(ctx context.Context) error {
 	if s.db == nil {
@@ -136,7 +136,7 @@ func (s *Service) failLeftovers(ctx context.Context) error {
 	now := store.T(s.now())
 	return s.db.System().Tx(ctx, func(ctx context.Context, q store.Querier) error {
 		res, err := q.Exec(ctx, `UPDATE import_jobs SET status = 'failed', error_code = ?, finished_at = ?, updated_at = ?
-			WHERE status IN ('queued', 'running')`, string(CodeInterrupted), now, now)
+			WHERE status IN ('queued', 'running') AND created_at < ?`, string(CodeInterrupted), now, now, store.T(s.started))
 		if err != nil {
 			return fmt.Errorf("ai: fail leftover imports: %w", err)
 		}

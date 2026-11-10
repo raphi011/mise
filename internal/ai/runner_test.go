@@ -168,9 +168,10 @@ func TestRunImports(t *testing.T) {
 
 		// A job a previous process left running fails as interrupted.
 		leftover := store.NewID()
+		before := store.T(time.Now().Add(-time.Minute))
 		err := db.System().Tx(ctx, func(ctx context.Context, q store.Querier) error {
 			_, err := q.Exec(ctx, `INSERT INTO import_jobs (id, household_id, user_id, source_url, status, steps, created_at, updated_at)
-				VALUES (?, ?, ?, 'https://example.com/x', 'running', '[]', ?, ?)`, leftover, e.hh.ID, anna, store.Now(), store.Now())
+				VALUES (?, ?, ?, 'https://example.com/x', 'running', '[]', ?, ?)`, leftover, e.hh.ID, anna, before, before)
 			return err
 		})
 		if err != nil {

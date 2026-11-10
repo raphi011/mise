@@ -217,6 +217,9 @@ func (s *Server) recipePage(w http.ResponseWriter, r *http.Request) {
 		t := cookedToast(ctx, recipeID, event, r.URL.RequestURI())
 		v.Toast = &t
 	}
+	if s.takeImportedFlash(w, r, recipeID) {
+		v.Toast = &ui.Toast{Key: strconv.FormatInt(time.Now().UnixNano(), 36), Message: i18n.T(ctx, "import.toast.noPhoto")}
+	}
 	p := s.page(r, v.Name, ui.NavRecipes)
 	p.BackHref, p.BackLabel = "/recipes", i18n.T(ctx, "recipes.back")
 	p.Actions = ui.RecipeActions(v)

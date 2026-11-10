@@ -35,6 +35,10 @@ type Page struct {
 	// NavExtra, when set, renders under the main links in the desktop
 	// sidebar (e.g. the recipe tags).
 	NavExtra templ.Component
+	// Refresh, when set, reloads the page after that many seconds without
+	// JavaScript (pages that follow a background job; with JavaScript the
+	// live stream updates them).
+	Refresh int
 }
 
 func fontFaces() string {
@@ -56,6 +60,9 @@ templ document(p Page) {
 			<meta charset="utf-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
 			<meta name="color-scheme" content="light dark"/>
+			if p.Refresh > 0 {
+				<noscript><meta http-equiv="refresh" content={ itoa(p.Refresh) }/></noscript>
+			}
 			<title>{ p.Title } · mise</title>
 			switch p.Theme {
 				case "light":

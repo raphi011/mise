@@ -1,0 +1,333 @@
+package web
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"net/netip"
+	"net/url"
+	"regexp"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/raphi011/mise/internal/ai"
+	"github.com/raphi011/mise/internal/store"
+	"github.com/raphi011/mise/internal/store/storetest"
+)
+
+var (
+	importHrefRe = regexp.MustCompile(`^/imports/([0-9a-f-]{36})$`)
+	keepItemRe   = regexp.MustCompile(`name="item" value="([0-9a-f-]{36})"`)
+	// recipePhotoRe is a recipe page's photo.
+	recipePhotoRe = regexp.MustCompile(`/images/[0-9a-f]{64}/full`)
+)
+
+// startImportServer is startServer with the import runner going and a
+// fetcher that may reach the loopback page server.
+func startImportServer(t *testing.T, db *store.DB) (*Server, *httptest.Server) {
+	t.Helper()
+	s, srv := startServer(t, db)
+	cfg := s.aiConfig
+	cfg.Fetcher = ai.NewFetcher().AllowForTest(func(netip.AddrPort) bool { return true }, 5*time.Second)
+	s.ai = ai.New(cfg)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		if err := s.RunImports(ctx); err != nil {
+			t.Errorf("run imports: %v", err)
+		}
+	}()
+	t.Cleanup(func() {
+		cancel()
+		<-done
+	})
+	return s, srv
+}
+
+// recipeSite serves recipe pages for imports. /slow waits until release
+// is closed.
+type recipeSite struct {
+	*httptest.Server
+	release chan struct{}
+	once    sync.Once
+}
+
+const tofuPage = `<!doctype html><html lang="en"><head><title>Crispy tofu</title>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"Recipe","name":"Crispy tofu",
+"image":"%s","recipeYield":"2","prepTime":"PT10M","cookTime":"PT20M",
+"recipeIngredient":["400 g firm tofu","2 tbsp tamari or soy sauce","1 tbsp maple syrup"],
+"recipeInstructions":[{"@type":"HowToStep","text":"Press the tofu."},{"@type":"HowToStep","text":"Fry it until crisp."}]}</script>
+</head><body><p>Crispy tofu</p></body></html>`
+
+func newRecipeSite(t *testing.T) *recipeSite {
+	t.Helper()
+	site := &recipeSite{release: make(chan struct{})}
+	png := pngBytes(t)
+	site.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/tofu", "/slow", "/nophoto":
+			if r.URL.Path == "/slow" {
+				select {
+				case <-site.release:
+				case <-r.Context().Done():
+					return
+				}
+			}
+			img := site.URL + "/photo.png"
+			if r.URL.Path == "/nophoto" {
+				img = site.URL + "/missing.png"
+			}
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			_, _ = fmt.Fprintf(w, tofuPage, img)
+		case "/plain":
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			_, _ = w.Write([]byte(`<html><body><p>Just a story about tofu.</p></body></html>`))
+		case "/photo.png":
+			w.Header().Set("Content-Type", "image/png")
+			_, _ = w.Write(png)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(func() {
+		site.unblock()
+		site.Close()
+	})
+	return site
+}
+
+func (s *recipeSite) unblock() { s.once.Do(func() { close(s.release) }) }
+
+// startImport submits the import form and returns the job's ID.
+func startImport(t *testing.T, b *browser, link string) string {
+	t.Helper()
+	res := b.post("/recipes/import", url.Values{"url": {link}}).expect(t, "start import", http.StatusSeeOther)
+	m := importHrefRe.FindStringSubmatch(res.location)
+	if m == nil {
+		t.Fatalf("import redirected to %q", res.location)
+	}
+	return m[1]
+}
+
+// waitForPage gets path until its body contains want.
+func waitForPage(t *testing.T, b *browser, path, want string) string {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		body := b.get(path).body
+		if strings.Contains(body, want) {
+			return body
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("%s never showed %q:\n%.3000s", path, want, body)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+// TestImportReviewAndSave imports a page with recipe data without a
+// model, adjusts the matches on the review screen and saves the recipe
+// with its new item and photo.
+func TestImportReviewAndSave(t *testing.T) {
+	_, srv := startImportServer(t, storetest.SQLite(t))
+	anna, ben := household(t, srv)
+	site := newRecipeSite(t)
+	createRecipe(t, anna, stickyTofu()) // gives the household Firm tofu and Soy sauce
+
+	form := anna.get("/recipes/import").expect(t, "form", http.StatusOK).body
+	if !strings.Contains(form, "Import a recipe") || !strings.Contains(form, `name="url"`) {
+		t.Errorf("import form with AI off:\n%.3000s", form)
+	}
+	anna.post("/recipes/import", url.Values{"url": {"ftp://x"}}).expect(t, "bad link", http.StatusUnprocessableEntity)
+
+	job := startImport(t, anna, site.URL+"/tofu")
+	page := "/imports/" + job
+	body := waitForPage(t, anna, page, "Review import")
+	for _, want := range []string{"Crispy tofu", "10 min prep · 20 min cook · 2 servings · 2 steps", "3 found · 1 matched · 1 to check · 1 new",
+		"match--matched", "match--check", "match--new", "Maple syrup", "Save recipe &amp; 1 new item", page + "/photo", "Read the recipe page on 127.0.0.1"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("review lacks %q", want)
+		}
+	}
+	if t.Failed() {
+		t.Fatalf("review:\n%.6000s", body)
+	}
+
+	// Other members don't see someone else's import.
+	ben.get(page).expect(t, "other member's import", http.StatusNotFound)
+	ben.post(page+"/save", nil).expect(t, "other member saves", http.StatusNotFound)
+
+	res := anna.get(page + "/photo")
+	if res.status != http.StatusOK || !strings.HasPrefix(res.body, "\x89PNG") {
+		t.Errorf("photo proxy: %d %.20q", res.status, res.body)
+	}
+
+	// Keep the checked match, and pick a different new item for the syrup.
+	m := keepItemRe.FindStringSubmatch(body)
+	if m == nil {
+		t.Fatal("no Keep button")
+	}
+	anna.post(page+"/items", url.Values{"row": {"1"}, "item": {m[1]}}).expect(t, "keep", http.StatusSeeOther, page+"#ingredients")
+	pick := anna.get(page+"/items?row=2").expect(t, "picker", http.StatusOK).body
+	if !strings.Contains(pick, "1 tbsp maple syrup") || !strings.Contains(pick, `value="Maple syrup"`) {
+		t.Errorf("picker:\n%.3000s", pick)
+	}
+	if found := anna.get(page + "/items?row=2&q=tofu").body; !strings.Contains(found, "Firm tofu") {
+		t.Errorf("picker search for tofu:\n%.3000s", found)
+	}
+	anna.post(page+"/items", url.Values{"row": {"2"}, "name": {""}}).expect(t, "empty new item", http.StatusUnprocessableEntity)
+	anna.post(page+"/items", url.Values{"row": {"2"}, "name": {"Agave syrup"}}).expect(t, "new item", http.StatusSeeOther)
+	anna.get(page+"/items?row=9").expect(t, "row out of range", http.StatusNotFound)
+	body = anna.get(page).body
+	if !strings.Contains(body, "3 found · 2 matched · 0 to check · 1 new") || !strings.Contains(body, "Agave syrup") {
+		t.Fatalf("review after picking:\n%.6000s", body)
+	}
+
+	res = anna.post(page+"/save", nil).expect(t, "save", http.StatusSeeOther)
+	if recipeHrefRe.FindStringSubmatch(res.location) == nil {
+		t.Fatalf("save redirected to %q", res.location)
+	}
+	recipe := anna.get(res.location).body
+	for _, want := range []string{"Crispy tofu", "Agave syrup", "Firm tofu", "Soy sauce", "Fry it until crisp."} {
+		if !strings.Contains(recipe, want) {
+			t.Errorf("saved recipe lacks %q", want)
+		}
+	}
+	if !recipePhotoRe.MatchString(recipe) {
+		t.Error("saved recipe has no photo")
+	}
+	if strings.Contains(recipe, "couldn’t be downloaded") {
+		t.Error("photo failure toast after a good photo")
+	}
+	anna.get(page).expect(t, "job after save", http.StatusNotFound)
+	anna.post(page+"/save", nil).expect(t, "second save", http.StatusNotFound)
+}
+
+// TestImportRunningAndCancel follows a running import: the page refreshes
+// itself without JavaScript, the live stream patches its steps and sends
+// the page to the review when it is done, and Cancel stops another.
+func TestImportRunningAndCancel(t *testing.T) {
+	_, srv := startImportServer(t, storetest.SQLite(t))
+	anna, _ := household(t, srv)
+	site := newRecipeSite(t)
+
+	job := startImport(t, anna, site.URL+"/slow")
+	page := "/imports/" + job
+	body := waitForPage(t, anna, page, "Read the recipe page on 127.0.0.1")
+	for _, want := range []string{`<noscript><meta http-equiv="refresh" content="3"></noscript>`, "Cancel import", "/live?page=import&amp;job=" + job, "<progress"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("running page lacks %q", want)
+		}
+	}
+	if t.Failed() {
+		t.Fatalf("running page:\n%.4000s", body)
+	}
+	live := anna.openLive("page=import&job=" + job)
+	live.next("running region", 5*time.Second, "import-running", "Read the recipe page")
+
+	// A second and third import may queue; a fourth is refused.
+	second := startImport(t, anna, site.URL+"/slow")
+	startImport(t, anna, site.URL+"/slow")
+	refused := anna.post("/recipes/import", url.Values{"url": {site.URL + "/slow"}}).expect(t, "fourth import", http.StatusUnprocessableEntity).body
+	if !strings.Contains(refused, "You already have 3 imports running") {
+		t.Errorf("fourth import:\n%.3000s", refused)
+	}
+	anna.post("/imports/"+second+"/cancel", nil).expect(t, "cancel", http.StatusSeeOther, "/recipes")
+	deadline := time.Now().Add(5 * time.Second)
+	for anna.get("/imports/"+second).status != http.StatusNotFound {
+		if time.Now().After(deadline) {
+			t.Fatal("canceled import still there")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	site.unblock()
+	live.next("reload when done", 5*time.Second, "window.location", page)
+	if body := anna.get(page).body; !strings.Contains(body, "Review import") || strings.Contains(body, "http-equiv") {
+		t.Errorf("finished import:\n%.3000s", body)
+	}
+}
+
+// TestImportFailedScreen shows a page without recipe data while AI import
+// is off: the error, the form with the link kept, and the way out.
+func TestImportFailedScreen(t *testing.T) {
+	_, srv := startImportServer(t, storetest.SQLite(t))
+	anna, _ := household(t, srv)
+	site := newRecipeSite(t)
+
+	job := startImport(t, anna, site.URL+"/plain")
+	page := "/imports/" + job
+	body := waitForPage(t, anna, page, "Couldn’t find recipe data on that page")
+	for _, want := range []string{"ask an admin to turn on AI import", `value="` + site.URL + `/plain"`, "Type it myself", "Import again", `href="/recipes/new"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("failed screen lacks %q", want)
+		}
+	}
+	if t.Failed() {
+		t.Fatalf("failed screen:\n%.4000s", body)
+	}
+	if !strings.Contains(body, `name="replace" value="`+job+`"`) {
+		t.Error("failed screen doesn't replace the failed import")
+	}
+	anna.post(page+"/save", nil).expect(t, "save a failure", http.StatusSeeOther, page)
+	anna.get(page+"/items?row=0").expect(t, "picker of a failure", http.StatusFound)
+	anna.post(page+"/discard", nil).expect(t, "discard", http.StatusSeeOther, "/recipes")
+	anna.get(page).expect(t, "after discard", http.StatusNotFound)
+
+	job = startImport(t, anna, site.URL+"/missing")
+	page = "/imports/" + job
+	waitForPage(t, anna, page, "Couldn’t open that page")
+
+	// Import again replaces the failed import.
+	res := anna.post("/recipes/import", url.Values{"url": {site.URL + "/tofu"}, "replace": {job}}).expect(t, "import again", http.StatusSeeOther)
+	if res.location == page {
+		t.Fatal("import again reused the failed job")
+	}
+	anna.get(page).expect(t, "replaced import", http.StatusNotFound)
+}
+
+// TestImportOpenInEditor opens a draft in the editor, prefilled, and saves
+// it from there; the photo that can't be downloaded is left out and the
+// recipe page says so.
+func TestImportOpenInEditor(t *testing.T) {
+	_, srv := startImportServer(t, storetest.SQLite(t))
+	anna, _ := household(t, srv)
+	site := newRecipeSite(t)
+
+	job := startImport(t, anna, site.URL+"/nophoto")
+	page := "/imports/" + job
+	waitForPage(t, anna, page, "Review import")
+	editor := anna.get("/recipes/new?import="+job).expect(t, "editor", http.StatusOK).body
+	for _, want := range []string{`value="Crispy tofu"`, `value="400 g"`, `value="Firm tofu"`, `value="Tamari or soy sauce"`, "Fry it until crisp.",
+		`name="import" value="` + job + `"`, `name="import_photo"`, page + "/photo", `href="` + page + `"`} {
+		if !strings.Contains(editor, want) {
+			t.Errorf("editor lacks %q", want)
+		}
+	}
+	if t.Failed() {
+		t.Fatalf("editor:\n%.8000s", editor)
+	}
+	anna.get("/recipes/new?import="+"00000000-0000-0000-0000-000000000000").expect(t, "unknown import", http.StatusNotFound)
+
+	form := url.Values{
+		"name": {"Crispy tofu"}, "servings": {"2"}, "import": {job}, "import_photo": {"1"},
+		"ing_key": {"n1"}, "ing_amount": {"400 g"}, "ing_name": {"Firm tofu"},
+		"step": {"Press the tofu."}, "step_timer": {""},
+	}
+	res := anna.post("/recipes", form).expect(t, "save from editor", http.StatusSeeOther)
+	if recipeHrefRe.FindStringSubmatch(res.location) == nil {
+		t.Fatalf("editor save redirected to %q", res.location)
+	}
+	recipe := anna.get(res.location).body
+	if !strings.Contains(recipe, "The photo couldn’t be downloaded") || recipePhotoRe.MatchString(recipe) {
+		t.Errorf("recipe after a failed photo:\n%.4000s", recipe)
+	}
+	if again := anna.get(res.location).body; strings.Contains(again, "The photo couldn’t be downloaded") {
+		t.Error("photo toast shown twice")
+	}
+	anna.get(page).expect(t, "job after editor save", http.StatusNotFound)
+}

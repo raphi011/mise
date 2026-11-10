@@ -81,7 +81,9 @@ type Server struct {
 	recipes   *recipes.Service
 	plan      *plan.Service
 	ai        *ai.Service
-	images    *images.Store
+	// aiConfig is what ai was built from; tests rebuild it with fakes.
+	aiConfig ai.Config
+	images   *images.Store
 	// sso signs users in with the OIDC provider; nil without one.
 	sso *sso.Client
 	// clock is the current time, for tests; nil means time.Now.
@@ -142,8 +144,9 @@ func New(cfg config.Config, db *store.DB, log *slog.Logger) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	s.ai = ai.New(ai.Config{Box: box, Groceries: s.groceries, Recipes: s.recipes, Now: s.now,
-		DB: db, Publisher: s.live, Log: log})
+	s.aiConfig = ai.Config{Box: box, Groceries: s.groceries, Recipes: s.recipes, Now: s.now,
+		DB: db, Publisher: s.live, Log: log}
+	s.ai = ai.New(s.aiConfig)
 	s.auth = auth.New(db, auth.Config{Log: log, SecureCookie: s.secureCookie, OnSetup: s.seedHousehold})
 	if cfg.BaseURL != nil {
 		if err := s.setBaseURL(cfg.BaseURL); err != nil {
@@ -327,6 +330,15 @@ func (s *Server) routes(r *router) {
 	r.read("/recipes/search", s.user(s.searchPage))
 	r.read("/recipes/search/results", s.user(s.searchResults))
 	r.read("/recipes/new", s.user(s.newRecipePage))
+	r.read("/recipes/import", s.user(s.importFormPage))
+	r.write(http.MethodPost, "/recipes/import", s.user(s.startImport))
+	r.read("/imports/{id}", s.user(s.importPage))
+	r.write(http.MethodPost, "/imports/{id}/cancel", s.user(s.cancelImport))
+	r.write(http.MethodPost, "/imports/{id}/discard", s.user(s.cancelImport))
+	r.write(http.MethodPost, "/imports/{id}/save", s.user(s.saveImport))
+	r.read("/imports/{id}/items", s.user(s.importPickPage))
+	r.write(http.MethodPost, "/imports/{id}/items", s.user(s.pickImportItem))
+	r.read("/imports/{id}/photo", s.user(s.importPhotoProxy))
 	r.write(http.MethodPost, "/recipes", s.user(s.createRecipe))
 	r.read("/recipes/editor/ingredient", s.user(s.ingredientRow))
 	r.read("/recipes/{id}", s.user(s.recipePage))

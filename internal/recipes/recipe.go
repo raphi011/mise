@@ -121,6 +121,10 @@ type IngredientInput struct {
 	Name     string
 	Amount   groceries.Amount
 	Optional bool
+	// Category names the category a new item is filed under when saving
+	// creates it (imports propose one); ignored for existing items and
+	// categories the household does not have.
+	Category string
 }
 
 // ParseIngredient reads an ingredient typed as one line, such as
@@ -258,6 +262,13 @@ func Validate(in Input) error {
 
 // Create adds a recipe written by the member by and returns its ID.
 func (s *Service) Create(ctx context.Context, sc store.Scoped, by uuid.UUID, in Input) (uuid.UUID, error) {
+	return s.CreateWith(ctx, sc, by, in, nil)
+}
+
+// CreateWith is Create that also runs also, when not nil, inside the
+// recipe's transaction; an error from it rolls the recipe back. Saving an
+// import deletes the import job this way.
+func (s *Service) CreateWith(ctx context.Context, sc store.Scoped, by uuid.UUID, in Input, also func(context.Context, store.Querier) error) (uuid.UUID, error) {
 	if err := in.clean(); err != nil {
 		return uuid.Nil, err
 	}
@@ -278,8 +289,13 @@ func (s *Service) Create(ctx context.Context, sc store.Scoped, by uuid.UUID, in 
 			return err
 		}
 		var err error
-		newItems, err = s.writeChildren(ctx, q, sc, id, in, now, false)
-		return err
+		if newItems, err = s.writeChildren(ctx, q, sc, id, in, now, false); err != nil {
+			return err
+		}
+		if also != nil {
+			return also(ctx, q)
+		}
+		return nil
 	})
 	if err != nil {
 		return uuid.Nil, err
@@ -409,7 +425,7 @@ func (s *Service) writeIngredients(ctx context.Context, q store.Querier, sc stor
 			}
 		} else {
 			var created bool
-			if itemID, created, err = groceries.EnsureItem(ctx, q, sc, ing.Name, now); err != nil {
+			if itemID, created, err = groceries.EnsureItemIn(ctx, q, sc, ing.Name, ing.Category, now); err != nil {
 				return false, err
 			}
 			newItems = newItems || created

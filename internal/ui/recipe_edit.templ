@@ -19,6 +19,12 @@ templ RecipeEdit(p Page, v RecipeEditView) {
 			data-signals="{newing: ''}"
 		>
 			@formAlert(v.Form)
+			if v.Import != "" {
+				<input type="hidden" name="import" value={ v.Import }/>
+				if v.ImportPhoto {
+					<input type="hidden" name="import_photo" value="1"/>
+				}
+			}
 			<div class="editor__grid">
 				<section class="editor__details stack-lg" aria-label={ i18n.T(ctx, "recipes.edit.details") }>
 					@textField(Field{ID: "recipe-name", Name: "name", Label: i18n.T(ctx, "field.name"), Required: true, Attrs: templ.Attributes{"placeholder": i18n.T(ctx, "recipes.edit.namePlaceholder"), "autocomplete": "off"}}, v.Form)
@@ -111,15 +117,15 @@ templ RecipeEdit(p Page, v RecipeEditView) {
 					<div class="photo-drop">
 						<img
 							class="photo-drop__img"
-							if v.Photo != "" {
-								src={ ImageURL(v.Photo, "thumb") }
+							if v.PhotoSrc() != "" {
+								src={ v.PhotoSrc() }
 							} else {
 								hidden
 							}
 							alt=""
 							data-photo-preview
 						/>
-						<span class="photo-drop__empty" data-photo-empty hidden?={ v.Photo != "" }>
+						<span class="photo-drop__empty" data-photo-empty hidden?={ v.PhotoSrc() != "" }>
 							@iconPhoto()
 						</span>
 					</div>
@@ -127,14 +133,14 @@ templ RecipeEdit(p Page, v RecipeEditView) {
 					<div class="photo-drop__actions">
 						// Before the file input: reading stops at a photo past
 						// the size limit, and a tick after it would be lost.
-						if v.Photo != "" {
+						if v.PhotoSrc() != "" {
 							<label class="toggle-row toggle-row--inline">
 								<input type="checkbox" name="remove_photo" value="1"/>
 								<span>{ i18n.T(ctx, "recipes.edit.removePhoto") }</span>
 							</label>
 						}
 						<label class="btn btn--secondary btn--small photo-drop__pick">
-							if v.Photo != "" {
+							if v.PhotoSrc() != "" {
 								{ i18n.T(ctx, "recipes.edit.changePhoto") }
 							} else {
 								{ i18n.T(ctx, "recipes.edit.addPhoto") }

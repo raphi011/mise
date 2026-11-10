@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/starfederation/datastar-go/datastar"
 
+	"github.com/raphi011/mise/internal/ai"
 	"github.com/raphi011/mise/internal/groceries"
 	"github.com/raphi011/mise/internal/i18n"
 	"github.com/raphi011/mise/internal/images"
@@ -320,6 +321,12 @@ func (s *Server) recipeEditView(ctx context.Context, sc store.Scoped, id string,
 		f.Values[name] = st.vals.Get(name)
 	}
 	v := ui.RecipeEditView{ID: id, Form: f, Photo: st.vals.Get("photo"), Rows: st.rows, Steps: st.steps}
+	if id == "" {
+		if imp, err := uuid.Parse(st.vals.Get("import")); err == nil {
+			v.Import = imp.String()
+			v.ImportPhoto = st.vals.Get("import_photo") != "" && st.vals.Get("remove_photo") == ""
+		}
+	}
 	for _, t := range tags {
 		v.Tags = append(v.Tags, ui.TagChoice{Name: t.Name, Checked: checked[groceries.NameKey(t.Name)]})
 	}
@@ -351,7 +358,69 @@ func (s *Server) newRecipePage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	st := editorState{vals: url.Values{"servings": {"2"}}}
+	if raw := r.URL.Query().Get("import"); raw != "" {
+		jobID, err := uuid.Parse(raw)
+		if err != nil {
+			s.notFound(w, r)
+			return
+		}
+		job, err := s.ai.Job(r.Context(), sc, identity(r).UserID, jobID)
+		if errors.Is(err, ai.ErrJobNotFound) {
+			s.notFound(w, r)
+			return
+		}
+		if err != nil {
+			s.serverError(w, r, err)
+			return
+		}
+		if job.Status != ai.JobReady || job.Draft == nil {
+			http.Redirect(w, r, ui.ImportHref(jobID.String()), http.StatusFound)
+			return
+		}
+		st = importEditorState(r.Context(), job)
+	}
 	s.renderEditor(w, r, http.StatusOK, sc, "", st, ui.Form{})
+}
+
+// importEditorState fills the editor with an import's draft: ingredients
+// as typed lines, matched to items by name when saved.
+func importEditorState(ctx context.Context, job ai.Job) editorState {
+	d := job.Draft
+	servings := d.Servings
+	if servings == 0 {
+		servings = ai.DefaultServings
+	}
+	st := editorState{vals: url.Values{
+		"name": {d.Name}, "description": {d.Description}, "servings": {strconv.Itoa(servings)},
+		"source_url": {d.SourceURL}, "import": {job.ID.String()},
+	}}
+	if d.ImageURL != "" {
+		st.vals.Set("import_photo", "1")
+	}
+	for field, m := range map[string]int{"prep_min": d.PrepMin, "cook_min": d.CookMin} {
+		if m > 0 {
+			st.vals.Set(field, strconv.Itoa(m))
+		}
+	}
+	for _, t := range d.Tags {
+		st.vals.Add("tags", t)
+	}
+	lang := i18n.Locale(ctx)
+	for _, ing := range d.Ingredients {
+		amount := ing.Amount.Text
+		if amount == "" {
+			amount = recipes.DisplayAmount(ing.Amount, lang)
+		}
+		st.rows = append(st.rows, ui.IngredientRow{Key: newRowKey(), Name: ing.ItemName, Amount: amount})
+	}
+	for _, step := range d.Steps {
+		row := ui.StepRow{Text: step.Text}
+		if step.TimerSeconds > 0 {
+			row.Timer = strconv.Itoa((step.TimerSeconds + 59) / 60)
+		}
+		st.steps = append(st.steps, row)
+	}
+	return st
 }
 
 func (s *Server) editRecipePage(w http.ResponseWriter, r *http.Request) {
@@ -467,9 +536,21 @@ func (s *Server) saveRecipe(w http.ResponseWriter, r *http.Request, sc store.Sco
 		return
 	}
 	user := identity(r).UserID
-	if recipeID == uuid.Nil {
+	photoFailed := false
+	importID, importErr := uuid.Parse(st.vals.Get("import"))
+	switch {
+	case recipeID == uuid.Nil && importErr == nil:
+		// Opened from an import: its photo unless removed or replaced, and
+		// the job goes with the save.
+		if in.Photo == "" && st.vals.Get("remove_photo") == "" && st.vals.Get("import_photo") != "" {
+			if job, err := s.ai.Job(ctx, sc, user, importID); err == nil {
+				in.Photo, photoFailed = s.importPhoto(ctx, sc, job)
+			}
+		}
+		recipeID, err = s.ai.SaveEdited(ctx, sc, user, importID, in)
+	case recipeID == uuid.Nil:
 		recipeID, err = s.recipes.Create(ctx, sc, user, in)
-	} else {
+	default:
 		err = s.recipes.Update(ctx, sc, recipeID, user, in)
 	}
 	if f, ok := withErrors(ctx, f, err); ok {
@@ -483,6 +564,9 @@ func (s *Server) saveRecipe(w http.ResponseWriter, r *http.Request, sc store.Sco
 	if err != nil {
 		s.serverError(w, r, err)
 		return
+	}
+	if photoFailed {
+		s.setImportedFlash(w, r, recipeID)
 	}
 	seeOther(w, r, ui.RecipeHref(recipeID.String()))
 }
