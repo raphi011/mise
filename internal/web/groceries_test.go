@@ -27,13 +27,27 @@ var (
 // liveDeadline is how fast a change must reach the other phone.
 const liveDeadline = time.Second
 
-// startTimedServer serves like production: short read and write timeouts
-// prove that SSE streams clear their deadlines.
+// startTimedServer serves live streams with short read and write timeouts,
+// which prove that the streams clear their deadlines. Other requests clear
+// theirs here: hashing a password under -race can take longer than the
+// timeouts, which would cut off setup and sign-in.
 func startTimedServer(t *testing.T, db *store.DB) (*Server, *httptest.Server) {
 	t.Helper()
 	s := newServer(t, config.Config{}, db, slog.New(slog.DiscardHandler))
 	s.heartbeat = 100 * time.Millisecond
-	srv := httptest.NewUnstartedServer(s.Handler())
+	h := s.Handler()
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/live" {
+			rc := http.NewResponseController(w)
+			if err := rc.SetReadDeadline(time.Time{}); err != nil {
+				t.Error(err)
+			}
+			if err := rc.SetWriteDeadline(time.Time{}); err != nil {
+				t.Error(err)
+			}
+		}
+		h.ServeHTTP(w, r)
+	}))
 	srv.Config.ReadTimeout = 300 * time.Millisecond
 	srv.Config.WriteTimeout = 300 * time.Millisecond
 	srv.Start()
