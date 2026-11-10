@@ -90,6 +90,26 @@ func encodeFilter(f recipes.Filter) string {
 	return q.Encode()
 }
 
+// clampShown rounds how many library cards to show up to whole pages of
+// ui.LibraryPageSize, at least one page and at most maxShown.
+func clampShown(n int) int {
+	const maxShown = 100 * ui.LibraryPageSize
+	if n <= ui.LibraryPageSize {
+		return ui.LibraryPageSize
+	}
+	if n >= maxShown {
+		return maxShown
+	}
+	return (n + ui.LibraryPageSize - 1) / ui.LibraryPageSize * ui.LibraryPageSize
+}
+
+// shownParam reads how many library cards to show from a plain request's
+// query ("Show more" without JavaScript).
+func shownParam(q url.Values) int {
+	n, _ := strconv.Atoi(q.Get("shown"))
+	return n
+}
+
 func libraryHref(f recipes.Filter) string {
 	if q := encodeFilter(f); q != "" {
 		return "/recipes?" + q
@@ -151,8 +171,9 @@ func (s *Server) cardOf(ctx context.Context, c recipes.Card, viewer uuid.UUID) u
 }
 
 // libraryView loads the Recipes page region for the viewer and filter.
-func (s *Server) libraryView(ctx context.Context, sc store.Scoped, id *auth.Identity, f recipes.Filter) (ui.LibraryView, error) {
-	cards, err := s.recipes.Library(ctx, sc, id.UserID, f)
+func (s *Server) libraryView(ctx context.Context, sc store.Scoped, id *auth.Identity, f recipes.Filter, shown int) (ui.LibraryView, error) {
+	shown = clampShown(shown)
+	cards, matched, err := s.recipes.LibraryPage(ctx, sc, id.UserID, f, shown)
 	if err != nil {
 		return ui.LibraryView{}, err
 	}
@@ -168,7 +189,8 @@ func (s *Server) libraryView(ctx context.Context, sc store.Scoped, id *auth.Iden
 	if err != nil {
 		return ui.LibraryView{}, err
 	}
-	v := ui.LibraryView{Query: encodeFilter(f), Total: total, Filtered: !f.IsZero(), Sort: i18n.T(ctx, sortKeys[f.Sort])}
+	v := ui.LibraryView{Query: encodeFilter(f), Total: total, Matched: matched, Shown: shown,
+		Filtered: !f.IsZero(), Sort: i18n.T(ctx, sortKeys[f.Sort])}
 	if !v.Filtered {
 		if v.Tonight, err = s.tonightCard(ctx, sc); err != nil {
 			return ui.LibraryView{}, err
@@ -230,7 +252,7 @@ func (s *Server) libraryPage(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	v, err := s.libraryView(ctx, sc, identity(r), parseFilter(r.URL.Query()))
+	v, err := s.libraryView(ctx, sc, identity(r), parseFilter(r.URL.Query()), shownParam(r.URL.Query()))
 	if err != nil {
 		s.serverError(w, r, err)
 		return
@@ -260,12 +282,12 @@ func (s *Server) filterView(ctx context.Context, sc store.Scoped, id *auth.Ident
 	if err != nil {
 		return ui.FilterSheetView{}, err
 	}
-	cards, err := s.recipes.Library(ctx, sc, id.UserID, f)
+	count, err := s.recipes.CountMatching(ctx, sc, id.UserID, f)
 	if err != nil {
 		return ui.FilterSheetView{}, err
 	}
 	v := ui.FilterSheetView{
-		Count: len(cards),
+		Count: count,
 		Query: encodeFilter(f), Favourites: f.Favourites, Stale: f.NotCookedRecently, Never: f.NeverCooked, Sort: string(f.Sort),
 	}
 	if f.MaxMinutes > 0 {
@@ -317,12 +339,12 @@ func (s *Server) filterCount(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	cards, err := s.recipes.Library(ctx, sc, identity(r).UserID, parseFilter(r.URL.Query()))
+	n, err := s.recipes.CountMatching(ctx, sc, identity(r).UserID, parseFilter(r.URL.Query()))
 	if err != nil {
 		s.serverError(w, r, err)
 		return
 	}
-	s.sendPatches(w, r, patchTempl(ui.FilterSubmit(len(cards))))
+	s.sendPatches(w, r, patchTempl(ui.FilterSubmit(n)))
 }
 
 // ---- Search ----
@@ -441,13 +463,24 @@ func (s *Server) image(w http.ResponseWriter, r *http.Request) {
 
 // ---- Live ----
 
-// libraryLive re-renders the Recipes page for the viewer's filter when
+// libraryLive re-renders the Recipes page for the viewer's filter and page when
 // recipes, tags or the plan change.
 func (s *Server) libraryLive(w http.ResponseWriter, r *http.Request, sc store.Scoped, id *auth.Identity) {
 	f := parseFilter(r.URL.Query())
+	// shown is the $shown signal: "Show more" raises it, which reopens the
+	// stream with the longer page.
+	var sig struct {
+		Shown int `json:"shown"`
+	}
+	if isDatastar(r) {
+		if err := datastar.ReadSignals(r, &sig); err != nil {
+			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+			return
+		}
+	}
 	s.serveLive(w, r, id, live.Stream{
 		Refresh: func(ctx context.Context, sse *datastar.ServerSentEventGenerator) error {
-			v, err := s.libraryView(ctx, sc, id, f)
+			v, err := s.libraryView(ctx, sc, id, f, sig.Shown)
 			if err != nil {
 				return err
 			}

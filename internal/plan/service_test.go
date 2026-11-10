@@ -334,7 +334,7 @@ func TestUnplan(t *testing.T) {
 		e.rec.take()
 
 		// A meal that is gone rolls back: the entries stay.
-		if _, err := e.s.Unplan(ctx, e.sc, uuid.New(), []uuid.UUID{ginger}); !errors.Is(err, ErrNotFound) {
+		if _, err := e.s.Unplan(ctx, e.sc, uuid.New(), []uuid.UUID{ginger}, nil); !errors.Is(err, ErrNotFound) {
 			t.Errorf("unknown meal: %v", err)
 		}
 		if _, err := e.g.Entry(ctx, e.sc, ginger); err != nil {
@@ -343,7 +343,7 @@ func TestUnplan(t *testing.T) {
 
 		// The dal's lentils and an unknown ID are not the tofu's: they are
 		// left alone.
-		m, err := e.s.Unplan(ctx, e.sc, a.Meal.ID, []uuid.UUID{tofuEntry, soy, ginger, lentils, uuid.New()})
+		m, err := e.s.Unplan(ctx, e.sc, a.Meal.ID, []uuid.UUID{tofuEntry, soy, ginger, lentils, uuid.New()}, nil)
 		if err != nil || m.ID != a.Meal.ID {
 			t.Fatalf("unplan %+v, %v", m, err)
 		}
@@ -367,12 +367,12 @@ func TestUnplan(t *testing.T) {
 		}
 
 		// A second Undo finds the meal gone.
-		if _, err := e.s.Unplan(ctx, e.sc, a.Meal.ID, nil); !errors.Is(err, ErrNotFound) {
+		if _, err := e.s.Unplan(ctx, e.sc, a.Meal.ID, nil, nil); !errors.Is(err, ErrNotFound) {
 			t.Errorf("second unplan: %v", err)
 		}
 
 		// Without entries taken back, no list event.
-		if _, err := e.s.Unplan(ctx, e.sc, d.Meal.ID, nil); err != nil {
+		if _, err := e.s.Unplan(ctx, e.sc, d.Meal.ID, nil, nil); err != nil {
 			t.Fatal(err)
 		}
 		if ev := e.rec.take(); hasKind(ev, live.ListChanged) {
@@ -640,6 +640,44 @@ func TestCookEvents(t *testing.T) {
 		}
 		if _, err := e.s.MarkCooked(ctx, e.sc, uuid.New(), e.hh.Member); !errors.Is(err, ErrNotFound) {
 			t.Errorf("cook an unknown recipe: %v", err)
+		}
+	})
+}
+
+// TestAddAlso plans linked recipes with a meal and takes them back with
+// its Undo.
+func TestAddAlso(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		ctx := t.Context()
+		e := newEnv(t, db, "also")
+		curry := e.recipe(t, "Curry")
+		rice := e.recipe(t, "Rice")
+		naan := e.recipe(t, "Naan")
+		gone := e.recipe(t, "Raita")
+		if err := e.r.Delete(ctx, e.sc, gone.ID); err != nil {
+			t.Fatal(err)
+		}
+		e.add(t, naan, "2026-11-10")
+
+		a, err := e.s.Add(ctx, e.sc, AddInput{
+			RecipeID: curry.ID, Date: date("2026-11-10"), Servings: 4, By: e.hh.Admin, Lang: language.English,
+			Also: []uuid.UUID{rice.ID, rice.ID, gone.ID, curry.ID},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(a.Also) != 1 || a.Also[0].Recipe.ID != rice.ID || a.Also[0].Servings != 4 {
+			t.Fatalf("also %+v", a.Also)
+		}
+		if got := e.dayNames(t, "2026-11-10")[1]; !slices.Equal(got, []string{"Naan", "Curry", "Rice"}) {
+			t.Errorf("Tuesday %v", got)
+		}
+
+		if _, err := e.s.Unplan(ctx, e.sc, a.Meal.ID, nil, []uuid.UUID{a.Also[0].ID, uuid.New()}); err != nil {
+			t.Fatal(err)
+		}
+		if got := e.dayNames(t, "2026-11-10")[1]; !slices.Equal(got, []string{"Naan"}) {
+			t.Errorf("after undo %v", got)
 		}
 	})
 }

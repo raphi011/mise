@@ -72,7 +72,7 @@ func TestPages(t *testing.T) {
 	c := doSetup(t, h)
 
 	res, _ := do(t, h, signedIn(t, c, "GET", "/"))
-	if res.StatusCode != http.StatusFound || res.Header.Get("Location") != "/groceries" {
+	if res.StatusCode != http.StatusFound || res.Header.Get("Location") != "/recipes" {
 		t.Errorf("/: %d -> %q", res.StatusCode, res.Header.Get("Location"))
 	}
 

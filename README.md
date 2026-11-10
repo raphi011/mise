@@ -41,7 +41,7 @@ helm install mise ./charts/mise --set image.repository=registry.example.com/mise
 | `MISE_DB` | `sqlite://$MISE_DATA_DIR/mise.db` | or `postgres://user:pass@host/db` |
 | `MISE_DATA_DIR` | `./data` | images, SQLite file, generated secrets |
 | `MISE_LISTEN` | `:8080` | |
-| `MISE_BASE_URL` | | public URL; needed behind a proxy that rewrites `Host` |
+| `MISE_BASE_URL` | | public URL, e.g. `https://mise.example.com`; needed behind a proxy that rewrites `Host`. No path: mise runs at the root of its own host |
 | `MISE_TRUSTED_PROXIES` | | CIDRs whose `X-Forwarded-For` is trusted |
 | `MISE_LOG_FORMAT` | `json` | `json` or `text` |
 | `MISE_LOG_LEVEL` | `info` | |

@@ -2,6 +2,7 @@ package web
 
 import (
 	"bytes"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -16,6 +17,7 @@ import (
 	"github.com/raphi011/mise/internal/config"
 	"github.com/raphi011/mise/internal/store"
 	"github.com/raphi011/mise/internal/store/storetest"
+	"github.com/raphi011/mise/internal/ui"
 )
 
 var (
@@ -135,6 +137,49 @@ func TestRecipeToList(t *testing.T) {
 		ids := tagIDs(t, ben) // Asian, Vegan
 		ben.post("/settings/tags/"+ids[1]+"/rename", url.Values{"name": {"Plant-based"}}).expect(t, "rename tag", http.StatusSeeOther)
 		annaRecipe.next("anna sees the renamed tag", liveDeadline, "Plant-based")
+	})
+}
+
+// TestLibraryPaging: the library shows one page of cards, "Show more"
+// adds the next page, without JavaScript by link and with it by raising
+// $shown on the live stream.
+func TestLibraryPaging(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		_, srv := startTimedServer(t, db)
+		anna, _ := household(t, srv)
+		n := ui.LibraryPageSize + 2
+		for i := range n {
+			form := stickyTofu()
+			form.Set("name", fmt.Sprintf("Tofu %02d", i))
+			createRecipe(t, anna, form)
+		}
+		cards := func(body string) int { return strings.Count(body, `class="recipe-card"`) }
+
+		page := anna.get("/recipes").expect(t, "library", http.StatusOK)
+		if got := cards(page.body); got != ui.LibraryPageSize {
+			t.Errorf("first page has %d cards, want %d", got, ui.LibraryPageSize)
+		}
+		more := fmt.Sprintf(`href="/recipes?shown=%d"`, 2*ui.LibraryPageSize)
+		if !strings.Contains(page.body, more) || !strings.Contains(page.body, fmt.Sprintf("Showing %d of %d recipes", ui.LibraryPageSize, n)) {
+			t.Errorf("no Show more link %s:\n%.2000s", more, page.body)
+		}
+
+		page = anna.get(fmt.Sprintf("/recipes?shown=%d", 2*ui.LibraryPageSize)).expect(t, "second page", http.StatusOK)
+		if got := cards(page.body); got != n || strings.Contains(page.body, "Show more") {
+			t.Errorf("shown=%d: %d cards, Show more %v", 2*ui.LibraryPageSize, got, strings.Contains(page.body, "Show more"))
+		}
+
+		// A filter keeps paging and counts every match.
+		page = anna.get("/recipes?sort=name").expect(t, "sorted", http.StatusOK)
+		if !strings.Contains(page.body, fmt.Sprintf(`href="/recipes?sort=name&amp;shown=%d"`, 2*ui.LibraryPageSize)) {
+			t.Errorf("sorted Show more lost the filter")
+		}
+
+		st := anna.openLive("page=recipes&datastar=" + url.QueryEscape(fmt.Sprintf(`{"shown":%d}`, 2*ui.LibraryPageSize)))
+		ev := st.next("live second page", liveDeadline, `id="recipes-live"`)
+		if got := cards(ev); got != n {
+			t.Errorf("live stream with shown=%d has %d cards, want %d", 2*ui.LibraryPageSize, got, n)
+		}
 	})
 }
 

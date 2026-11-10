@@ -58,7 +58,7 @@ type editorState struct {
 	photoErr i18n.Key
 }
 
-var editorFields = []string{"name", "description", "prep_min", "cook_min", "servings", "source_url", "notes", "new_tags", "ing_new", "photo"}
+var editorFields = []string{"name", "description", "prep_min", "cook_min", "servings", "source_url", "notes", "new_tags", "ing_new", "link_new", "photo"}
 
 // readEditor reads the editor's multipart form. The photo file is the last
 // field, so a photo over the limit still leaves every other field read; it
@@ -271,7 +271,7 @@ func (st *editorState) input(ctx context.Context) (recipes.Input, []int, map[str
 	v := st.vals
 	in := recipes.Input{
 		Name: v.Get("name"), Description: v.Get("description"), SourceURL: v.Get("source_url"),
-		Notes: v.Get("notes"), Photo: v.Get("photo"), Tags: v["tags"],
+		Notes: v.Get("notes"), Photo: v.Get("photo"), Tags: v["tags"], Links: parseIDs(v["link"]),
 		PrepMin: optionalInt(errs, "prep_min", v.Get("prep_min")),
 		CookMin: optionalInt(errs, "cook_min", v.Get("cook_min")),
 	}
@@ -340,7 +340,46 @@ func (s *Server) recipeEditView(ctx context.Context, sc store.Scoped, id string,
 	for _, t := range tags {
 		v.Tags = append(v.Tags, ui.TagChoice{Name: t.Name, Checked: checked[groceries.NameKey(t.Name)]})
 	}
+	linked, err := s.recipes.NamesOf(ctx, sc, parseIDs(st.vals["link"]))
+	if err != nil {
+		return ui.RecipeEditView{}, err
+	}
+	for _, l := range linked {
+		v.Links = append(v.Links, ui.LinkChoice{ID: l.ID.String(), Name: l.Name})
+	}
+	all, err := s.recipes.Names(ctx, sc)
+	if err != nil {
+		return ui.RecipeEditView{}, err
+	}
+	for _, n := range all {
+		if n.ID.String() == id || slices.ContainsFunc(linked, func(l recipes.RecipeName) bool { return l.ID == n.ID }) {
+			continue
+		}
+		v.LinkOptions = append(v.LinkOptions, n.Name)
+	}
 	return v, nil
+}
+
+// addLink links the recipe named in the "Goes well with" field and clears
+// it. unknown reports a name no other recipe has; an empty field does
+// nothing.
+func (s *Server) addLink(ctx context.Context, sc store.Scoped, self uuid.UUID, st *editorState) (unknown bool, err error) {
+	name := strings.TrimSpace(st.vals.Get("link_new"))
+	if name == "" {
+		return false, nil
+	}
+	found, ok, err := s.recipes.FindByName(ctx, sc, name)
+	if err != nil {
+		return false, err
+	}
+	if !ok || found.ID == self {
+		return true, nil
+	}
+	if !slices.Contains(parseIDs(st.vals["link"]), found.ID) {
+		st.vals.Add("link", found.ID.String())
+	}
+	st.vals.Set("link_new", "")
+	return false, nil
 }
 
 func (s *Server) renderEditor(w http.ResponseWriter, r *http.Request, status int, sc store.Scoped, id string, st editorState, f ui.Form) {
@@ -461,6 +500,9 @@ func (s *Server) editRecipePage(w http.ResponseWriter, r *http.Request) {
 	for _, t := range rec.Tags {
 		st.vals.Add("tags", t.Name)
 	}
+	for _, l := range rec.Links {
+		st.vals.Add("link", l.ID.String())
+	}
 	for _, ing := range rec.Ingredients {
 		amount := ing.Amount.Text
 		if amount == "" {
@@ -517,6 +559,22 @@ func (s *Server) saveRecipe(w http.ResponseWriter, r *http.Request, sc store.Sco
 	if len(st.photoErr) > 0 {
 		f.Errors["photo"] = i18n.T(ctx, st.photoErr)
 	}
+	// A name in the "Goes well with" field is added by its button and by
+	// a save, like the ingredient field.
+	unknownLink, err := s.addLink(ctx, sc, recipeID, &st)
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	if st.action == "add-link" {
+		status := http.StatusOK
+		if unknownLink {
+			f.Errors["link_new"] = i18n.T(ctx, "recipes.edit.linkUnknown")
+			status = http.StatusUnprocessableEntity
+		}
+		s.renderEditor(w, r, status, sc, idStr, st, f)
+		return
+	}
 	if st.apply(ctx) {
 		s.renderEditor(w, r, http.StatusOK, sc, idStr, st, f)
 		return
@@ -527,6 +585,9 @@ func (s *Server) saveRecipe(w http.ResponseWriter, r *http.Request, sc store.Sco
 		st.vals.Set("ing_new", "")
 	}
 	in, rowOf, local := st.input(ctx)
+	if unknownLink {
+		local["link_new"] = "recipes.edit.linkUnknown"
+	}
 	if photo := in.Photo; photo != "" {
 		if img, err := s.images.Open(sc.HouseholdID(), photo, images.Thumb); err != nil {
 			local["photo"] = "form.error.choice"

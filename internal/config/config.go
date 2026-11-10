@@ -155,14 +155,10 @@ func load(args []string, getenv func(string) string, out io.Writer) (Config, err
 
 	var errs []error
 	if *baseURL != "" {
-		u, err := url.Parse(*baseURL)
-		switch {
-		case err != nil:
-			errs = append(errs, fmt.Errorf("base URL: %w", err))
-		case u.Scheme != "http" && u.Scheme != "https", u.Host == "":
-			errs = append(errs, fmt.Errorf("base URL %q: must be an absolute http(s) URL", *baseURL))
-		default:
-			u.Path = strings.TrimSuffix(u.Path, "/")
+		u, err := ParseBaseURL(*baseURL)
+		if err != nil {
+			errs = append(errs, err)
+		} else {
 			cfg.BaseURL = u
 		}
 	}
@@ -277,4 +273,29 @@ func parsePrefix(s string) (netip.Prefix, error) {
 		return netip.Prefix{}, err
 	}
 	return netip.PrefixFrom(a.Unmap(), a.Unmap().BitLen()), nil
+}
+
+// ErrBaseURLPath is returned by ParseBaseURL for a URL with a path. Every
+// route, asset and cookie lives at the root, so mise needs a host of its
+// own (a subdomain works) rather than a path under a shared one.
+var ErrBaseURLPath = errors.New("must not have a path: serve mise at the root of its own host, e.g. https://mise.example.com")
+
+// ParseBaseURL validates and normalises a public base URL: absolute http(s)
+// with a host, no credentials, query, fragment or path (a lone trailing
+// slash is dropped).
+func ParseBaseURL(raw string) (*url.URL, error) {
+	raw = strings.TrimSpace(raw)
+	u, err := url.Parse(raw)
+	switch {
+	case err != nil:
+		return nil, fmt.Errorf("base URL: %w", err)
+	case u.Scheme != "http" && u.Scheme != "https", u.Host == "", u.Opaque != "":
+		return nil, fmt.Errorf("base URL %q: must be an absolute http(s) URL", raw)
+	case u.User != nil, u.RawQuery != "", u.ForceQuery, u.Fragment != "":
+		return nil, fmt.Errorf("base URL %q: must not have credentials, a query or a fragment", raw)
+	case u.Path != "" && u.Path != "/":
+		return nil, fmt.Errorf("base URL %q: %w", raw, ErrBaseURLPath)
+	}
+	u.Path, u.RawPath = "", ""
+	return u, nil
 }

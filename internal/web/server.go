@@ -323,7 +323,7 @@ func (s *Server) routes(r *router) {
 	r.callback(oidcCallbackPath, http.HandlerFunc(s.oidcCallback))
 
 	// App.
-	r.read("/{$}", s.user(http.RedirectHandler("/groceries", http.StatusFound).ServeHTTP))
+	r.read("/{$}", s.user(http.RedirectHandler("/recipes", http.StatusFound).ServeHTTP))
 	r.read("/recipes", s.user(s.libraryPage))
 	r.read("/recipes/filters", s.user(s.filterPage))
 	r.read("/recipes/filters/count", s.user(s.filterCount))

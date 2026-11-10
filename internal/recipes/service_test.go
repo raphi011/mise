@@ -673,3 +673,102 @@ func TestStepTimers(t *testing.T) {
 		}
 	})
 }
+
+func TestLinks(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		ctx := t.Context()
+		e := newEnv(t, db, "links")
+		curry := e.create(t, Input{Name: "Curry"})
+		rice := e.create(t, Input{Name: "Rice", PrepMin: ptr(5), CookMin: ptr(15)})
+		naan := e.create(t, Input{Name: "Naan", Links: []uuid.UUID{curry.ID, curry.ID}})
+		linkNames := func(id uuid.UUID) []string {
+			t.Helper()
+			r, err := e.s.Get(ctx, e.sc, id, e.hh.Admin)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var out []string
+			for _, l := range r.Links {
+				out = append(out, l.Name)
+			}
+			return out
+		}
+		e.rec.take()
+
+		// A link shows on both sides.
+		if got := linkNames(curry.ID); !slices.Equal(got, []string{"Naan"}) {
+			t.Errorf("curry links %v", got)
+		}
+		// Editing one side replaces its links, both ways, and refreshes
+		// every recipe whose links changed. A self link is dropped.
+		if err := e.s.Update(ctx, e.sc, curry.ID, e.hh.Admin, Input{Name: "Curry", Servings: 2, Links: []uuid.UUID{rice.ID, curry.ID}}); err != nil {
+			t.Fatal(err)
+		}
+		if got := linkNames(curry.ID); !slices.Equal(got, []string{"Rice"}) {
+			t.Errorf("curry links after edit %v", got)
+		}
+		if got := linkNames(naan.ID); len(got) != 0 {
+			t.Errorf("naan still linked: %v", got)
+		}
+		if got := linkNames(rice.ID); !slices.Equal(got, []string{"Curry"}) {
+			t.Errorf("rice links %v", got)
+		}
+		events := e.rec.take()
+		for _, id := range []uuid.UUID{curry.ID, naan.ID, rice.ID} {
+			if !slices.Contains(events, recipeChanged(id)) {
+				t.Errorf("no recipe.changed for %s in %v", id, events)
+			}
+		}
+		r, _ := e.s.Get(ctx, e.sc, curry.ID, e.hh.Admin)
+		if l := r.Links[0]; l.TotalMin == nil || *l.TotalMin != 20 {
+			t.Errorf("link total time %v", l.TotalMin)
+		}
+
+		// A recipe in the bin drops out of the list, keeps its link through
+		// an edit of the other side and comes back with a restore.
+		e.rec.take()
+		if err := e.s.Delete(ctx, e.sc, rice.ID); err != nil {
+			t.Fatal(err)
+		}
+		if events := e.rec.take(); !slices.Contains(events, recipeChanged(curry.ID)) {
+			t.Errorf("deleting rice does not refresh curry: %v", events)
+		}
+		if got := linkNames(curry.ID); len(got) != 0 {
+			t.Errorf("binned rice still listed: %v", got)
+		}
+		if err := e.s.Update(ctx, e.sc, curry.ID, e.hh.Admin, Input{Name: "Curry", Servings: 2, Links: []uuid.UUID{naan.ID}}); err != nil {
+			t.Fatal(err)
+		}
+		if err := e.s.Restore(ctx, e.sc, rice.ID); err != nil {
+			t.Fatal(err)
+		}
+		if got := linkNames(curry.ID); !slices.Equal(got, []string{"Naan", "Rice"}) {
+			t.Errorf("after restore %v", got)
+		}
+
+		// Names and lookups for the editor.
+		if got, ok, err := e.s.FindByName(ctx, e.sc, "  naan "); err != nil || !ok || got.ID != naan.ID {
+			t.Errorf("find naan: %+v %v %v", got, ok, err)
+		}
+		if _, ok, _ := e.s.FindByName(ctx, e.sc, "Pizza"); ok {
+			t.Errorf("found Pizza")
+		}
+		if got, _ := e.s.NamesOf(ctx, e.sc, []uuid.UUID{rice.ID, uuid.New(), curry.ID}); len(got) != 2 || got[0].Name != "Rice" || got[1].Name != "Curry" {
+			t.Errorf("names of %+v", got)
+		}
+		all, _ := e.s.Names(ctx, e.sc)
+		if len(all) != 3 || all[0].Name != "Curry" {
+			t.Errorf("names %+v", all)
+		}
+
+		// Too many links is a field error.
+		many := make([]uuid.UUID, maxLinks+1)
+		for i := range many {
+			many[i] = uuid.New()
+		}
+		var fe FieldErrors
+		if _, err := e.s.Create(ctx, e.sc, e.hh.Admin, Input{Name: "Feast", Servings: 2, Links: many}); !errors.As(err, &fe) || fe["links"] == "" {
+			t.Errorf("too many links: %v", err)
+		}
+	})
+}

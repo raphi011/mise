@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"log/slog"
 	"net/netip"
 	"os"
@@ -58,6 +59,9 @@ func TestLoadEnvAndFlags(t *testing.T) {
 func TestLoadInvalid(t *testing.T) {
 	for name, env := range map[string]map[string]string{
 		"relative base url": {"MISE_BASE_URL": "mise.local"},
+		"base url path":     {"MISE_BASE_URL": "https://example.com/mise"},
+		"base url query":    {"MISE_BASE_URL": "https://mise.example.com/?a=1"},
+		"base url userinfo": {"MISE_BASE_URL": "https://u:p@mise.example.com"},
 		"bad proxy":         {"MISE_TRUSTED_PROXIES": "not-an-ip"},
 		"bad log format":    {"MISE_LOG_FORMAT": "xml"},
 		"bad log level":     {"MISE_LOG_LEVEL": "loud"},
@@ -204,5 +208,29 @@ func TestLoadOIDCInvalid(t *testing.T) {
 				t.Fatal("expected error")
 			}
 		})
+	}
+}
+
+func TestParseBaseURL(t *testing.T) {
+	for raw, want := range map[string]string{
+		"https://mise.example.com":       "https://mise.example.com",
+		"https://mise.example.com/":      "https://mise.example.com",
+		" http://localhost:8080 ":        "http://localhost:8080",
+		"https://mise.example.com:8443/": "https://mise.example.com:8443",
+	} {
+		u, err := ParseBaseURL(raw)
+		if err != nil || u.String() != want {
+			t.Errorf("ParseBaseURL(%q) = %v, %v; want %s", raw, u, err, want)
+		}
+	}
+	for _, raw := range []string{"https://example.com/mise", "https://example.com/mise/", "https://example.com//"} {
+		if _, err := ParseBaseURL(raw); !errors.Is(err, ErrBaseURLPath) {
+			t.Errorf("ParseBaseURL(%q) = %v, want ErrBaseURLPath", raw, err)
+		}
+	}
+	for _, raw := range []string{"", "mise.local", "ftp://mise.example.com", "https://mise.example.com#x", "https://mise.example.com?", "mailto:a@b"} {
+		if _, err := ParseBaseURL(raw); err == nil {
+			t.Errorf("ParseBaseURL(%q) succeeded", raw)
+		}
 	}
 }

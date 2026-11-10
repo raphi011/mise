@@ -107,11 +107,11 @@ func TestHouseholdIsolation(t *testing.T) {
 			_, err = s.Remove(ctx, sc, other.meal.ID)
 			notFound("remove", err)
 			notFound("restore", s.Restore(ctx, sc, other.removed.ID))
-			_, err = s.Unplan(ctx, sc, other.meal.ID, nil)
+			_, err = s.Unplan(ctx, sc, other.meal.ID, nil, nil)
 			notFound("unplan other's meal", err)
 			// Undo of planning an own meal leaves the other's entry alone.
 			mine := own.add(t, own.recipe, "2026-11-13")
-			if _, err := s.Unplan(ctx, sc, mine.ID, []uuid.UUID{other.entry}); err != nil {
+			if _, err := s.Unplan(ctx, sc, mine.ID, []uuid.UUID{other.entry}, nil); err != nil {
 				t.Fatal(err)
 			}
 			if _, err := other.g.Entry(ctx, other.sc, other.entry); err != nil {

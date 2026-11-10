@@ -7,7 +7,7 @@ import "github.com/raphi011/mise/internal/i18n"
 // outside them.
 templ Library(p Page, v LibraryView, undo *Toast) {
 	@Layout(p) {
-		<div class="recipes" data-init={ liveAction(libraryLive(v.Query)) }>
+		<div class="recipes" data-signals={ "{shown: " + itoa(v.Shown) + "}" } data-effect={ libraryLive(v.Query) }>
 			<a class="search-link" href="/recipes/search">
 				@iconSearch(20)
 				<span>{ i18n.T(ctx, "recipes.searchPlaceholder", v.Total) }</span>
@@ -119,7 +119,7 @@ templ LibraryRegion(v LibraryView) {
 		<div class="library-head">
 			<h2 class="section-title" aria-live="polite">
 				if v.Filtered {
-					{ plural(ctx, len(v.Cards), "recipes.resultsOne", "recipes.results") }
+					{ plural(ctx, v.Matched, "recipes.resultsOne", "recipes.results") }
 				} else {
 					{ i18n.T(ctx, "recipes.library") }
 				}
@@ -154,6 +154,16 @@ templ LibraryRegion(v LibraryView) {
 					</li>
 				}
 			</ul>
+			if len(v.Cards) < v.Matched {
+				<div class="library-more">
+					<p class="library-more__count">{ i18n.T(ctx, "recipes.shownOf", len(v.Cards), v.Matched) }</p>
+					<a
+						class="btn btn--secondary"
+						href={ templ.SafeURL(libraryMoreHref(v)) }
+						data-on:click__prevent={ "$shown = " + itoa(v.Shown+LibraryPageSize) }
+					>{ i18n.T(ctx, "recipes.showMore") }</a>
+				</div>
+			}
 		}
 	</div>
 }

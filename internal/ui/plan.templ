@@ -346,6 +346,25 @@ templ addPlanForm(v AddPlanView, modal bool) {
 				}
 			</fieldset>
 		}
+		if len(v.Also) > 0 {
+			<fieldset class="plan-form__group">
+				<legend class="plan-form__label">{ i18n.T(ctx, "plan.addTo.also") }</legend>
+				<div class="chips">
+					for _, c := range v.Also {
+						<label class="chip chip--check">
+							<input type="checkbox" name="also" value={ c.ID } checked?={ c.Checked }/>
+							<span class="chip--check__off" aria-hidden="true">
+								@iconPlus(14)
+							</span>
+							<span class="chip--check__on" aria-hidden="true">
+								@iconCheck(14)
+							</span>
+							{ c.Name }
+						</label>
+					}
+				</div>
+			</fieldset>
+		}
 		<div class="sheet__actions">
 			if !modal {
 				<a class="btn btn--secondary btn--tall" href={ templ.SafeURL(v.Back) }>{ i18n.T(ctx, "recipes.menu.cancel") }</a>

@@ -71,6 +71,24 @@ server {
 `http2 on;` needs nginx 1.25.1 or newer; older versions take
 `listen 443 ssl http2;` instead.
 
+### Kubernetes ingress
+
+The Helm chart ships no Ingress; point yours at the chart's Service on its
+own host (see `MISE_BASE_URL`). Traefik passes event streams through
+unbuffered by default. ingress-nginx buffers and cuts idle connections
+after 60 seconds, so give the Ingress for mise:
+
+```yaml
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-body-size: "16m"
+```
+
+Set `MISE_TRUSTED_PROXIES` to the ingress controller's pod network, e.g. the
+cluster's pod CIDR.
+
 ### `MISE_BASE_URL`
 
 The public URL, e.g. `https://mise.example.com`. mise uses it for links in
@@ -79,6 +97,12 @@ attribute, and as a trusted origin for form posts when the proxy rewrites the
 `Host` header. If it is unset at first run, the setup page proposes the
 origin the request came in on and stores it; setting the variable overrides
 the stored value. Set it explicitly behind a proxy.
+
+mise must be served at the root of its own host: `https://mise.example.com`
+or `https://mise.home.example.com` works, `https://example.com/mise` does not.
+Routes, assets, cookies and the service worker all live at `/`, so mise
+refuses a base URL with a path at startup and in the setup form. Give it a
+subdomain instead of a path on a shared one.
 
 ### `MISE_TRUSTED_PROXIES`
 

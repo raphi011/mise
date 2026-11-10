@@ -133,6 +133,51 @@ templ RecipeEdit(p Page, v RecipeEditView) {
 					@textarea("recipe-notes", "notes", 4, v.Form.Value("notes"), v.Form.Error("notes"), "")
 					<span class="field__hint">{ i18n.T(ctx, "recipes.edit.notesHint") }</span>
 				</section>
+				<section class="editor__links editor-section" id="links" aria-labelledby="edit-links-title">
+					<h2 class="recipe-section__title" id="edit-links-title">{ i18n.T(ctx, "recipes.links") }</h2>
+					if len(v.Links) > 0 {
+						<fieldset class="choices">
+							<legend class="visually-hidden">{ i18n.T(ctx, "recipes.links") }</legend>
+							<div class="chips">
+								for _, l := range v.Links {
+									<label class="chip chip--radio">
+										<input type="checkbox" name="link" value={ l.ID } checked/>
+										<span>{ l.Name }</span>
+									</label>
+								}
+							</div>
+						</fieldset>
+					}
+					<div class="add-line">
+						<span class="add-form__icon" aria-hidden="true">
+							@iconPlus(18)
+						</span>
+						<label class="visually-hidden" for="link-new">{ i18n.T(ctx, "recipes.edit.addLink") }</label>
+						<input
+							id="link-new"
+							class="add-line__input"
+							name="link_new"
+							type="text"
+							autocomplete="off"
+							list="link-options"
+							value={ v.Form.Value("link_new") }
+							placeholder={ i18n.T(ctx, "recipes.edit.addLinkPlaceholder") }
+							aria-describedby="link-new-error"
+							if v.Form.Error("link_new") != "" {
+								aria-invalid="true"
+							}
+						/>
+						<datalist id="link-options">
+							for _, name := range v.LinkOptions {
+								<option value={ name }></option>
+							}
+						</datalist>
+						<button type="submit" name="action" value="add-link" class="add-form__submit" formaction={ templ.SafeURL(v.Action() + "#links") } formnovalidate>{ i18n.T(ctx, "groceries.add") }</button>
+					</div>
+					@fieldError("link-new-error", v.Form.Error("link_new"))
+					@fieldError("recipe-links-error", v.Form.Error("links"))
+					<span class="field__hint">{ i18n.T(ctx, "recipes.edit.linksHint") }</span>
+				</section>
 				<section class="editor__photo" aria-labelledby="edit-photo-title" data-photo>
 					<h2 class="visually-hidden" id="edit-photo-title">{ i18n.T(ctx, "recipes.edit.photo") }</h2>
 					<div class="photo-drop">

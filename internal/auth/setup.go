@@ -4,13 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"net/url"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/raphi011/mise/internal/config"
 	"github.com/raphi011/mise/internal/store"
 )
 
@@ -62,19 +63,6 @@ type SetupResult struct {
 	BaseURL *url.URL
 }
 
-// ParseBaseURL validates and normalises a public base URL: absolute http(s),
-// no query or fragment, no trailing slash.
-func ParseBaseURL(raw string) (*url.URL, bool) {
-	u, err := url.Parse(strings.TrimSpace(raw))
-	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" ||
-		u.User != nil || u.RawQuery != "" || u.Fragment != "" {
-		return nil, false
-	}
-	u.Path = strings.TrimSuffix(u.Path, "/")
-	u.RawPath = ""
-	return u, true
-}
-
 func (in *SetupInput) normalise() {
 	in.HouseholdName = clean(in.HouseholdName)
 	in.Timezone = clean(in.Timezone)
@@ -92,8 +80,11 @@ func (s *Service) Setup(ctx context.Context, in SetupInput) (SetupResult, error)
 	checkName(errs, "household", in.HouseholdName)
 	checkTimezone(errs, "timezone", in.Timezone)
 	checkChoice(errs, "week_start", in.WeekStart, []string{"mon", "sun"})
-	base, ok := ParseBaseURL(in.BaseURL)
-	if !ok {
+	base, err := config.ParseBaseURL(in.BaseURL)
+	switch {
+	case errors.Is(err, config.ErrBaseURLPath):
+		errs["base_url"] = "form.error.baseURLPath"
+	case err != nil:
 		errs["base_url"] = "form.error.baseURL"
 	}
 	checkName(errs, "name", in.Name)
@@ -226,9 +217,9 @@ func (s *Service) StoredBaseURL(ctx context.Context) (*url.URL, error) {
 	if err != nil {
 		return nil, err
 	}
-	u, ok := ParseBaseURL(v)
-	if !ok {
-		return nil, errors.New("auth: stored base URL is invalid: " + v)
+	u, err := config.ParseBaseURL(v)
+	if err != nil {
+		return nil, fmt.Errorf("auth: stored base URL is invalid (set MISE_BASE_URL to override it): %w", err)
 	}
 	return u, nil
 }

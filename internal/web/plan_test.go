@@ -364,3 +364,63 @@ func TestPlanUndoAndLinks(t *testing.T) {
 		contains(t, "delete confirm", anna.get("/recipes/"+tofu+"/delete").body, "and 1 more day")
 	})
 }
+
+// TestLinkedRecipes links a side dish in the editor without JavaScript,
+// shows it on both recipes and plans it with the main from the add sheet,
+// with one Undo for both.
+func TestLinkedRecipes(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		s, srv := startTimedServer(t, db)
+		s.clock = func() time.Time { return planClock }
+		anna, _ := household(t, srv)
+		rice := stickyTofu()
+		rice.Set("name", "Jasmine rice")
+		riceID := createRecipe(t, anna, rice)
+
+		curry := stickyTofu()
+		curry.Set("name", "Green curry")
+		// An unknown name is an error; the button adds a known one, by any
+		// case, as a checked box.
+		curry.Set("link_new", "Pilaf")
+		curry.Set("action", "add-link")
+		res := anna.post("/recipes", curry).expect(t, "unknown link", http.StatusUnprocessableEntity)
+		contains(t, "unknown link", res.body, "No recipe has this name.")
+		curry.Set("link_new", "jasmine RICE")
+		res = anna.post("/recipes", curry).expect(t, "add link", http.StatusOK)
+		contains(t, "add link", res.body, `name="link" value="`+riceID+`" checked`)
+		if strings.Contains(res.body, `<option value="Jasmine rice">`) {
+			t.Error("a linked recipe is still suggested")
+		}
+		curry.Del("action")
+		curry.Set("link_new", "")
+		curry["link"] = []string{riceID}
+		curryID := createRecipe(t, anna, curry)
+
+		contains(t, "curry page", anna.get("/recipes/"+curryID).body, "Goes well with", "Jasmine rice")
+		contains(t, "rice page", anna.get("/recipes/"+riceID).body, "Goes well with", "Green curry")
+		contains(t, "curry editor", anna.get("/recipes/"+curryID+"/edit").body, `name="link" value="`+riceID+`" checked`)
+
+		sheet := anna.get("/plan/add?recipe="+curryID).expect(t, "add sheet", http.StatusOK)
+		contains(t, "add sheet", sheet.body, "Plan with it", `name="also" value="`+riceID+`"`)
+		res = anna.datastar(http.MethodPost, "/plan", url.Values{
+			"recipe": {curryID}, "date": {"2026-11-12"}, "servings": {"3"}, "also": {riceID},
+		}).expect(t, "plan with rice", http.StatusOK)
+		contains(t, "plan with rice", res.body, "Green curry planned for Thu 12 Nov · with Jasmine rice", `name="also"`)
+		// The week shows the first meal of the day and "+1".
+		contains(t, "week", anna.get("/plan").body, "Green curry on Thursday, 12 November", "+1")
+
+		also := regexp.MustCompile(`name="also" value="([^"]+)"`).FindStringSubmatch(res.body)
+		unplan := regexp.MustCompile(`/plan/meals/([0-9a-f-]{36})/unplan`).FindString(res.body)
+		anna.datastar(http.MethodPost, unplan, url.Values{"also": {also[1]}}).expect(t, "unplan", http.StatusOK)
+		if week := anna.get("/plan").body; strings.Contains(week, "Green curry on Thursday") || strings.Contains(week, "+1") {
+			t.Error("Undo left meals planned")
+		}
+
+		// Unticking the box unlinks both ways.
+		curry["link"] = nil
+		anna.post("/recipes/"+curryID+"/edit", curry).expect(t, "unlink", http.StatusSeeOther)
+		if strings.Contains(anna.get("/recipes/"+riceID).body, "Goes well with") {
+			t.Error("rice still lists the curry")
+		}
+	})
+}

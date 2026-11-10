@@ -142,6 +142,7 @@ All tables also have `household_id` (except `households`, `users`) and `created_
 | ai_settings | household_id (PK), enabled, provider, endpoint, model, api_key_enc, allow_fetch_page, allow_search_items, allow_create_item, tested_at, test_ok (P6) |
 | import_jobs | id, user_id, source_url, source_text, status, steps (JSON), draft (JSON), error_code, error_detail, started_at, finished_at (P6) |
 | user_identities | issuer, subject (primary key), user_id (unique per issuer, cascades with the user), created_at; global like sessions |
+| recipe_links | recipe_id, linked_id; one row per direction, written and deleted in pairs ("Goes well with", see Linked recipes) |
 
 Derived, not stored: "on a list" per ingredient, times cooked (count of `cook_events`), "not cooked in a month", suggestion ranking.
 
@@ -317,6 +318,15 @@ Each phase ends with something usable and is merged before the next starts.
 - Reset: with SMTP, `/forgot-password` asks for the email address and always answers "Check your inbox". Each account with that address (case-insensitive) and an active membership gets its own email naming its username; tokens are created and sent in the background after the response, so the answer does not reveal whether an account exists. Rate limited per client IP and per address. `/reset/{token}` sets a new password, marks the token used, drops the user's other reset tokens, revokes all their sessions (`sessions.changed`) and signs in on this device. Without SMTP the page keeps "Ask an admin". Expired and used tokens are swept.
 - **Backup** as in Operations: `mise-server backup <dir>` writes `mise-backup-<UTC timestamp>.tar.gz` with the SQLite database (`VACUUM INTO`) and the images directory. On Postgres the archive holds only the images and the docs describe `pg_dump`/`pg_restore`. Restore is documented (stop the server, unpack into the data directory), not a command.
 - **Docs** in `docs/operations.md`: reverse proxy (Caddy, nginx) with SSE buffering off, HTTP/2, `MISE_BASE_URL`, `MISE_TRUSTED_PROXIES`; backup and restore for both engines; SMTP.
+
+### Linked recipes
+- "Goes well with": a recipe links to other recipes of the household (side dishes, sauces, breads), up to 20. A link goes both ways: `recipe_links` (migration `00009_recipe_links`) stores a row per direction, and saving a recipe replaces its links on both sides. Composite FKs cascade with a hard-deleted recipe; a recipe in the bin drops out of the lists and keeps its links, so a restore brings them back.
+- Editor: linked recipes are checked boxes (untick to unlink); the add field suggests recipe names (`<datalist>`) and resolves the typed name case-insensitively on "Add" or save, so it works without JavaScript like the tag field. An unknown name is a field error.
+- Detail page: a "Goes well with" list between method and notes. Saving, deleting or restoring a recipe publishes `recipe.changed` for every recipe linked to it, so their open pages follow.
+- Add-to-plan sheet: "Plan with it" chips (unpicked) for the linked recipes; picked ones are planned the same day at the same servings after the meal, in Add's transaction. The toast's Undo removes them with the meal.
+
+### Library paging
+- The library shows 48 cards (whole rows at 2, 3, 4 and 6 columns) and "Show more" adds 48. Sorting stays in Go, so every match is read and only the shown cards get their tags. The page size is the `$shown` signal on the live stream, as servings are on the recipe page: raising it reopens the stream and the first render is the longer page; without JavaScript "Show more" links to `?shown=`.
 
 ### P5 — Later
 - KitchenOwl import, "always have" staples, tablet polish. (OIDC is done; see Auth.)

@@ -103,6 +103,21 @@ func TestHouseholdIsolation(t *testing.T) {
 			_, err = s.ToggleIngredient(ctx, sc, me, own.recipe.ID, other.recipe.Ingredients[0].ID, 2, true, language.English)
 			notFound("toggle other's ingredient on own recipe", err)
 
+			// Links to the other's recipes are ignored; names stay apart.
+			linked := own.create(t, Input{Name: "Naan", Links: []uuid.UUID{other.recipe.ID, own.recipe.ID}})
+			if len(linked.Links) != 1 || linked.Links[0].ID != own.recipe.ID {
+				t.Errorf("links with other's recipe: %+v", linked.Links)
+			}
+			if _, ok, _ := s.FindByName(ctx, sc, "Hijacked"); ok {
+				t.Errorf("found other's recipe by name")
+			}
+			if got, _ := s.NamesOf(ctx, sc, []uuid.UUID{other.recipe.ID}); len(got) != 0 {
+				t.Errorf("names of other's recipe: %+v", got)
+			}
+			if err := s.Delete(ctx, sc, linked.ID); err != nil {
+				t.Fatal(err)
+			}
+
 			// An ingredient may not point at the other's item.
 			in.Ingredients = []IngredientInput{{ItemID: &other.recipe.Ingredients[0].ItemID}}
 			var fe FieldErrors

@@ -41,6 +41,8 @@ type Recipe struct {
 	Tags        []Tag
 	Ingredients []Ingredient
 	Steps       []Step
+	// Links are the recipes that go well with this one, both ways.
+	Links []Link
 	// Favourite is true when the viewer marked the recipe.
 	Favourite    bool
 	TimesCooked  int
@@ -93,8 +95,11 @@ type Input struct {
 	SourceURL   string
 	Notes       string
 	// Photo is an image content hash from internal/images, or empty.
-	Photo       string
-	Tags        []string
+	Photo string
+	Tags  []string
+	// Links are the recipes that go well with this one. The link goes both
+	// ways; IDs that are not live recipes of the household are ignored.
+	Links       []uuid.UUID
 	Ingredients []IngredientInput
 	// Steps are the method's steps in order; steps without text or timer
 	// are dropped.
@@ -210,6 +215,11 @@ func (in *Input) clean() error {
 		errs["tags"] = "form.error.tooMany"
 	}
 
+	in.Links = cleanLinks(in.Links, uuid.Nil)
+	if len(in.Links) > maxLinks {
+		errs["links"] = "form.error.tooMany"
+	}
+
 	if len(in.Ingredients) > maxIngredients {
 		errs["ingredients"] = "form.error.tooMany"
 	}
@@ -255,6 +265,7 @@ func (in *Input) clean() error {
 // item by ID are checked only when saved.
 func Validate(in Input) error {
 	in.Tags = slices.Clone(in.Tags)
+	in.Links = slices.Clone(in.Links)
 	in.Ingredients = slices.Clone(in.Ingredients)
 	in.Steps = slices.Clone(in.Steps)
 	return in.clean()
@@ -274,6 +285,7 @@ func (s *Service) CreateWith(ctx context.Context, sc store.Scoped, by uuid.UUID,
 	}
 	id := store.NewID()
 	var newItems bool
+	var linked []uuid.UUID
 	err := sc.Tx(ctx, func(ctx context.Context, q store.Querier) error {
 		now := s.clock()
 		var notesBy *uuid.UUID
@@ -292,6 +304,9 @@ func (s *Service) CreateWith(ctx context.Context, sc store.Scoped, by uuid.UUID,
 		if newItems, err = s.writeChildren(ctx, q, sc, id, in, now, false); err != nil {
 			return err
 		}
+		if linked, err = writeLinks(ctx, q, sc, id, in.Links, now); err != nil {
+			return err
+		}
 		if also != nil {
 			return also(ctx, q)
 		}
@@ -300,7 +315,7 @@ func (s *Service) CreateWith(ctx context.Context, sc store.Scoped, by uuid.UUID,
 	if err != nil {
 		return uuid.Nil, err
 	}
-	events := []live.Event{recipesChanged}
+	events := append(linkEvents(linked), recipesChanged)
 	if newItems {
 		events = append(events, catalogChanged)
 	}
@@ -315,6 +330,7 @@ func (s *Service) Update(ctx context.Context, sc store.Scoped, id, by uuid.UUID,
 		return err
 	}
 	var newItems bool
+	var linked []uuid.UUID
 	err := sc.Tx(ctx, func(ctx context.Context, q store.Querier) error {
 		if err := lockRecipe(ctx, q, sc, id); err != nil {
 			return err
@@ -343,13 +359,16 @@ func (s *Service) Update(ctx context.Context, sc store.Scoped, id, by uuid.UUID,
 			return err
 		}
 		var err error
-		newItems, err = s.writeChildren(ctx, q, sc, id, in, now, true)
+		if newItems, err = s.writeChildren(ctx, q, sc, id, in, now, true); err != nil {
+			return err
+		}
+		linked, err = writeLinks(ctx, q, sc, id, cleanLinks(in.Links, id), now)
 		return err
 	})
 	if err != nil {
 		return err
 	}
-	events := []live.Event{recipeChanged(id), recipesChanged}
+	events := append(linkEvents(linked), recipeChanged(id), recipesChanged)
 	if newItems {
 		events = append(events, catalogChanged)
 	}
@@ -600,6 +619,9 @@ func (s *Service) Get(ctx context.Context, sc store.Scoped, id, viewer uuid.UUID
 		WHERE t.household_id = ? AND rt.recipe_id = ? ORDER BY t.name_key`, hh, id); err != nil {
 		return Recipe{}, err
 	}
+	if out.Links, err = links(ctx, q, sc, id); err != nil {
+		return Recipe{}, err
+	}
 	return out, nil
 }
 
@@ -631,6 +653,7 @@ func (s *Service) DeleteInfo(ctx context.Context, sc store.Scoped, id, viewer uu
 // Delete moves a recipe to the bin. Undo with Restore within UndoWindow;
 // the sweep deletes it for good afterwards.
 func (s *Service) Delete(ctx context.Context, sc store.Scoped, id uuid.UUID) error {
+	var linked []uuid.UUID
 	err := sc.Tx(ctx, func(ctx context.Context, q store.Querier) error {
 		now := s.clock()
 		res, err := q.Exec(ctx, `UPDATE recipes SET deleted_at = ?, updated_at = ?
@@ -638,29 +661,48 @@ func (s *Service) Delete(ctx context.Context, sc store.Scoped, id uuid.UUID) err
 		if err != nil {
 			return err
 		}
-		return mustAffect(res)
+		if err := mustAffect(res); err != nil {
+			return err
+		}
+		linked, err = linkedIDs(ctx, q, sc, id)
+		return err
 	})
 	if err != nil {
 		return err
 	}
-	s.publish(sc, recipeChanged(id), recipesChanged)
+	s.publish(sc, append(linkEvents(linked), recipeChanged(id), recipesChanged)...)
 	return nil
+}
+
+// linkEvents refreshes the pages of linked recipes, whose "Goes well with"
+// lists show the changed recipe.
+func linkEvents(linked []uuid.UUID) []live.Event {
+	events := make([]live.Event, 0, len(linked)+2)
+	for _, l := range linked {
+		events = append(events, recipeChanged(l))
+	}
+	return events
 }
 
 // Restore undoes Delete within UndoWindow, or returns ErrNotFound.
 func (s *Service) Restore(ctx context.Context, sc store.Scoped, id uuid.UUID) error {
+	var linked []uuid.UUID
 	err := sc.Tx(ctx, func(ctx context.Context, q store.Querier) error {
 		res, err := q.Exec(ctx, `UPDATE recipes SET deleted_at = NULL, updated_at = ?
 			WHERE household_id = ? AND id = ? AND deleted_at >= ?`, s.clock(), sc.HouseholdID(), id, s.undoCutoff())
 		if err != nil {
 			return err
 		}
-		return mustAffect(res)
+		if err := mustAffect(res); err != nil {
+			return err
+		}
+		linked, err = linkedIDs(ctx, q, sc, id)
+		return err
 	})
 	if err != nil {
 		return err
 	}
-	s.publish(sc, recipeChanged(id), recipesChanged)
+	s.publish(sc, append(linkEvents(linked), recipeChanged(id), recipesChanged)...)
 	return nil
 }
 

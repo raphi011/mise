@@ -34,7 +34,11 @@ type LibraryView struct {
 	Query string
 	// Total counts every recipe in the library.
 	Total int
-	Cards []RecipeCard
+	// Matched counts the recipes the filter keeps; Cards holds the first
+	// Shown of them.
+	Matched int
+	Shown   int
+	Cards   []RecipeCard
 	// Chips are the quick filters: Mine, Favourites, Under 30 min and the
 	// pinned tags.
 	Chips []FilterChip
@@ -170,10 +174,21 @@ type RecipeView struct {
 	SourceURL  string
 	SourceHost string
 	Favourite  bool
+	// Links are the recipes that go well with this one.
+	Links []LinkView
 	// Gone is set when the recipe was deleted while the page was open.
 	Gone bool
 	// Toast, when set, shows on the page as it loads.
 	Toast *Toast
+}
+
+// LinkView is a linked recipe under "Goes well with".
+type LinkView struct {
+	ID    string
+	Name  string
+	Photo string
+	// Meta is the translated total time, or "".
+	Meta string
 }
 
 // CookHref is cook mode at the viewer's servings.
@@ -236,6 +251,10 @@ type RecipeEditView struct {
 	Rows  []IngredientRow
 	Steps []StepRow
 	Tags  []TagChoice
+	// Links are the recipes this one goes well with, as checkboxes;
+	// LinkOptions the names the add field suggests.
+	Links       []LinkChoice
+	LinkOptions []string
 	// Import is the import job a new recipe was opened from. ImportPhoto
 	// shows the draft's photo, which saving downloads unless it is
 	// removed or replaced.
@@ -283,6 +302,12 @@ type IngredientRow struct {
 }
 
 // TagChoice is a tag the recipe can have.
+// LinkChoice is a linked recipe in the editor.
+type LinkChoice struct {
+	ID   string
+	Name string
+}
+
 type TagChoice struct {
 	Name    string
 	Checked bool
@@ -304,12 +329,29 @@ func withQuery(path, query string) string {
 	return path + "?" + query
 }
 
-// libraryLive is the Recipes page's live stream for a filter.
+// LibraryPageSize is how many cards the library shows at first and adds
+// per "Show more". It fills whole rows at 2, 3, 4 and 6 columns.
+const LibraryPageSize = 48
+
+// libraryLive opens the Recipes page's live stream for a filter. It reads
+// $shown, so Datastar reopens the stream when "Show more" raises it, and
+// the first render has the longer page.
 func libraryLive(query string) string {
-	if query == "" {
-		return "/live?page=recipes"
+	url := "/live?page=recipes"
+	if query != "" {
+		url += "&" + query
 	}
-	return "/live?page=recipes&" + query
+	return "$shown && @get('" + url + "', {filterSignals: {include: /^shown$/}, retryMaxCount: 1000})"
+}
+
+// libraryMoreHref is "Show more" without JavaScript: the page with the
+// next page of cards.
+func libraryMoreHref(v LibraryView) string {
+	q := "shown=" + itoa(v.Shown+LibraryPageSize)
+	if v.Query != "" {
+		q = v.Query + "&" + q
+	}
+	return "/recipes?" + q
 }
 
 // recipeLive opens a recipe page's live stream with the viewer's servings.

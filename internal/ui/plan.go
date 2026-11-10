@@ -131,6 +131,8 @@ type AddPlanView struct {
 	Shop []ShopChip
 	// Already is the translated "Already on it: …" line, or "".
 	Already string
+	// Also are the recipe's linked recipes, offered to plan on the same day.
+	Also []ShopChip
 	// Back is where Cancel and a plain form post lead.
 	Back string
 	Form Form

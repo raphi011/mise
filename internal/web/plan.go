@@ -526,8 +526,10 @@ type addPlanState struct {
 	week     store.Date
 	servings int
 	picked   map[uuid.UUID]bool
-	back     string
-	form     ui.Form
+	// also are the linked recipes picked to plan too.
+	also map[uuid.UUID]bool
+	back string
+	form ui.Form
 }
 
 // addPlanView builds the add sheet. It returns recipes.ErrNotFound when
@@ -573,6 +575,9 @@ func (s *Server) addPlanView(ctx context.Context, sc store.Scoped, id *auth.Iden
 			continue
 		}
 		v.Shop = append(v.Shop, ui.ShopChip{ID: ing.ID.String(), Name: ing.ItemName, Checked: st.picked[ing.ID]})
+	}
+	for _, l := range rec.Links {
+		v.Also = append(v.Also, ui.ShopChip{ID: l.ID.String(), Name: l.Name, Checked: st.also[l.ID]})
 	}
 	switch {
 	case len(already) > 0:
@@ -644,7 +649,10 @@ func addStateFromQuery(r *http.Request) (addPlanState, bool) {
 	}
 	st := addPlanState{
 		recipe: recipeID, date: dateParam(q.Get("date")), week: dateParam(q.Get("week")),
-		servings: atoi(q.Get("servings")), back: q.Get("back"), picked: map[uuid.UUID]bool{},
+		servings: atoi(q.Get("servings")), back: q.Get("back"), picked: map[uuid.UUID]bool{}, also: map[uuid.UUID]bool{},
+	}
+	for _, id := range parseIDs(q["also"]) {
+		st.also[id] = true
 	}
 	if n := atoi(q.Get("set_servings")); n > 0 {
 		st.servings = n
@@ -768,6 +776,16 @@ func (s *Server) addMeal(w http.ResponseWriter, r *http.Request) {
 		in.Ingredients = append(in.Ingredients, ingID)
 		picked[ingID] = true
 	}
+	also := map[uuid.UUID]bool{}
+	for _, raw := range f.all("also") {
+		alsoID, err := uuid.Parse(raw)
+		if err != nil {
+			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+			return
+		}
+		in.Also = append(in.Also, alsoID)
+		also[alsoID] = true
+	}
 	added, err := s.plan.Add(ctx, sc, in)
 	var fe plan.FieldErrors
 	if errors.As(err, &fe) && !isDatastar(r) {
@@ -779,7 +797,7 @@ func (s *Server) addMeal(w http.ResponseWriter, r *http.Request) {
 			form.Alert = i18n.T(ctx, "plan.addTo.pickDay")
 		}
 		s.renderAddPlan(w, r, http.StatusUnprocessableEntity, sc, addPlanState{
-			recipe: recipeID, date: in.Date, servings: in.Servings, picked: picked, back: f.get("back"), form: form,
+			recipe: recipeID, date: in.Date, servings: in.Servings, picked: picked, also: also, back: f.get("back"), form: form,
 		})
 		return
 	}
@@ -797,6 +815,9 @@ func (s *Server) addMeal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	msg := i18n.T(ctx, "plan.toast.planned", added.Meal.Recipe.Name, shortDate(ctx, added.Meal.Date))
+	if len(added.Also) > 0 {
+		msg += " · " + i18n.T(ctx, "plan.toast.also", joinNames(ctx, mealNames(added.Also)))
+	}
 	switch n := len(added.Shopping.Added); n {
 	case 0:
 	case 1:
@@ -812,6 +833,13 @@ func (s *Server) addMeal(w http.ResponseWriter, r *http.Request) {
 	if len(entries) > 0 {
 		undo["entries"] = strings.Join(entries, ",")
 	}
+	if len(added.Also) > 0 {
+		ids := make([]string, len(added.Also))
+		for i, m := range added.Also {
+			ids[i] = m.ID.String()
+		}
+		undo["also"] = strings.Join(ids, ",")
+	}
 	back := localPath(f.get("back"), weekHref(cal.WeekOf(added.Meal.Date)))
 	s.planDone(w, r, back, toast(msg, "/plan/meals/"+added.Meal.ID.String()+"/unplan", undo))
 }
@@ -823,23 +851,34 @@ func (s *Server) unplanMeal(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	var entries []uuid.UUID
-	if raw := r.PostFormValue("entries"); raw != "" {
-		for _, e := range strings.Split(raw, ",") {
-			entryID, err := uuid.Parse(e)
-			if err != nil {
-				http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
-				return
-			}
-			entries = append(entries, entryID)
-		}
+	entries, ok1 := idList(r.PostFormValue("entries"))
+	also, ok2 := idList(r.PostFormValue("also"))
+	if !ok1 || !ok2 {
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
 	}
 	ctx := r.Context()
-	m, err := s.plan.Unplan(ctx, sc, mealID, entries)
+	m, err := s.plan.Unplan(ctx, sc, mealID, entries, also)
 	if s.planError(w, r, err) {
 		return
 	}
 	s.planUndone(w, r, localPath(r.PostFormValue("back"), s.weekBack(ctx, sc, m.Date)))
+}
+
+// idList parses a comma-separated list of IDs; ok is false when one is
+// malformed.
+func idList(raw string) (ids []uuid.UUID, ok bool) {
+	if raw == "" {
+		return nil, true
+	}
+	for _, e := range strings.Split(raw, ",") {
+		id, err := uuid.Parse(e)
+		if err != nil {
+			return nil, false
+		}
+		ids = append(ids, id)
+	}
+	return ids, true
 }
 
 // ---- Recipe picker ----

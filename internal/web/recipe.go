@@ -104,6 +104,9 @@ func (s *Server) recipeView(ctx context.Context, sc store.Scoped, id *auth.Ident
 		Notes: rec.Notes, Favourite: rec.Favourite,
 	}
 	v.SourceURL, v.SourceHost = sourceLink(rec.SourceURL)
+	for _, l := range rec.Links {
+		v.Links = append(v.Links, ui.LinkView{ID: l.ID.String(), Name: l.Name, Photo: l.Photo, Meta: minutes(ctx, l.TotalMin)})
+	}
 	for _, t := range rec.Tags {
 		v.Tags = append(v.Tags, t.Name)
 	}

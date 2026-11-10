@@ -212,6 +212,11 @@ func TestSetup(t *testing.T) {
 		if _, err := s.Setup(ctx, bad); !errors.As(err, &fe) || fe["timezone"] == "" || fe["password"] == "" || fe["base_url"] == "" {
 			t.Fatalf("invalid input: %v", err)
 		}
+		withPath := setupInput()
+		withPath.BaseURL = "https://example.com/mise"
+		if _, err := s.Setup(ctx, withPath); !errors.As(err, &fe) || fe["base_url"] != "form.error.baseURLPath" {
+			t.Fatalf("base URL with a path: %v", err)
+		}
 
 		res, err := s.Setup(ctx, setupInput())
 		if err != nil {

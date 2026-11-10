@@ -116,10 +116,19 @@ button, input, select, textarea { font: inherit; color: inherit; }
   min-height: 100dvh;
 }
 
+:root {
+  /* The phone bottom bar's height: 6px padding top and bottom, one 62px
+     link row (see .nav__link), the 1px top border and the safe area.
+     Fixed elements above the bar (add field, toasts, the recipe's
+     "Add to plan") offset from it; the rail and sidebar take none. */
+  --nav-height: calc(75px + env(safe-area-inset-bottom));
+}
+
 .nav {
   position: fixed;
   inset: auto 0 0 0;
   z-index: 10;
+  height: var(--nav-height);
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
@@ -144,6 +153,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   color: var(--muted);
   text-decoration: none;
   font-size: 12px;
+  line-height: 16px;
 }
 
 .nav__link:hover { color: var(--ink); }
@@ -206,9 +216,12 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .page-header .avatar--link { margin-left: auto; }
 
 @media (min-width: 768px) {
+  :root { --nav-height: 0px; }
+
   .nav {
     inset: 0 auto 0 0;
     width: 88px;
+    height: auto;
     display: flex;
     flex-direction: column;
     gap: var(--space-5);
@@ -906,7 +919,6 @@ a.list__link:hover, summary.list__link:hover { color: var(--ink); background: va
   --toast-bg: #1B1F1A;
   --toast-ink: #FFFFFF;
   --toast-action: #A9D3B5;
-  --nav-height: calc(70px + env(safe-area-inset-bottom));
 }
 
 @media (prefers-color-scheme: dark) {
@@ -1500,6 +1512,10 @@ a.list__link:hover, summary.list__link:hover { color: var(--ink); background: va
 .library-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: 0 2px; }
 .library-head__actions { display: flex; gap: var(--space-3); }
 
+/* "Show more" under a long library. */
+.library-more { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); padding: var(--space-4) 0; }
+.library-more__count { margin: 0; font-size: 13px; color: var(--muted); }
+
 .recipe-grid {
   margin: 0;
   padding: 0;
@@ -1841,7 +1857,7 @@ a.menu__item:hover { color: var(--ink); background: var(--surface-2); }
 .editor__grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-areas: "photo" "details" "ingredients" "method" "notes";
+  grid-template-areas: "photo" "details" "ingredients" "method" "notes" "links";
   gap: 24px;
   align-items: start;
 }
@@ -1850,6 +1866,7 @@ a.menu__item:hover { color: var(--ink); background: var(--surface-2); }
 .editor__ingredients { grid-area: ingredients; }
 .editor__method { grid-area: method; }
 .editor__notes { grid-area: notes; }
+.editor__links { grid-area: links; }
 .editor__photo { grid-area: photo; display: flex; flex-direction: column; gap: var(--space-2); }
 
 .editor__times { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
@@ -1926,8 +1943,9 @@ a.menu__item:hover { color: var(--ink); background: var(--surface-2); }
       "photo ingredients"
       "details ingredients"
       "details method"
-      "details notes";
-    grid-template-rows: auto auto auto 1fr;
+      "details notes"
+      "details links";
+    grid-template-rows: auto auto auto auto 1fr;
     gap: 24px 32px;
   }
 
@@ -2323,7 +2341,7 @@ button.menu__item:hover { background: var(--surface-2); }
 /* Recipe page: "Add to plan" sits above the bottom bar on phones. */
 .recipe-cta {
   position: sticky;
-  bottom: calc(var(--nav-height) + 8px);
+  bottom: calc(var(--nav-height) + 16px);
   z-index: 5;
   margin-top: 8px;
 }

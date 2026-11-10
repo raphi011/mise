@@ -112,6 +112,38 @@ func placeholders(n int) string {
 
 // Library returns the recipes matching the filter as viewer sees them.
 func (s *Service) Library(ctx context.Context, sc store.Scoped, viewer uuid.UUID, f Filter) ([]Card, error) {
+	cards, _, err := s.LibraryPage(ctx, sc, viewer, f, 0)
+	return cards, err
+}
+
+// LibraryPage returns the first limit recipes matching the filter, in its
+// sort order, and how many match in all. A limit of zero or less returns
+// every match. Sorting happens in Go (see sortCards), so every match is
+// read; only the returned cards get their tags.
+func (s *Service) LibraryPage(ctx context.Context, sc store.Scoped, viewer uuid.UUID, f Filter, limit int) ([]Card, int, error) {
+	cards, err := s.matching(ctx, sc, viewer, f)
+	if err != nil {
+		return nil, 0, err
+	}
+	matched := len(cards)
+	if limit > 0 && limit < matched {
+		cards = cards[:limit:limit]
+	}
+	if err := s.attachTags(ctx, sc, cards); err != nil {
+		return nil, 0, err
+	}
+	return cards, matched, nil
+}
+
+// CountMatching returns how many recipes match the filter.
+func (s *Service) CountMatching(ctx context.Context, sc store.Scoped, viewer uuid.UUID, f Filter) (int, error) {
+	cards, err := s.matching(ctx, sc, viewer, f)
+	return len(cards), err
+}
+
+// matching returns the cards matching the filter in its sort order,
+// without their tags.
+func (s *Service) matching(ctx context.Context, sc store.Scoped, viewer uuid.UUID, f Filter) ([]Card, error) {
 	query := cardSelect
 	args := []any{viewer, sc.HouseholdID(), false}
 	if len(f.AddedBy) > 0 {
@@ -153,9 +185,6 @@ func (s *Service) Library(ctx context.Context, sc store.Scoped, viewer uuid.UUID
 		cards[i] = r.card()
 	}
 	sortCards(cards, rows, f.Sort)
-	if err := s.attachTags(ctx, sc, cards); err != nil {
-		return nil, err
-	}
 	return cards, nil
 }
 

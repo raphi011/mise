@@ -162,6 +162,33 @@ templ RecipeRegion(v RecipeView) {
 						<p class="muted">{ i18n.T(ctx, "recipes.noSteps") }</p>
 					}
 				</section>
+				if len(v.Links) > 0 {
+					<section class="recipe-section" id="links" aria-labelledby="links-title">
+						<div class="recipe-section__head">
+							<h2 class="recipe-section__title" id="links-title">{ i18n.T(ctx, "recipes.links") }</h2>
+						</div>
+						<ul class="list" role="list">
+							for _, l := range v.Links {
+								<li>
+									<a class="list__link hit" href={ templ.SafeURL(RecipeHref(l.ID)) }>
+										if l.Photo != "" {
+											<img class="tile" src={ ImageURL(l.Photo, "thumb") } alt="" loading="lazy"/>
+										} else {
+											<span class={ tileClass(Tint(l.ID), "") } aria-hidden="true">{ Initial(l.Name) }</span>
+										}
+										<span class="list__text">
+											<span class="hit__name">{ l.Name }</span>
+											if l.Meta != "" {
+												<span class="muted">{ l.Meta }</span>
+											}
+										</span>
+										@chevron()
+									</a>
+								</li>
+							}
+						</ul>
+					</section>
+				}
 				<section class="recipe-section" aria-labelledby="notes-title">
 					<div class="recipe-section__head">
 						<h2 class="recipe-section__title" id="notes-title">{ i18n.T(ctx, "recipes.notes") }</h2>

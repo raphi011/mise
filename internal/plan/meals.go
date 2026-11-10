@@ -3,6 +3,7 @@ package plan
 import (
 	"context"
 	"errors"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -208,6 +209,10 @@ type AddInput struct {
 	// default list, scaled to the servings. Items already on it stay as
 	// they are.
 	Ingredients []uuid.UUID
+	// Also are other recipes, such as linked side dishes, to plan on the
+	// same day at the same servings, after the meal. Recipes that are gone
+	// are skipped.
+	Also []uuid.UUID
 	// By is the acting member.
 	By   uuid.UUID
 	Lang language.Tag
@@ -215,7 +220,9 @@ type AddInput struct {
 
 // Added describes what Add did.
 type Added struct {
-	Meal     Meal
+	Meal Meal
+	// Also are the meals planned for AddInput.Also.
+	Also     []Meal
 	Shopping recipes.PutOn
 }
 
@@ -254,6 +261,31 @@ func (s *Service) Add(ctx context.Context, sc store.Scoped, in AddInput) (Added,
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			id, sc.HouseholdID(), in.Date, in.RecipeID, in.Servings, pos, in.By, now, now); err != nil {
 			return err
+		}
+		var also []uuid.UUID
+		for _, r := range in.Also {
+			if r == in.RecipeID || slices.Contains(also, r) {
+				continue
+			}
+			if _, err := lockRecipe(ctx, q, sc, r); errors.Is(err, ErrNotFound) {
+				continue
+			} else if err != nil {
+				return err
+			}
+			pos++
+			alsoID := store.NewID()
+			if _, err := q.Exec(ctx, `INSERT INTO planned_meals (id, household_id, date, recipe_id, servings, position,
+					created_by, created_at, updated_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				alsoID, sc.HouseholdID(), in.Date, r, in.Servings, pos, in.By, now, now); err != nil {
+				return err
+			}
+			also = append(also, r)
+			m, err := getMeal(ctx, q.Reader, sc, alsoID)
+			if err != nil {
+				return err
+			}
+			out.Also = append(out.Also, m)
 		}
 		if len(in.Ingredients) > 0 {
 			if out.Shopping, err = s.recipes.PutOnListTx(ctx, q, sc, in.By, in.RecipeID, in.Ingredients, in.Servings, in.Lang); err != nil {
@@ -484,10 +516,11 @@ func (s *Service) Remove(ctx context.Context, sc store.Scoped, id uuid.UUID) (Me
 	return m, nil
 }
 
-// Unplan is the Undo of Add: it removes the meal and takes back the
-// entries planning it put on the list, in one transaction. Entries changed
-// since stay on the list (groceries TakeBackTx).
-func (s *Service) Unplan(ctx context.Context, sc store.Scoped, id uuid.UUID, entries []uuid.UUID) (Meal, error) {
+// Unplan is the Undo of Add: it removes the meal and the meals planned
+// with it (also; ones already gone are skipped) and takes back the entries
+// planning it put on the list, in one transaction. Entries changed since
+// stay on the list (groceries TakeBackTx).
+func (s *Service) Unplan(ctx context.Context, sc store.Scoped, id uuid.UUID, entries, also []uuid.UUID) (Meal, error) {
 	var (
 		m     Meal
 		lists []uuid.UUID
@@ -496,6 +529,14 @@ func (s *Service) Unplan(ctx context.Context, sc store.Scoped, id uuid.UUID, ent
 		var err error
 		if m, err = s.removeTx(ctx, q, sc, id); err != nil {
 			return err
+		}
+		for _, a := range also {
+			if a == id {
+				continue
+			}
+			if _, err := s.removeTx(ctx, q, sc, a); err != nil && !errors.Is(err, ErrNotFound) {
+				return err
+			}
 		}
 		lists, err = s.recipes.TakeOffListTx(ctx, q, sc, m.Recipe.ID, entries)
 		return err
