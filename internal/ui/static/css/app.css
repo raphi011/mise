@@ -828,12 +828,17 @@ a.list__link:hover, summary.list__link:hover { color: var(--ink); background: va
 .role-label { font-size: 13px; color: var(--muted); }
 .role-label--pending { color: var(--amber-ink); font-weight: 500; }
 
-/* A text field with its button beside it, wrapping below on narrow rows. */
-.inline-field, .new-list { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-2); }
-.inline-field > .field { flex: 1 1 200px; min-width: 0; }
-.inline-field > .btn { min-height: 50px; }
-.inline-field > .alert, .new-list > .alert, .new-list > .field__error { flex-basis: 100%; }
-.new-list { flex: 1; align-items: center; }
+/* A labelled text field with its button beside the input: the field's
+   parts join the grid so the button stays level with the input when a
+   hint or error appears below it. */
+.inline-field { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2); }
+.inline-field > .field { display: contents; }
+.inline-field > .field > * { grid-column: 1; }
+.inline-field > .btn { grid-column: 2; grid-row: 2; min-height: 50px; }
+
+/* A text field and button in one row, wrapping below on narrow rows. */
+.new-list { flex: 1; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.new-list > .alert, .new-list > .field__error { flex-basis: 100%; }
 .new-list > .input { flex: 1 1 160px; min-width: 0; height: var(--target); background: var(--ground); }
 
 .disclosure { width: 100%; }
@@ -954,7 +959,6 @@ a.list__link:hover, summary.list__link:hover { color: var(--ink); background: va
   .settings-body > .settings-section summary.list__link:hover { border-radius: 12px; }
   .settings-body > .settings-section .settings-list-actions { margin-left: -14px; }
   .settings-body > .settings-section .list__row--actions { padding: 12px 12px 0; }
-  .settings-body > .settings-section .list__row--actions .list__note { display: none; }
 
   .settings-signout { flex-direction: row; justify-content: flex-end; }
   .settings-signout .btn--destructive { min-height: var(--target); font-size: 14px; }

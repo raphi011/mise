@@ -94,7 +94,7 @@ templ Settings(p Page, v SettingsView) {
 					@avatar(v.Name, v.Color, "md")
 					<span class="profile-card__text">
 						<span class="profile-card__name">{ v.Name }</span>
-						<span class="muted">{ "@" + v.Username + " · " + i18n.T(ctx, "settings.accountAndSecurity") }</span>
+						<span class="muted">{ i18n.T(ctx, "settings.profileSubtitle", v.Username) }</span>
 					</span>
 					@chevron()
 				</a>
@@ -182,10 +182,7 @@ templ Settings(p Page, v SettingsView) {
 				</section>
 				<section class="settings-section" id="app" aria-labelledby="app-title">
 					<div class="settings-section__head">
-						<span class="settings-section__titles">
-							<h2 class="settings-section__title" id="app-title">{ i18n.T(ctx, "settings.app") }</h2>
-							<span class="settings-section__desc">{ i18n.T(ctx, "settings.prefsNote") }</span>
-						</span>
+						<h2 class="settings-section__title" id="app-title">{ i18n.T(ctx, "settings.app") }</h2>
 					</div>
 					<form class="list list--form" method="post" action="/settings/preferences">
 						<div class="list__row list__row--field">
@@ -219,7 +216,7 @@ templ Settings(p Page, v SettingsView) {
 							</div>
 						</div>
 						<div class="list__row list__row--actions">
-							<span class="list__note settings-prefs-note">{ i18n.T(ctx, "settings.prefsNote") }</span>
+							<span class="list__note">{ i18n.T(ctx, "settings.prefsNote") }</span>
 							<button class="btn btn--primary btn--small" type="submit">{ i18n.T(ctx, "form.save") }</button>
 						</div>
 					</form>
@@ -563,12 +560,14 @@ templ listsSection(v SettingsView) {
 							@chevron()
 						</summary>
 						<div class="stack disclosure__body">
-							<form class="inline-field" method="post" action={ templ.SafeURL("/settings/lists/" + l.ID + "/rename") } novalidate>
+							<form class="stack" method="post" action={ templ.SafeURL("/settings/lists/" + l.ID + "/rename") } novalidate>
 								if v.ListFormID == l.ID {
 									@formAlert(v.ListForm)
 								}
-								@textField(Field{ID: "list-name-" + l.ID, Name: "name", Label: i18n.T(ctx, "settings.listName"), Required: true}, listNameForm(v, l))
-								<button class="btn btn--secondary" type="submit">{ i18n.T(ctx, "settings.rename") }</button>
+								<div class="inline-field">
+									@textField(Field{ID: "list-name-" + l.ID, Name: "name", Label: i18n.T(ctx, "settings.listName"), Required: true}, listNameForm(v, l))
+									<button class="btn btn--secondary" type="submit">{ i18n.T(ctx, "settings.rename") }</button>
+								</div>
 							</form>
 							<div class="settings-list-actions">
 								if i > 0 {

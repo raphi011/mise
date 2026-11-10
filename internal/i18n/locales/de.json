@@ -99,6 +99,7 @@
   "settings.expiresToday": "läuft heute ab",
   "settings.revokeInvite": "Widerrufen",
   "settings.accountAndSecurity": "Konto & Sicherheit",
+  "settings.profileSubtitle": "@%s · Konto & Sicherheit",
   "settings.app": "App",
   "settings.prefsNote": "Nur für dich, auf allen Geräten.",
   "settings.theme": "Design",
