@@ -272,6 +272,12 @@ func (s *Server) acceptInvitePage(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
+	if id, ok := auth.FromContext(ctx); ok {
+		v.UserName = id.Name
+		p := ui.Page{Title: i18n.T(ctx, "accept.join.title", info.HouseholdName, id.Name)}
+		s.render(w, r, http.StatusOK, ui.JoinInvite(p, v))
+		return
+	}
 	f := ui.Form{Values: map[string]string{"email": info.Email}}
 	p := ui.Page{Title: i18n.T(ctx, "accept.title")}
 	s.render(w, r, http.StatusOK, ui.AcceptInvite(p, v, f))
@@ -281,6 +287,10 @@ func (s *Server) acceptInviteSubmit(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	w.Header().Set("Referrer-Policy", "no-referrer")
 	token := r.PathValue("token")
+	if id, ok := auth.FromContext(ctx); ok {
+		s.joinInvite(w, r, id, token)
+		return
+	}
 	f := formOf(r, "name", "username", "email")
 	session, err := s.auth.AcceptInvite(ctx, token, auth.AcceptInput{
 		Name:      f.Value("name"),
@@ -310,4 +320,21 @@ func (s *Server) acceptInviteSubmit(w http.ResponseWriter, r *http.Request) {
 	s.endCurrentSession(r)
 	s.auth.SetSessionCookie(w, r, session)
 	seeOther(w, r, "/")
+}
+
+// joinInvite adds the signed-in user to the invite's household and opens it.
+func (s *Server) joinInvite(w http.ResponseWriter, r *http.Request, id *auth.Identity, token string) {
+	householdID, err := s.auth.JoinInvite(r.Context(), id, token)
+	if errors.Is(err, auth.ErrAlreadyMember) {
+		err = s.auth.SwitchHousehold(r.Context(), id, householdID)
+	}
+	if errors.Is(err, auth.ErrInviteInvalid) {
+		s.renderInviteInvalid(w, r)
+		return
+	}
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	seeOther(w, r, "/recipes")
 }

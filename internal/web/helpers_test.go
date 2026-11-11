@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"net/http"
@@ -166,4 +167,36 @@ func startMailServer(t *testing.T, db *store.DB) (*Server, *httptest.Server, *ma
 	rec := mailtest.New()
 	s.mailer = rec
 	return s, srv, rec
+}
+
+// addHousehold inserts a second household with one admin (password
+// adminPassword) next to the one setup created.
+func addHousehold(t *testing.T, db *store.DB, household, admin string) {
+	t.Helper()
+	hash, err := auth.HashPassword(adminPassword)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hid, uid, now := store.NewID(), store.NewID(), store.Now()
+	err = db.System().Tx(t.Context(), func(ctx context.Context, q store.Querier) error {
+		for _, st := range []struct {
+			sql  string
+			args []any
+		}{
+			{`INSERT INTO households (id, name, timezone, week_start, default_language, created_at, updated_at)
+				VALUES (?, ?, 'UTC', 'mon', 'en', ?, ?)`, []any{hid, household, now, now}},
+			{`INSERT INTO users (id, username, username_key, name, email, password_hash, avatar_color, theme, language, created_at, updated_at)
+				VALUES (?, ?, ?, ?, NULL, ?, 'sky', 'system', NULL, ?, ?)`, []any{uid, admin, auth.UsernameKey(admin), admin, hash, now, now}},
+			{`INSERT INTO memberships (household_id, user_id, role, removed_at, created_at, updated_at)
+				VALUES (?, ?, 'admin', NULL, ?, ?)`, []any{hid, uid, now, now}},
+		} {
+			if _, err := q.Exec(ctx, st.sql, st.args...); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 }

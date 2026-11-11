@@ -228,3 +228,68 @@ func mustToken(t *testing.T, s *Service, ctx context.Context) string {
 	}
 	return tok
 }
+
+// TestJoinInvite covers an existing user accepting an invite to a second
+// household, including rejoining after leaving.
+func TestJoinInvite(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		ctx := t.Context()
+		s, _ := newService(t, db)
+		a := addHousehold(t, db, "a")
+		b := addHousehold(t, db, "b")
+		tok, err := s.SignIn(ctx, "a-member", testPassword, "ua")
+		if err != nil {
+			t.Fatal(err)
+		}
+		id, _, err := s.Authenticate(ctx, tok)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if _, err := s.JoinInvite(ctx, id, "nope"); !errors.Is(err, ErrInviteInvalid) {
+			t.Errorf("unknown token: %v", err)
+		}
+		invite, err := s.CreateInvite(ctx, b.sc, b.admin, RoleAdmin, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		hh, err := s.JoinInvite(ctx, id, invite)
+		if err != nil || hh != b.household {
+			t.Fatalf("JoinInvite = %s, %v", hh, err)
+		}
+		if m, err := s.Member(ctx, b.sc, a.member); err != nil || m.Role != RoleAdmin {
+			t.Errorf("membership in b: %+v, %v", m, err)
+		}
+		if _, err := s.JoinInvite(ctx, id, invite); !errors.Is(err, ErrInviteInvalid) {
+			t.Errorf("used invite: %v", err)
+		}
+		if id2, _, err := s.Authenticate(ctx, tok); err != nil || id2.HouseholdID != b.household {
+			t.Errorf("session after join: %+v, %v", id2, err)
+		}
+
+		// Already a member: invite kept, nothing changes.
+		again, err := s.CreateInvite(ctx, b.sc, b.admin, RoleMember, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if hh, err := s.JoinInvite(ctx, id, again); !errors.Is(err, ErrAlreadyMember) || hh != b.household {
+			t.Errorf("already a member: %s, %v", hh, err)
+		}
+		if inv, _ := s.PendingInvites(ctx, b.sc); len(inv) != 1 {
+			t.Errorf("invite consumed by an existing member: %d pending", len(inv))
+		}
+
+		// Leave and rejoin with a member invite: role follows the invite.
+		inB := *id
+		inB.HouseholdID = b.household
+		if _, err := s.LeaveHousehold(ctx, &inB, b.household); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.JoinInvite(ctx, &inB, again); err != nil {
+			t.Fatal(err)
+		}
+		if m, err := s.Member(ctx, b.sc, a.member); err != nil || m.Role != RoleMember {
+			t.Errorf("rejoined membership: %+v, %v", m, err)
+		}
+	})
+}

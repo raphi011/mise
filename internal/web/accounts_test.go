@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
+
 	"github.com/raphi011/mise/internal/config"
 	"github.com/raphi011/mise/internal/store"
 	"github.com/raphi011/mise/internal/store/storetest"
@@ -358,4 +360,45 @@ func TestSecurityHeaders(t *testing.T) {
 	if got := b.get("/sw.js").expect(t, "service worker", http.StatusOK).header.Get("Cache-Control"); got != "no-cache" {
 		t.Errorf("service worker Cache-Control = %q", got)
 	}
+}
+
+// TestJoinSecondHousehold: a signed-in user opens an invite from another
+// household, confirms, and ends up a member of both.
+func TestJoinSecondHousehold(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		s, srv := startServer(t, db)
+		anna := newBrowser(t, srv.URL)
+		paul := newBrowser(t, srv.URL)
+		anna.post("/setup", setupForm(srv.URL)).expect(t, "setup", http.StatusSeeOther)
+		addHousehold(t, db, "Parents", "paul")
+		paul.post("/signin", url.Values{"username": {"paul"}, "password": {adminPassword}}).expect(t, "paul signs in", http.StatusSeeOther)
+		paul.post("/settings/invites", url.Values{"role": {"member"}}).expect(t, "invite", http.StatusSeeOther)
+		link := inviteLinkRe.FindStringSubmatch(paul.get("/settings/invite").body)[1]
+
+		p := anna.get(link).expect(t, "join page", http.StatusOK)
+		if !strings.Contains(p.body, "Join Parents as Anna") || strings.Contains(p.body, `name="password"`) {
+			t.Errorf("join page:\n%.800s", p.body)
+		}
+		anna.post(link, nil).expect(t, "join", http.StatusSeeOther, "/recipes")
+		anna.get(link).expect(t, "used invite", http.StatusNotFound)
+
+		var uid uuid.UUID
+		if err := db.System().Read().Get(t.Context(), &uid, `SELECT id FROM users WHERE username_key = 'anna'`); err != nil {
+			t.Fatal(err)
+		}
+		hs, err := s.auth.Households(t.Context(), uid)
+		if err != nil || len(hs) != 2 || hs[0].Name != "Home" || hs[1].Name != "Parents" {
+			t.Errorf("households = %+v, %v", hs, err)
+		}
+		anna.get("/recipes").expect(t, "recipes in the new household", http.StatusOK)
+
+		// Signed out, the invite page offers sign-in and returns to it.
+		out := newBrowser(t, srv.URL)
+		paul.post("/settings/invites", url.Values{"role": {"member"}}).expect(t, "invite", http.StatusSeeOther)
+		link2 := inviteLinkRe.FindStringSubmatch(paul.get("/settings/invite").body)[1]
+		p = out.get(link2).expect(t, "signed-out invite", http.StatusOK)
+		if !strings.Contains(p.body, `href="/signin?next=%2Finvite%2F`) {
+			t.Error("sign-in link does not return to the invite")
+		}
+	})
 }

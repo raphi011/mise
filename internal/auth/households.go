@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 
 	"github.com/google/uuid"
@@ -12,6 +13,10 @@ import (
 // ErrLastHousehold means the user tried to leave the only household they
 // belong to; an account always has one.
 var ErrLastHousehold = errors.New("auth: cannot leave your last household")
+
+// ErrAlreadyMember means the user opened an invite to a household they
+// already belong to.
+var ErrAlreadyMember = errors.New("auth: already a member of this household")
 
 // HouseholdInfo is one of the user's active households.
 type HouseholdInfo struct {
@@ -131,4 +136,63 @@ func (s *Service) LeaveHousehold(ctx context.Context, id *Identity, householdID 
 		return err
 	})
 	return moved, err
+}
+
+// JoinInvite adds the signed-in user to the household of a valid invite with
+// the invite's role, marks the invite used and moves the identity's session
+// there. A member who left earlier gets their membership back. It returns
+// ErrInviteInvalid for a bad token. When the user is already an active member
+// it changes nothing, keeps the invite and returns ErrAlreadyMember with the
+// household's ID.
+func (s *Service) JoinInvite(ctx context.Context, id *Identity, token string) (uuid.UUID, error) {
+	if id.SessionID == "" {
+		return uuid.Nil, ErrNotFound
+	}
+	var householdID uuid.UUID
+	err := s.db.System().Tx(ctx, func(ctx context.Context, q store.Querier) error {
+		now := s.clock()
+		var inv struct {
+			ID          uuid.UUID
+			HouseholdID uuid.UUID
+			Role        Role
+		}
+		err := q.Get(ctx, &inv, `SELECT id, household_id, role FROM invites
+			WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?`, hashToken(token), now)
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrInviteInvalid
+		}
+		if err != nil {
+			return err
+		}
+		householdID = inv.HouseholdID
+
+		var removed *store.Time
+		err = q.Get(ctx, &removed, `SELECT removed_at FROM memberships WHERE household_id = ? AND user_id = ?`, inv.HouseholdID, id.UserID)
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			if err := insertMembership(ctx, q, inv.HouseholdID, id.UserID, inv.Role, now); err != nil {
+				return err
+			}
+		case err != nil:
+			return err
+		case removed == nil:
+			return ErrAlreadyMember
+		default:
+			if _, err := q.Exec(ctx, `UPDATE memberships SET role = ?, removed_at = NULL, updated_at = ?
+				WHERE household_id = ? AND user_id = ?`, inv.Role, now, inv.HouseholdID, id.UserID); err != nil {
+				return err
+			}
+		}
+		// Conditional on still being unused, as in AcceptInvite.
+		r, err := q.Exec(ctx, `UPDATE invites SET used_at = ?, used_by = ?, updated_at = ?
+			WHERE id = ? AND used_at IS NULL`, now, id.UserID, now, inv.ID)
+		if err != nil {
+			return err
+		}
+		if err := mustAffect(r); err != nil {
+			return ErrInviteInvalid
+		}
+		return s.moveSession(ctx, q, id, inv.HouseholdID)
+	})
+	return householdID, err
 }

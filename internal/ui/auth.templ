@@ -1,6 +1,10 @@
 package ui
 
-import "github.com/raphi011/mise/internal/i18n"
+import (
+	"net/url"
+
+	"github.com/raphi011/mise/internal/i18n"
+)
 
 // AuthLayout frames the signed-out pages: a brand panel beside the form on
 // wide screens, the form alone on phones.
@@ -262,6 +266,9 @@ type InviteView struct {
 	// Expires is the translated remaining validity, e.g. "Invite expires in
 	// 6 days."
 	Expires string
+	// UserName is the signed-in user the invite is shown to, empty when
+	// signed out.
+	UserName string
 }
 
 templ invitePanel(v InviteView) {
@@ -298,8 +305,30 @@ templ AcceptInvite(p Page, v InviteView, form Form) {
 		</form>
 		<p class="auth__footer">
 			{ i18n.T(ctx, "accept.haveAccount") }
-			<a href="/signin">{ i18n.T(ctx, "signin.title") }</a>
+			<a href={ templ.SafeURL("/signin?next=" + url.QueryEscape("/invite/"+v.Token)) }>{ i18n.T(ctx, "signin.title") }</a>
 		</p>
+	}
+}
+
+// JoinInvite is the invite page for a signed-in user: no account to create,
+// one button to join.
+templ JoinInvite(p Page, v InviteView) {
+	@AuthLayout(p, invitePanel(v)) {
+		<div class="invited-card">
+			@avatar(v.InviterName, v.InviterColor, "")
+			<span class="invited-card__text">
+				<span class="invited-card__title">{ i18n.T(ctx, "accept.invitedYou", v.InviterName) }</span>
+				<span>{ i18n.T(ctx, "accept.share", v.HouseholdName) }</span>
+			</span>
+		</div>
+		<div class="auth__intro">
+			<h1 class="auth__title">{ i18n.T(ctx, "accept.join.title", v.HouseholdName, v.UserName) }</h1>
+			<p class="auth__lead">{ i18n.T(ctx, "accept.join.lead") }</p>
+		</div>
+		<form class="stack" method="post" action={ templ.SafeURL("/invite/" + v.Token) }>
+			<button class="btn btn--primary btn--block" type="submit">{ i18n.T(ctx, "accept.join.submit") }</button>
+			<a class="btn btn--secondary btn--block" href="/recipes">{ i18n.T(ctx, "accept.join.cancel") }</a>
+		</form>
 	}
 }
 
