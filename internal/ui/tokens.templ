@@ -21,9 +21,19 @@ type TokenRow struct {
 	ID    string
 	Name  string
 	Scope string
-	// Detail says when it was made, last used and expires, translated.
-	Detail  string
-	Expired bool
+	// Write marks a token that can change data, for the pill's colour.
+	Write bool
+	// Created, LastUsed and Expires are translated facts; Expires is empty
+	// for a token that never expires.
+	Created  string
+	LastUsed string
+	Expires  string
+	Expired  bool
+}
+
+// Curl is the example request for token.
+func (v TokensView) Curl() string {
+	return "curl -H \"Authorization: Bearer " + v.NewToken + "\" " + v.BaseURL + "/api/v1/me"
 }
 
 templ Tokens(p Page, v TokensView) {
@@ -32,19 +42,31 @@ templ Tokens(p Page, v TokensView) {
 		<div class="stack-lg">
 			<p class="lead">{ i18n.T(ctx, "tokens.lead") }</p>
 			if v.NewToken != "" {
-				<section class="stack" data-signals:copied="false" aria-labelledby="new-token-title">
-					<h2 class="settings-section__title" id="new-token-title">{ i18n.T(ctx, "tokens.new") }</h2>
+				<section class="card callout stack" data-signals:copied="false" aria-labelledby="new-token-title">
+					<div class="stack-sm">
+						<h2 class="card__title" id="new-token-title">{ i18n.T(ctx, "tokens.new") }</h2>
+						<p class="callout__warn" id="new-token-hint">{ i18n.T(ctx, "tokens.newHint") }</p>
+					</div>
 					<div class="link-box">
 						<input class="link-box__input" id="new-token" type="text" readonly value={ v.NewToken } aria-describedby="new-token-hint"/>
 						<button
-							class="btn btn--secondary btn--small"
+							class="btn btn--primary btn--small"
 							type="button"
 							data-on:click="const t = document.getElementById('new-token'); navigator.clipboard.writeText(t.value).then(() => { $copied = true }, () => { t.focus(); t.select() })"
 						>{ i18n.T(ctx, "invite.copy") }</button>
 					</div>
-					<span class="field__hint" id="new-token-hint">{ i18n.T(ctx, "tokens.newHint") }</span>
-					<p class="notice" role="status" aria-live="polite" data-copied={ i18n.T(ctx, "invite.copied") } data-text="$copied ? el.dataset.copied : ''"></p>
-					<pre class="code-box"><code>{ "curl -H \"Authorization: Bearer " + v.NewToken + "\" " + v.BaseURL + "/api/v1/me" }</code></pre>
+					<div class="stack-sm">
+						<div class="callout__row">
+							<span class="field__label">{ i18n.T(ctx, "tokens.try") }</span>
+							<button
+								class="btn btn--ghost btn--small"
+								type="button"
+								data-on:click="navigator.clipboard.writeText(document.getElementById('new-token-curl').textContent).then(() => { $copied = true })"
+							>{ i18n.T(ctx, "tokens.copyCommand") }</button>
+						</div>
+						<pre class="code-box code-box--wrap"><code id="new-token-curl">{ v.Curl() }</code></pre>
+					</div>
+					<p class="notice" role="status" aria-live="polite" data-copied={ i18n.T(ctx, "tokens.copied") } data-text="$copied ? el.dataset.copied : ''"></p>
 				</section>
 			}
 			<section class="settings-section settings-section--plain" aria-labelledby="tokens-title">
@@ -52,53 +74,67 @@ templ Tokens(p Page, v TokensView) {
 					<h2 class="settings-section__title" id="tokens-title">{ i18n.T(ctx, "tokens.title") }</h2>
 				</div>
 				if len(v.Tokens) == 0 {
-					<p class="muted">{ i18n.T(ctx, "tokens.none") }</p>
+					<p class="empty-card">{ i18n.T(ctx, "tokens.none") }</p>
 				} else {
 					<ul class="list" role="list">
 						for _, t := range v.Tokens {
-							<li class="list__row">
+							<li class="list__row token-row">
 								<span class="list__link">
 									<span class="list__text">
-										<span>{ t.Name } <span class="role-label">{ t.Scope }</span></span>
-										<span class={ "muted", templ.KV("muted--warn", t.Expired) }>{ t.Detail }</span>
+										<span class="token-row__head">
+											<span class="token-row__name">{ t.Name }</span>
+											<span class={ "badge", "badge--small", templ.KV("badge--warn", t.Write) }>{ t.Scope }</span>
+										</span>
+										<span class="token-row__facts">
+											<span class="muted">{ t.Created }</span>
+											<span class="muted">{ t.LastUsed }</span>
+											if t.Expires != "" {
+												<span class={ "muted", templ.KV("muted--warn", t.Expired) }>{ t.Expires }</span>
+											}
+										</span>
 									</span>
 								</span>
-								@postButton("/settings/account/tokens/"+t.ID+"/revoke", i18n.T(ctx, "tokens.revoke"), "btn btn--ghost btn--small", nil)
+								@postButton("/settings/account/tokens/"+t.ID+"/revoke", i18n.T(ctx, "tokens.revoke"), "btn btn--destructive btn--small", nil)
 							</li>
 						}
 					</ul>
 				}
 			</section>
-			<form class="stack" method="post" action="/settings/account/tokens" novalidate>
-				<h2 class="settings-section__title">{ i18n.T(ctx, "tokens.create") }</h2>
-				@formAlert(v.Form)
-				@textField(Field{ID: "token-name", Name: "name", Label: i18n.T(ctx, "tokens.name"), Required: true, Hint: i18n.T(ctx, "tokens.nameHint"),
-					Attrs: templ.Attributes{"autocomplete": "off"}}, v.Form)
-				<fieldset class="choices" aria-describedby="token-scope-error">
-					<legend class="field__label">{ i18n.T(ctx, "tokens.scope") }</legend>
-					for _, o := range v.Scopes {
-						<label class="choice">
-							<input type="radio" name="scope" value={ o.Value } checked?={ v.Form.Value("scope") == o.Value }/>
-							<span class="choice__text">
-								<span class="choice__title">{ o.Label }</span>
-								<span class="choice__hint">{ o.Hint }</span>
-							</span>
-						</label>
-					}
-					@fieldError("token-scope-error", v.Form.Error("scope"))
-				</fieldset>
-				<div class="field">
-					<label class="field__label" for="token-expiry">{ i18n.T(ctx, "tokens.expiry") }</label>
-					<select class="input" id="token-expiry" name="expiry">
-						for _, o := range v.Expiry {
-							<option value={ o.Value } selected?={ v.Form.Value("expiry") == o.Value }>{ o.Label }</option>
-						}
-					</select>
-				</div>
-				<div>
-					<button class="btn btn--primary" type="submit">{ i18n.T(ctx, "tokens.createButton") }</button>
-				</div>
-			</form>
+				<details class="card disclosure" open?={ len(v.Tokens) == 0 || v.Form.HasErrors() }>
+					<summary class="disclosure__summary">
+						<span class="list__text">{ i18n.T(ctx, "tokens.createSummary") }</span>
+						@chevron()
+					</summary>
+					<form class="stack disclosure__body token-form" method="post" action="/settings/account/tokens" novalidate>
+						@formAlert(v.Form)
+						@textField(Field{ID: "token-name", Name: "name", Label: i18n.T(ctx, "tokens.name"), Required: true, Hint: i18n.T(ctx, "tokens.nameHint"),
+							Attrs: templ.Attributes{"autocomplete": "off"}}, v.Form)
+						<fieldset class="choices" aria-describedby="token-scope-error">
+							<legend class="field__label">{ i18n.T(ctx, "tokens.scope") }</legend>
+							for _, o := range v.Scopes {
+								<label class="choice">
+									<input type="radio" name="scope" value={ o.Value } checked?={ v.Form.Value("scope") == o.Value }/>
+									<span class="choice__text">
+										<span class="choice__title">{ o.Label }</span>
+										<span class="choice__hint">{ o.Hint }</span>
+									</span>
+								</label>
+							}
+							@fieldError("token-scope-error", v.Form.Error("scope"))
+						</fieldset>
+						<div class="field">
+							<label class="field__label" for="token-expiry">{ i18n.T(ctx, "tokens.expiry") }</label>
+							<select class="input" id="token-expiry" name="expiry">
+								for _, o := range v.Expiry {
+									<option value={ o.Value } selected?={ v.Form.Value("expiry") == o.Value }>{ o.Label }</option>
+								}
+							</select>
+						</div>
+						<div>
+							<button class="btn btn--primary" type="submit">{ i18n.T(ctx, "tokens.createButton") }</button>
+						</div>
+					</form>
+				</details>
 		</div>
 	}
 }

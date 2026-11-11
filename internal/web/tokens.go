@@ -58,21 +58,21 @@ func (s *Server) renderTokens(w http.ResponseWriter, r *http.Request, status int
 	now := s.now()
 	loc := location(id)
 	for _, t := range tokens {
-		row := ui.TokenRow{ID: t.ID.String(), Name: t.Name, Scope: i18n.T(ctx, scopeLabel(t.Scope))}
-		last := i18n.T(ctx, "tokens.neverUsed")
-		if t.LastUsedAt != nil {
-			last = i18n.T(ctx, "tokens.lastUsed", t.LastUsedAt.In(loc).Format("2006-01-02"))
+		row := ui.TokenRow{
+			ID: t.ID.String(), Name: t.Name, Scope: i18n.T(ctx, scopeLabel(t.Scope)), Write: t.Scope == auth.ScopeWrite,
+			Created:  i18n.T(ctx, "tokens.created", t.CreatedAt.In(loc).Format("2006-01-02")),
+			LastUsed: i18n.T(ctx, "tokens.neverUsed"),
 		}
-		detail := i18n.T(ctx, "tokens.created", t.CreatedAt.In(loc).Format("2006-01-02")) + " · " + last
+		if t.LastUsedAt != nil {
+			row.LastUsed = i18n.T(ctx, "tokens.lastUsed", t.LastUsedAt.In(loc).Format("2006-01-02"))
+		}
 		if t.ExpiresAt != nil {
 			row.Expired = !now.Before(*t.ExpiresAt)
+			row.Expires = i18n.T(ctx, "tokens.expires", t.ExpiresAt.In(loc).Format("2006-01-02"))
 			if row.Expired {
-				detail += " · " + i18n.T(ctx, "tokens.expired")
-			} else {
-				detail += " · " + i18n.T(ctx, "tokens.expires", t.ExpiresAt.In(loc).Format("2006-01-02"))
+				row.Expires = i18n.T(ctx, "tokens.expiredOn", t.ExpiresAt.In(loc).Format("2006-01-02"))
 			}
 		}
-		row.Detail = detail
 		v.Tokens = append(v.Tokens, row)
 	}
 	v.Scopes = []ui.Option{

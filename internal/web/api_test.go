@@ -294,6 +294,11 @@ func TestAPITokenPage(t *testing.T) {
 		if strings.Contains(p.body, tok) || !strings.Contains(p.body, "Agent-7") || !strings.Contains(p.body, "Read and write") {
 			t.Errorf("token page after creation:\n%s", p.body)
 		}
+		for _, want := range []string{"token-row__facts", "never used", `id="token-name"`} {
+			if !strings.Contains(p.body, want) {
+				t.Errorf("token page lacks %q", want)
+			}
+		}
 		if p.header.Get("Cache-Control") != "no-store" {
 			t.Error("tokens page is cacheable")
 		}
