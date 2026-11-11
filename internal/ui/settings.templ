@@ -335,6 +335,13 @@ templ Account(p Page, v AccountView) {
 							</span>
 						</div>
 					}
+					<a class="list__link" href="/settings/households">
+						<span class="list__text">
+							<span>{ i18n.T(ctx, "account.households") }</span>
+							<span class="muted">{ i18n.T(ctx, "account.householdsNote") }</span>
+						</span>
+						@chevron()
+					</a>
 					<a class="list__link" href="/settings/account/tokens">
 						<span class="list__text">
 							<span>{ i18n.T(ctx, "account.tokens") }</span>

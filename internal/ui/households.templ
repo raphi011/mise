@@ -1,0 +1,195 @@
+package ui
+
+import "github.com/raphi011/mise/internal/i18n"
+
+// HouseholdItem is one household the user belongs to.
+type HouseholdItem struct {
+	ID   string
+	Name string
+	// Role is the translated role, e.g. "Admin".
+	Role    string
+	Current bool
+}
+
+// HouseholdSwitcher is set on Page when the user belongs to two or more
+// households; the selector is not rendered otherwise.
+type HouseholdSwitcher struct {
+	Current HouseholdItem
+	Items   []HouseholdItem
+}
+
+// householdColors is the palette tiles take their colour from, picked by a
+// stable hash of the name so a household keeps its colour everywhere.
+var householdColors = []string{"herb", "amber", "sky", "coral", "sand", "plum"}
+
+func householdTile(name string) string {
+	var h uint32
+	for _, r := range name {
+		h = h*31 + uint32(r)
+	}
+	return "hh-tile avatar--" + householdColors[h%uint32(len(householdColors))]
+}
+
+const openHouseholdSheet = "document.getElementById('household-sheet').showModal()"
+
+// householdChip sits above the page title below the sidebar breakpoint. It
+// is a link to the households page; with JavaScript it opens the sheet.
+templ householdChip(sw *HouseholdSwitcher) {
+	<a
+		class="hh-chip"
+		href="/settings/households"
+		aria-haspopup="dialog"
+		aria-label={ i18n.T(ctx, "household.switchLabel", sw.Current.Name) }
+		data-on:click__prevent={ openHouseholdSheet }
+	>
+		<span class={ householdTile(sw.Current.Name), "hh-tile--small" } aria-hidden="true">{ Initial(sw.Current.Name) }</span>
+		<span class="hh-chip__name">{ sw.Current.Name }</span>
+		<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>
+	</a>
+}
+
+// householdNavControl heads the desktop sidebar.
+templ householdNavControl(sw *HouseholdSwitcher) {
+	<a
+		class="hh-nav"
+		href="/settings/households"
+		aria-haspopup="dialog"
+		aria-label={ i18n.T(ctx, "household.switchLabel", sw.Current.Name) }
+		data-on:click__prevent={ openHouseholdSheet }
+	>
+		<span class={ householdTile(sw.Current.Name) } aria-hidden="true">{ Initial(sw.Current.Name) }</span>
+		<span class="hh-nav__text">
+			<span class="hh-nav__label">{ i18n.T(ctx, "household.label") }</span>
+			<span class="hh-nav__name">{ sw.Current.Name }</span>
+		</span>
+		<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 9l5-4 5 4M7 15l5 4 5-4"></path></svg>
+	</a>
+}
+
+// householdSheet lists the households to switch to. Each row is a form
+// post, so it works without JavaScript too (the sheet is only opened by the
+// scripted chip).
+templ householdSheet(sw *HouseholdSwitcher) {
+	<dialog id="household-sheet" class="sheet-dialog" aria-labelledby="household-sheet-title">
+		<div class="sheet__head">
+			<h2 class="sheet__title" id="household-sheet-title">{ i18n.T(ctx, "household.switch") }</h2>
+			<button type="button" class="icon-btn" aria-label={ i18n.T(ctx, "groceries.edit.close") } data-on:click="el.closest('dialog').close()">
+				@iconClose()
+			</button>
+		</div>
+		<ul class="hh-list" role="list">
+			for _, h := range sw.Items {
+				<li>
+					if h.Current {
+						<div class="hh-option hh-option--current" aria-current="true">
+							@householdOptionBody(h)
+							<span class="hh-option__check" role="img" aria-label={ i18n.T(ctx, "household.current") }>
+								@iconCheck(22)
+							</span>
+						</div>
+					} else {
+						<form method="post" action={ templ.SafeURL("/settings/households/" + h.ID + "/switch") }>
+							<button type="submit" class="hh-option">
+								@householdOptionBody(h)
+							</button>
+						</form>
+					}
+				</li>
+			}
+		</ul>
+		<a class="hh-manage" href="/settings/households">
+			{ i18n.T(ctx, "household.manage") }
+			@chevron()
+		</a>
+	</dialog>
+}
+
+templ householdOptionBody(h HouseholdItem) {
+	<span class={ householdTile(h.Name) } aria-hidden="true">{ Initial(h.Name) }</span>
+	<span class="hh-option__text">
+		<span class="hh-option__name">{ h.Name }</span>
+		<span class="muted">{ h.Role }</span>
+	</span>
+}
+
+// HouseholdsView is Settings › Account › Your households.
+type HouseholdsView struct {
+	Items  []HouseholdItem
+	Form   Form
+	Notice string
+	// LeaveError is the translated reason a leave was refused.
+	LeaveError string
+	// LeaveID is the household LeaveError belongs to, kept open.
+	LeaveID string
+}
+
+templ Households(p Page, v HouseholdsView) {
+	@Layout(p) {
+		@notice(v.Notice)
+		<div class="stack-lg">
+			<p class="lead">{ i18n.T(ctx, "households.lead") }</p>
+			<section class="settings-section settings-section--plain" aria-labelledby="hh-mine">
+				<div class="settings-section__head">
+					<h2 class="settings-section__title" id="hh-mine">{ i18n.T(ctx, "households.memberOf") }</h2>
+				</div>
+				<ul class="list" role="list">
+					for _, h := range v.Items {
+						<li class="list__row">
+							<span class="list__link">
+								<span class={ householdTile(h.Name) } aria-hidden="true">{ Initial(h.Name) }</span>
+								<span class="list__text">
+									<span class="hh-name">
+										{ h.Name }
+										if h.Current {
+											<span class="hh-badge">{ i18n.T(ctx, "households.active") }</span>
+										}
+									</span>
+									<span class="muted">{ h.Role }</span>
+								</span>
+							</span>
+							if !h.Current {
+								@postButton("/settings/households/"+h.ID+"/switch", i18n.T(ctx, "households.switch"), "btn btn--secondary btn--small", nil)
+							}
+						</li>
+					}
+				</ul>
+			</section>
+			<section class="settings-section settings-section--plain" aria-labelledby="hh-join">
+				<div class="settings-section__head">
+					<h2 class="settings-section__title" id="hh-join">{ i18n.T(ctx, "households.join") }</h2>
+				</div>
+				<form class="card stack" method="post" action="/settings/households/join" novalidate>
+					@formAlert(v.Form)
+					<div class="inline-field">
+						@textField(Field{ID: "household-link", Name: "link", Label: i18n.T(ctx, "households.link"), Autocomplete: "off", Attrs: templ.Attributes{"placeholder": i18n.T(ctx, "households.linkPlaceholder")}}, v.Form)
+						<button class="btn btn--primary" type="submit">{ i18n.T(ctx, "households.joinButton") }</button>
+					</div>
+					<span class="field__hint">{ i18n.T(ctx, "households.joinHint") }</span>
+				</form>
+			</section>
+			if len(v.Items) > 1 {
+				<section class="settings-section settings-section--plain" aria-labelledby="hh-leave">
+					<div class="settings-section__head">
+						<h2 class="settings-section__title" id="hh-leave">{ i18n.T(ctx, "households.leave") }</h2>
+					</div>
+					<div class="list">
+						for _, h := range v.Items {
+							<details class="disclosure" open?={ v.LeaveID == h.ID }>
+								<summary class="list__link hh-leave">{ i18n.T(ctx, "households.leaveNamed", h.Name) }</summary>
+								<form class="stack disclosure__body" method="post" action={ templ.SafeURL("/settings/households/" + h.ID + "/leave") }>
+									if v.LeaveID == h.ID && v.LeaveError != "" {
+										<p class="field__error" role="alert">{ v.LeaveError }</p>
+									}
+									<p class="field__hint">{ i18n.T(ctx, "households.leaveNote") }</p>
+									<div>
+										<button class="btn btn--destructive" type="submit">{ i18n.T(ctx, "households.leaveConfirm", h.Name) }</button>
+									</div>
+								</form>
+							</details>
+						}
+					</div>
+				</section>
+			}
+		</div>
+	}
+}

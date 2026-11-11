@@ -4,6 +4,8 @@ import "github.com/raphi011/mise/internal/i18n"
 
 // TokensView is Account › API tokens.
 type TokensView struct {
+	// Household is the active household the tokens belong to.
+	Household string
 	Form   Form
 	Scopes []Option
 	// Expiry lists the lifetimes a new token can have.
@@ -40,7 +42,7 @@ templ Tokens(p Page, v TokensView) {
 	@Layout(p) {
 		@notice(v.Notice)
 		<div class="stack-lg">
-			<p class="lead">{ i18n.T(ctx, "tokens.lead") }</p>
+			<p class="lead">{ i18n.T(ctx, "tokens.lead", v.Household) }</p>
 			if v.NewToken != "" {
 				<section class="card callout stack" data-signals:copied="false" aria-labelledby="new-token-title">
 					<div class="stack-sm">

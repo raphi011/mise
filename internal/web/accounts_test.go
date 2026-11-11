@@ -375,6 +375,9 @@ func TestJoinSecondHousehold(t *testing.T) {
 		paul.post("/settings/invites", url.Values{"role": {"member"}}).expect(t, "invite", http.StatusSeeOther)
 		link := inviteLinkRe.FindStringSubmatch(paul.get("/settings/invite").body)[1]
 
+		if strings.Contains(anna.get("/recipes").expect(t, "recipes", http.StatusOK).body, "hh-chip") {
+			t.Error("selector shown with one household")
+		}
 		p := anna.get(link).expect(t, "join page", http.StatusOK)
 		if !strings.Contains(p.body, "Join Parents as Anna") || strings.Contains(p.body, `name="password"`) {
 			t.Errorf("join page:\n%.800s", p.body)
@@ -390,7 +393,49 @@ func TestJoinSecondHousehold(t *testing.T) {
 		if err != nil || len(hs) != 2 || hs[0].Name != "Home" || hs[1].Name != "Parents" {
 			t.Errorf("households = %+v, %v", hs, err)
 		}
-		anna.get("/recipes").expect(t, "recipes in the new household", http.StatusOK)
+		p = anna.get("/recipes").expect(t, "recipes in the new household", http.StatusOK)
+		if !strings.Contains(p.body, "hh-chip") || !strings.Contains(p.body, `id="household-sheet"`) {
+			t.Error("selector missing with two households")
+		}
+		p = anna.get("/settings/households").expect(t, "households page", http.StatusOK)
+		if !strings.Contains(p.body, "Parents") || !strings.Contains(p.body, "Leave Home") {
+			t.Errorf("households page:\n%.1500s", p.body)
+		}
+		if !strings.Contains(anna.get("/settings/account/tokens").body, "in Parents") {
+			t.Error("tokens page does not name the active household")
+		}
+
+		// Switch back, never into a foreign household.
+		var home string
+		if err := db.System().Read().Get(t.Context(), &home, `SELECT id FROM households WHERE name = 'Home'`); err != nil {
+			t.Fatal(err)
+		}
+		var foreign string
+		addHousehold(t, db, "Other", "olga")
+		if err := db.System().Read().Get(t.Context(), &foreign, `SELECT id FROM households WHERE name = 'Other'`); err != nil {
+			t.Fatal(err)
+		}
+		anna.post("/settings/households/"+foreign+"/switch", nil).expect(t, "switch to foreign household", http.StatusNotFound)
+		anna.post("/settings/households/"+home+"/switch", nil).expect(t, "switch", http.StatusSeeOther, "/recipes")
+		if !strings.Contains(anna.get("/settings/account/tokens").body, "in Home") {
+			t.Error("tokens page does not follow the switch")
+		}
+		anna.post("/settings/households/join", url.Values{"link": {"https://x.example/invite/abc_-1"}}).
+			expect(t, "paste link", http.StatusSeeOther, "/invite/abc_-1")
+		anna.post("/settings/households/join", url.Values{"link": {"  "}}).expect(t, "empty link", http.StatusUnprocessableEntity)
+
+		// Leave: Anna is the only admin of Home, so only Parents can go.
+		anna.post("/settings/households/"+home+"/leave", nil).expect(t, "leave last admin", http.StatusConflict)
+		anna.post("/settings/households/"+foreign+"/leave", nil).expect(t, "leave foreign", http.StatusNotFound)
+		var parents string
+		if err := db.System().Read().Get(t.Context(), &parents, `SELECT id FROM households WHERE name = 'Parents'`); err != nil {
+			t.Fatal(err)
+		}
+		anna.post("/settings/households/"+parents+"/leave", nil).expect(t, "leave", http.StatusSeeOther, "/settings/households?done=left")
+		p = anna.get("/settings/households?done=left").expect(t, "after leaving", http.StatusOK)
+		if strings.Contains(p.body, "Leave Home") || strings.Contains(p.body, "Parents") {
+			t.Error("left household still listed")
+		}
 
 		// Signed out, the invite page offers sign-in and returns to it.
 		out := newBrowser(t, srv.URL)

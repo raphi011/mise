@@ -2922,3 +2922,116 @@ details.import-activity:not([open]) { gap: 0; }
 .card.disclosure { padding: 0 14px; }
 .card.disclosure > summary { justify-content: space-between; }
 .card.disclosure > summary .list__text { font-weight: 500; }
+
+/* ---- Households: selector chip, sidebar control, sheet, page ---- */
+.hh-tile {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--av-bg);
+  color: var(--av-fg);
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+}
+.hh-tile--small { width: 24px; height: 24px; border-radius: 8px; font-size: 12px; }
+
+.hh-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: fit-content;
+  max-width: 100%;
+  min-height: var(--target);
+  margin: 0 0 2px -8px;
+  padding: 0 10px 0 8px;
+  border-radius: 22px;
+  background: var(--herb-soft);
+  color: var(--herb-strong);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.hh-chip:hover { color: var(--herb-strong); }
+.hh-chip__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hh-chip .hh-tile { background: var(--surface); color: var(--herb); }
+.hh-chip svg { flex-shrink: 0; }
+
+.hh-nav { display: none; }
+
+/* From the rail up the selector lives in the navigation: a bare tile in the
+   88px rail, the labelled control in the 240px sidebar. */
+@media (min-width: 768px) {
+  .hh-chip { display: none; }
+  .hh-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ink);
+    text-decoration: none;
+  }
+  .hh-nav:hover { color: var(--ink); }
+  .hh-nav .hh-tile { width: var(--target); height: var(--target); border-radius: 14px; font-size: 18px; }
+  .hh-nav__text, .hh-nav > svg { display: none; }
+}
+
+@media (min-width: 1200px) {
+  .hh-nav {
+    justify-content: flex-start;
+    gap: 10px;
+    min-height: 52px;
+    padding: 6px 12px 6px 8px;
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    background: var(--ground);
+  }
+  .hh-nav:hover { background: var(--surface-2); }
+  .hh-nav .hh-tile { width: 32px; height: 32px; border-radius: 10px; font-size: 15px; }
+  .hh-nav > svg { display: block; flex-shrink: 0; color: var(--muted); }
+  .hh-nav__text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .hh-nav__label { font-size: 12px; color: var(--muted); }
+  .hh-nav__name { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+
+.hh-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--space-2); }
+.hh-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 68px;
+  padding: 8px 14px;
+  box-sizing: border-box;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.hh-option:hover { background: var(--surface-2); }
+.hh-option--current, .hh-option--current:hover { border: 1.5px solid var(--herb); background: var(--herb-soft); cursor: default; }
+.hh-option__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.hh-option__name { font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
+.hh-option__check { display: flex; color: var(--herb); }
+.hh-manage {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 48px;
+  padding: 0 4px;
+  color: var(--ink);
+  font-weight: 500;
+  text-decoration: none;
+}
+.hh-manage:hover { color: var(--ink); }
+
+.hh-name { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-weight: 600; overflow-wrap: anywhere; }
+.hh-badge { padding: 2px 8px; border-radius: 8px; background: var(--herb-soft); color: var(--herb); font-size: 11px; font-weight: 600; }
+.hh-leave { color: var(--danger); font-weight: 500; }
+.hh-leave:hover { color: var(--danger); }

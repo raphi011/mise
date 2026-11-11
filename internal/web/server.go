@@ -457,6 +457,10 @@ func (s *Server) routes(r *router) {
 	r.read("/settings", s.user(s.settingsPage))
 	r.write(http.MethodPost, "/settings/preferences", s.user(s.savePreferences))
 	r.read("/settings/account", s.user(s.accountPage))
+	r.read(householdsPath, s.user(s.householdsPage))
+	r.write(http.MethodPost, householdsPath+"/join", s.user(s.joinByLink))
+	r.write(http.MethodPost, householdsPath+"/{id}/switch", s.user(s.switchHousehold))
+	r.write(http.MethodPost, householdsPath+"/{id}/leave", s.user(s.leaveHousehold))
 	r.write(http.MethodPost, "/settings/account/profile", s.user(s.saveProfile))
 	r.write(http.MethodPost, "/settings/account/password", s.user(s.changePassword))
 	r.write(http.MethodPost, "/settings/account/sessions/revoke-others", s.user(s.revokeOtherSessions))
@@ -528,6 +532,7 @@ func (s *Server) page(r *http.Request, title string, nav ui.NavItem) ui.Page {
 	p := ui.Page{Title: title, Active: nav}
 	if id, ok := auth.FromContext(r.Context()); ok {
 		p.User = &ui.Viewer{Name: id.Name, Color: id.AvatarColor, Admin: id.IsAdmin()}
+		p.Households = s.switcher(r, id)
 		if id.Theme != "system" {
 			p.Theme = id.Theme
 		}

@@ -44,6 +44,9 @@ type Page struct {
 	// JavaScript (pages that follow a background job; with JavaScript the
 	// live stream updates them).
 	Refresh int
+	// Households is set when the user belongs to two or more households
+	// (the selector is left out otherwise).
+	Households *HouseholdSwitcher
 	// Public marks a page anyone may open (a recipe's public link): search
 	// engines are asked not to index it, links send no referrer, and the
 	// app's manifest and scripts are left out.
@@ -110,9 +113,12 @@ templ document(p Page) {
 templ Layout(p Page) {
 	@document(p) {
 		<div class="shell">
-			@nav(p.Active, p.User, p.NavExtra)
+			@nav(p.Active, p.User, p.NavExtra, p.Households)
 			<main class="main" id="main">
 				<div class="content">
+					if p.Households != nil && !p.Bar {
+						@householdChip(p.Households)
+					}
 					<header class={ "page-header", templ.KV("page-header--bar", p.Bar), templ.KV("page-header--settings", p.Settings != "") }>
 						if p.BackHref != "" && p.Bar {
 							<a class="btn btn--ghost btn--small page-header__cancel" href={ templ.SafeURL(p.BackHref) }>{ p.BackLabel }</a>
@@ -142,6 +148,9 @@ templ Layout(p Page) {
 				</div>
 			</main>
 		</div>
+		if p.Households != nil {
+			@householdSheet(p.Households)
+		}
 	}
 }
 
@@ -181,12 +190,15 @@ templ settingsNav(current string) {
 	</nav>
 }
 
-templ nav(active NavItem, user *Viewer, extra templ.Component) {
+templ nav(active NavItem, user *Viewer, extra templ.Component, households *HouseholdSwitcher) {
 	<nav class="nav" aria-label={ i18n.T(ctx, "nav.main") }>
 		<a class="nav__brand" href="/recipes" aria-label="mise">
 			@logo(32)
 			<span class="nav__brand-name" aria-hidden="true">mise</span>
 		</a>
+		if households != nil {
+			@householdNavControl(households)
+		}
 		<div class="nav__links">
 			@navLink("/recipes", i18n.T(ctx, "nav.recipes"), active == NavRecipes, iconRecipes())
 			@navLink("/plan", i18n.T(ctx, "nav.plan"), active == NavPlan, iconPlan())

@@ -38,6 +38,7 @@ var notices = map[string]i18n.Key{
 	"linked":          "notice.ssoLinked",
 	"unlinked":        "notice.ssoUnlinked",
 	"tokenRevoked":    "notice.tokenRevoked",
+	"left":            "notice.householdLeft",
 }
 
 func noticeFor(r *http.Request) string {

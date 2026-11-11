@@ -50,6 +50,7 @@ func (s *Server) tokensPage(w http.ResponseWriter, r *http.Request) {
 func (s *Server) renderTokens(w http.ResponseWriter, r *http.Request, status int, v ui.TokensView) {
 	ctx := r.Context()
 	id := identity(r)
+	v.Household = id.HouseholdName
 	tokens, err := s.auth.Tokens(ctx, id)
 	if err != nil {
 		s.serverError(w, r, err)
