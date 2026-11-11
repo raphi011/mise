@@ -103,6 +103,23 @@ Domain packages own their SQL and business rules; `web` handlers parse requests,
 - A test walks every scoped repository method against a two-household fixture and asserts no rows of the other household come back.
 - First run: setup page creates the household and the first admin. With one household, the household picker never renders.
 
+#### Multiple households per user (O4, proposed)
+
+A person can belong to several households (family, parents, flat share). The data model already allows it; the work is in sign-in, invites and the UI. The mockups are the "Household" boards of the app design canvas.
+
+- **No migration.** `users` are global, `memberships` is many-to-many, and `sessions.household_id` and `api_tokens.household_id` are composite FKs to `memberships(household_id, user_id)`. A session pins one active household; scoping, live events and the isolation tests stay as they are.
+- **Switching** is `POST /settings/households/{id}/switch`: it checks an active membership, updates `sessions.household_id` of the current session only (other devices keep theirs) and redirects to `/recipes`, never back to the page left, whose IDs belong to the old household. `internal/auth` owns it (it writes a global table). Open tabs of the old household keep their stream until reloaded; their writes hit the new household with foreign IDs and fail as not found, which scoping already guarantees.
+- **Sign-in** keeps starting in the oldest active membership. Remembering the last used household would need a column (`users.last_household_id`); not in the first cut.
+- **Selector** renders only with two or more active memberships: a chip above the page title on phones, a control at the top of the sidebar on desktop, and "Settings › Account › Your households" (list, Switch, join, leave). The list is loaded when a page renders (one query in `s.page`), not on every request, and is not part of `Identity`. Without JavaScript the chip links to the Account list, where Switch is a plain form post.
+- **Invites.** `/invite/{token}` today only creates an account. For a signed-in user it offers "Join {household} as {name}": `POST` adds the membership with the invite's role, marks the invite used and switches the session to it. A signed-out person with an account signs in first and opens the link again (it stays valid). Account creation is unchanged. The Account page gets a field to paste an invite link.
+- **Leaving** (`POST /settings/households/{id}/leave`): sets `removed_at` (attribution keeps working), deletes the member's sessions, API tokens and open invites for that household (the logic of member removal), refused for the last admin and for the user's last household. Leaving the active household switches the session to another one.
+- **API tokens** stay bound to one household, the active one when created. Account › API tokens names that household, and lists only its tokens.
+- **Per user, not per household:** name, avatar colour, theme, language, units, password and SSO links. The household's timezone, week start and default language apply to the active one.
+- **Out of scope:** creating a second household from the UI (it appears through an invite from another household or an operator), deleting a household, moving recipes between households.
+- **Tests:** `isolation_test.go` cases for switch (foreign household refused, removed member refused, other sessions untouched), invite accept for an existing user, leave rules, and a web test of the selector's visibility.
+
+Open questions: Q1 should the selector offer "New household"? Q2 should sign-in remember the last household (adds a column)? Q3 should leaving the last household be allowed (account without a household)?
+
 ### Database layer
 
 - One set of SQL statements for both engines. Portable subset: `RETURNING`, `ON CONFLICT`, partial indexes, `TRUE`/`FALSE` literals (or bound booleans). Placeholders written as `?`, rebound to `$n` for Postgres by a rebinder that skips quoted strings and comments.
