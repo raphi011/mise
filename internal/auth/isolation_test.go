@@ -1,8 +1,10 @@
 package auth
 
 import (
+	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -99,4 +101,130 @@ func TestHouseholdIsolation(t *testing.T) {
 			t.Errorf("password changed by the other household: %v", err)
 		}
 	})
+}
+
+// TestHouseholdSwitchAndLeave covers a user who belongs to two households:
+// switching moves only the current session and only into households the
+// user is an active member of; leaving follows the member-removal rules.
+func TestHouseholdSwitchAndLeave(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		ctx := t.Context()
+		s, clock := newService(t, db)
+		a := addHousehold(t, db, "a")
+		b := addHousehold(t, db, "b")
+		c := addHousehold(t, db, "c")
+
+		// a-member also joins b, one minute later so a stays the oldest.
+		_ = clock
+		err := db.System().Tx(ctx, func(ctx context.Context, q store.Querier) error {
+			return insertMembership(ctx, q, b.household, a.member, RoleMember, store.T(time.Now().Add(time.Minute)))
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		signIn := func() *Identity {
+			t.Helper()
+			tok, err := s.SignIn(ctx, "a-member", testPassword, "ua")
+			if err != nil {
+				t.Fatal(err)
+			}
+			id, _, err := s.Authenticate(ctx, tok)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return id
+		}
+		first, second := signIn(), signIn()
+		if first.HouseholdID != a.household {
+			t.Fatalf("sign-in household = %s, want the oldest membership", first.HouseholdID)
+		}
+
+		hs, err := s.Households(ctx, a.member)
+		if err != nil || len(hs) != 2 || hs[0].ID != a.household || hs[1].ID != b.household {
+			t.Fatalf("Households = %+v, %v", hs, err)
+		}
+		if hs, _ := s.Households(ctx, a.admin); len(hs) != 1 {
+			t.Errorf("single-household user lists %d households", len(hs))
+		}
+
+		// Foreign household refused, session untouched.
+		if err := s.SwitchHousehold(ctx, first, c.household); !errors.Is(err, ErrNotFound) {
+			t.Errorf("Switch to foreign household: %v", err)
+		}
+		if err := s.SwitchHousehold(ctx, first, b.household); err != nil {
+			t.Fatal(err)
+		}
+		current := func(id *Identity) uuid.UUID {
+			t.Helper()
+			var h uuid.UUID
+			if err := db.System().Read().Get(ctx, &h, `SELECT household_id FROM sessions WHERE id = ?`, id.SessionID); err != nil {
+				t.Fatal(err)
+			}
+			return h
+		}
+		if current(first) != b.household {
+			t.Errorf("switched session in %s, want b", current(first))
+		}
+		if current(second) != a.household {
+			t.Errorf("other session moved to %s", current(second))
+		}
+
+		// Leaving rules.
+		if _, err := s.LeaveHousehold(ctx, first, c.household); !errors.Is(err, ErrNotFound) {
+			t.Errorf("Leave foreign household: %v", err)
+		}
+		if _, err := s.LeaveHousehold(ctx, &Identity{UserID: a.admin, HouseholdID: a.household}, a.household); !errors.Is(err, ErrLastHousehold) {
+			t.Errorf("Leave last household: %v", err)
+		}
+		// Make a-member the only admin of a: leaving a is then refused.
+		if err := s.SetRole(ctx, a.sc, a.admin, a.member, RoleAdmin); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.SetRole(ctx, a.sc, a.admin, a.admin, RoleMember); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.LeaveHousehold(ctx, first, a.household); !errors.Is(err, ErrLastAdmin) {
+			t.Errorf("Leave as last admin: %v", err)
+		}
+		if err := s.SetRole(ctx, a.sc, a.member, a.admin, RoleAdmin); err != nil {
+			t.Fatal(err)
+		}
+
+		// Leave the active household b: the session moves to a, b's rows go.
+		inB := *first
+		inB.HouseholdID = b.household
+		if _, err := s.CreateToken(ctx, &inB, NewTokenInput{Name: "t", Scope: ScopeRead}); err != nil {
+			t.Fatalf("token: %v", err)
+		}
+		moved, err := s.LeaveHousehold(ctx, &inB, b.household)
+		if err != nil || moved != a.household {
+			t.Fatalf("Leave active household: moved %s, %v", moved, err)
+		}
+		if current(first) != a.household {
+			t.Errorf("session after leaving in %s, want a", current(first))
+		}
+		if _, err := s.Member(ctx, b.sc, a.member); !errors.Is(err, ErrNotFound) {
+			t.Errorf("still a member of b: %v", err)
+		}
+		var n int
+		if err := db.System().Read().QueryRow(ctx, `SELECT count(*) FROM api_tokens WHERE household_id = ? AND user_id = ?`,
+			b.household, a.member).Scan(&n); err != nil || n != 0 {
+			t.Errorf("tokens left in b: %d, %v", n, err)
+		}
+		if err := s.SwitchHousehold(ctx, first, b.household); !errors.Is(err, ErrNotFound) {
+			t.Errorf("Switch to household left: %v", err)
+		}
+		if _, _, err := s.Authenticate(ctx, mustToken(t, s, ctx)); err != nil {
+			t.Errorf("sign-in after leaving: %v", err)
+		}
+	})
+}
+
+func mustToken(t *testing.T, s *Service, ctx context.Context) string {
+	t.Helper()
+	tok, err := s.SignIn(ctx, "a-member", testPassword, "ua")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return tok
 }
