@@ -174,6 +174,9 @@ func (s *Service) ResetPassword(ctx context.Context, sc store.Scoped, actor, use
 		if err := dropResets(ctx, q, userID); err != nil {
 			return err
 		}
+		if _, err := q.Exec(ctx, `DELETE FROM api_tokens WHERE user_id = ?`, userID); err != nil {
+			return err
+		}
 		_, err := q.Exec(ctx, `DELETE FROM sessions WHERE user_id = ?`, userID)
 		return err
 	})
@@ -214,6 +217,9 @@ func (s *Service) RemoveMember(ctx context.Context, sc store.Scoped, actor, user
 			return err
 		}
 		if _, err := q.Exec(ctx, `DELETE FROM sessions WHERE household_id = ? AND user_id = ?`, hh, userID); err != nil {
+			return err
+		}
+		if _, err := q.Exec(ctx, `DELETE FROM api_tokens WHERE household_id = ? AND user_id = ?`, hh, userID); err != nil {
 			return err
 		}
 		if _, err := q.Exec(ctx, `DELETE FROM invites WHERE household_id = ? AND invited_by = ? AND used_at IS NULL`, hh, userID); err != nil {

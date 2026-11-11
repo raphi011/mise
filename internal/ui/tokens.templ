@@ -1,0 +1,104 @@
+package ui
+
+import "github.com/raphi011/mise/internal/i18n"
+
+// TokensView is Account › API tokens.
+type TokensView struct {
+	Form   Form
+	Scopes []Option
+	// Expiry lists the lifetimes a new token can have.
+	Expiry []Option
+	Tokens []TokenRow
+	// NewToken is the token just created, shown once.
+	NewToken string
+	// BaseURL is the server's address, for the example request.
+	BaseURL string
+	Notice  string
+}
+
+// TokenRow is one token.
+type TokenRow struct {
+	ID    string
+	Name  string
+	Scope string
+	// Detail says when it was made, last used and expires, translated.
+	Detail  string
+	Expired bool
+}
+
+templ Tokens(p Page, v TokensView) {
+	@Layout(p) {
+		@notice(v.Notice)
+		<div class="stack-lg">
+			<p class="lead">{ i18n.T(ctx, "tokens.lead") }</p>
+			if v.NewToken != "" {
+				<section class="stack" data-signals:copied="false" aria-labelledby="new-token-title">
+					<h2 class="settings-section__title" id="new-token-title">{ i18n.T(ctx, "tokens.new") }</h2>
+					<div class="link-box">
+						<input class="link-box__input" id="new-token" type="text" readonly value={ v.NewToken } aria-describedby="new-token-hint"/>
+						<button
+							class="btn btn--secondary btn--small"
+							type="button"
+							data-on:click="const t = document.getElementById('new-token'); navigator.clipboard.writeText(t.value).then(() => { $copied = true }, () => { t.focus(); t.select() })"
+						>{ i18n.T(ctx, "invite.copy") }</button>
+					</div>
+					<span class="field__hint" id="new-token-hint">{ i18n.T(ctx, "tokens.newHint") }</span>
+					<p class="notice" role="status" aria-live="polite" data-copied={ i18n.T(ctx, "invite.copied") } data-text="$copied ? el.dataset.copied : ''"></p>
+					<pre class="code-box"><code>{ "curl -H \"Authorization: Bearer " + v.NewToken + "\" " + v.BaseURL + "/api/v1/me" }</code></pre>
+				</section>
+			}
+			<section class="settings-section settings-section--plain" aria-labelledby="tokens-title">
+				<div class="settings-section__head">
+					<h2 class="settings-section__title" id="tokens-title">{ i18n.T(ctx, "tokens.title") }</h2>
+				</div>
+				if len(v.Tokens) == 0 {
+					<p class="muted">{ i18n.T(ctx, "tokens.none") }</p>
+				} else {
+					<ul class="list" role="list">
+						for _, t := range v.Tokens {
+							<li class="list__row">
+								<span class="list__link">
+									<span class="list__text">
+										<span>{ t.Name } <span class="role-label">{ t.Scope }</span></span>
+										<span class={ "muted", templ.KV("muted--warn", t.Expired) }>{ t.Detail }</span>
+									</span>
+								</span>
+								@postButton("/settings/account/tokens/"+t.ID+"/revoke", i18n.T(ctx, "tokens.revoke"), "btn btn--ghost btn--small", nil)
+							</li>
+						}
+					</ul>
+				}
+			</section>
+			<form class="stack" method="post" action="/settings/account/tokens" novalidate>
+				<h2 class="settings-section__title">{ i18n.T(ctx, "tokens.create") }</h2>
+				@formAlert(v.Form)
+				@textField(Field{ID: "token-name", Name: "name", Label: i18n.T(ctx, "tokens.name"), Required: true, Hint: i18n.T(ctx, "tokens.nameHint"),
+					Attrs: templ.Attributes{"autocomplete": "off"}}, v.Form)
+				<fieldset class="choices" aria-describedby="token-scope-error">
+					<legend class="field__label">{ i18n.T(ctx, "tokens.scope") }</legend>
+					for _, o := range v.Scopes {
+						<label class="choice">
+							<input type="radio" name="scope" value={ o.Value } checked?={ v.Form.Value("scope") == o.Value }/>
+							<span class="choice__text">
+								<span class="choice__title">{ o.Label }</span>
+								<span class="choice__hint">{ o.Hint }</span>
+							</span>
+						</label>
+					}
+					@fieldError("token-scope-error", v.Form.Error("scope"))
+				</fieldset>
+				<div class="field">
+					<label class="field__label" for="token-expiry">{ i18n.T(ctx, "tokens.expiry") }</label>
+					<select class="input" id="token-expiry" name="expiry">
+						for _, o := range v.Expiry {
+							<option value={ o.Value } selected?={ v.Form.Value("expiry") == o.Value }>{ o.Label }</option>
+						}
+					</select>
+				</div>
+				<div>
+					<button class="btn btn--primary" type="submit">{ i18n.T(ctx, "tokens.createButton") }</button>
+				</div>
+			</form>
+		</div>
+	}
+}

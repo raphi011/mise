@@ -7,6 +7,7 @@
   --ink: #1B1F1A;
   --ink-2: #3E4540;
   --muted: #5E655C;
+  --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%235E655C' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
   --line: #E4E2DA;
   --line-soft: #ECEAE3;
   --herb: #2E6A43;
@@ -45,6 +46,7 @@
     --ink: #ECEDE8;
     --ink-2: #C9CDC6;
     --muted: #A3AAA0;
+    --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23A3AAA0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
     --line: #2C302B;
     --line-soft: #262A25;
     --herb: #8FD1A5;
@@ -66,6 +68,7 @@
   --ink: #ECEDE8;
   --ink-2: #C9CDC6;
   --muted: #A3AAA0;
+  --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23A3AAA0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
   --line: #2C302B;
   --line-soft: #262A25;
   --herb: #8FD1A5;
@@ -521,7 +524,14 @@ button, input, select, textarea { font: inherit; color: inherit; }
   font-size: 15px;
 }
 
-select.input { padding-right: 10px; }
+select.input {
+  appearance: none;
+  padding-right: 40px;
+  background-image: var(--select-arrow);
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+}
+select.input--compact { padding-left: 12px; padding-right: 36px; background-position: right 12px center; }
 .input:focus-visible { outline: 2px solid var(--herb); outline-offset: 0; border-color: var(--herb); }
 .input[aria-invalid="true"] { border-color: var(--coral); border-width: 1.5px; }
 /* Inline add: a pill input with its Add button beside it (Settings › Tags). */
@@ -866,6 +876,18 @@ a.list__link:hover, summary.list__link:hover { color: var(--ink); background: va
 
 .account-hero { display: flex; flex-direction: column; align-items: center; gap: 6px; padding-top: 8px; }
 
+.muted--warn { color: var(--coral); }
+.code-box {
+  margin: 0;
+  padding: 12px 14px;
+  overflow-x: auto;
+  border-radius: var(--radius-field);
+  border: 1px solid var(--line-soft);
+  background: var(--surface);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .link-box {
   display: flex;
   align-items: center;
@@ -923,6 +945,8 @@ a.list__link:hover, summary.list__link:hover { color: var(--ink); background: va
 
   .settings-nav svg { width: 18px; height: 18px; flex-shrink: 0; }
   .settings-nav a:hover { background: var(--surface); color: var(--ink); }
+  .settings-nav a[aria-current="page"] { background: var(--surface); color: var(--ink); font-weight: 600; }
+  .page-header--settings .back-link { display: none; }
   .settings-nav__rule { width: auto; margin: 10px 12px; border: 0; border-top: 1px solid var(--line); }
 
   .settings-body { flex: 1; max-width: 720px; gap: 20px; }

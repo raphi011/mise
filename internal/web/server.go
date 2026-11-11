@@ -315,7 +315,8 @@ func isInfra(path string) bool {
 func skipSession(mw func(http.Handler) http.Handler, next http.Handler) http.Handler {
 	wrapped := mw(next)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if isInfra(r.URL.Path) || isShare(r.URL.Path) {
+		// The API authenticates by bearer token, never by cookie.
+		if isInfra(r.URL.Path) || isShare(r.URL.Path) || isAPI(r.URL.Path) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -333,6 +334,10 @@ func (s *Server) requireSetup(next http.Handler) http.Handler {
 		need, err := s.auth.NeedsSetup(r.Context())
 		if err != nil {
 			s.serverError(w, r, err)
+			return
+		}
+		if need && isAPI(r.URL.Path) {
+			apiFail(w, http.StatusServiceUnavailable, "setup_required", "mise has not been set up yet.", nil)
 			return
 		}
 		if need {
@@ -458,6 +463,10 @@ func (s *Server) routes(r *router) {
 	r.write(http.MethodPost, "/settings/account/sessions/{id}/revoke", s.user(s.revokeSession))
 	r.write(http.MethodPost, "/settings/account/sso/link", s.user(s.linkSSO))
 	r.write(http.MethodPost, "/settings/account/sso/unlink", s.user(s.unlinkSSO))
+	r.read(tokensPath, s.user(s.tokensPage))
+	r.write(http.MethodPost, tokensPath, s.user(s.createToken))
+	r.write(http.MethodPost, tokensPath+"/{id}/revoke", s.user(s.revokeToken))
+	s.apiRoutes(r)
 	r.write(http.MethodPost, "/settings/lists", s.user(s.createList))
 	r.write(http.MethodPost, "/settings/lists/{id}/rename", s.user(s.renameList))
 	r.write(http.MethodPost, "/settings/lists/{id}/move", s.user(s.moveList))

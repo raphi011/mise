@@ -35,6 +35,11 @@ type Page struct {
 	// NavExtra, when set, renders under the main links in the desktop
 	// sidebar (e.g. the recipe tags).
 	NavExtra templ.Component
+	// Settings, when set, frames the page in the Settings layout (section
+	// index beside the content on desktop). It names the section to mark
+	// as current: people, lists, library, app or account; home marks none.
+	// The back link is then phone-only.
+	Settings string
 	// Refresh, when set, reloads the page after that many seconds without
 	// JavaScript (pages that follow a background job; with JavaScript the
 	// live stream updates them).
@@ -108,7 +113,7 @@ templ Layout(p Page) {
 			@nav(p.Active, p.User, p.NavExtra)
 			<main class="main" id="main">
 				<div class="content">
-					<header class={ "page-header", templ.KV("page-header--bar", p.Bar) }>
+					<header class={ "page-header", templ.KV("page-header--bar", p.Bar), templ.KV("page-header--settings", p.Settings != "") }>
 						if p.BackHref != "" && p.Bar {
 							<a class="btn btn--ghost btn--small page-header__cancel" href={ templ.SafeURL(p.BackHref) }>{ p.BackLabel }</a>
 						} else if p.BackHref != "" {
@@ -124,11 +129,56 @@ templ Layout(p Page) {
 							@avatarLink(p.User)
 						}
 					</header>
-					{ children... }
+					if p.Settings != "" {
+						<div class="settings">
+							@settingsNav(p.Settings)
+							<div class="settings-body">
+								{ children... }
+							</div>
+						</div>
+					} else {
+						{ children... }
+					}
 				</div>
 			</main>
 		</div>
 	}
+}
+
+// currentAttr marks the current section's link.
+func currentAttr(current, key string) templ.Attributes {
+	if current == key {
+		return templ.Attributes{"aria-current": "page"}
+	}
+	return nil
+}
+
+// settingsNav is the Settings section index: the sticky side list on
+// desktop, hidden on phones where Settings is a list of sub-pages.
+templ settingsNav(current string) {
+	<nav class="settings-nav" aria-label={ i18n.T(ctx, "settings.sections") }>
+		<a href="/settings#people" { currentAttr(current, "people")... }>
+			@iconPeople()
+			{ i18n.T(ctx, "settings.people") }
+		</a>
+		<a href="/settings#lists" { currentAttr(current, "lists")... }>
+			@iconGroceries()
+			{ i18n.T(ctx, "settings.lists") }
+		</a>
+		<a href="/settings#library" { currentAttr(current, "library")... }>
+			@iconRecipes()
+			{ i18n.T(ctx, "settings.groceriesRecipes") }
+		</a>
+		<a href="/settings#app" { currentAttr(current, "app")... }>
+			@iconSliders()
+			{ i18n.T(ctx, "settings.app") }
+		</a>
+		<hr class="settings-nav__rule"/>
+		<a href="/settings/account" { currentAttr(current, "account")... }>
+			@iconUser()
+			{ i18n.T(ctx, "settings.accountAndSecurity") }
+		</a>
+	</nav>
 }
 
 templ nav(active NavItem, user *Viewer, extra templ.Component) {

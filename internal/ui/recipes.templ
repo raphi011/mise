@@ -25,7 +25,7 @@ templ Library(p Page, v LibraryView, undo *Toast) {
 
 // LibraryActions are the Recipes page's header buttons.
 templ LibraryActions() {
-	<a class="btn btn--secondary btn--small library-import" href="/recipes/import" aria-label={ i18n.T(ctx, "recipes.import") }>
+	<a class="btn btn--secondary btn--small library-import" href="/recipes/import" data-on:click__prevent={ getAction("/recipes/import") } aria-label={ i18n.T(ctx, "recipes.import") }>
 		@iconImport(16)
 		<span class="only-wide" aria-hidden="true">{ i18n.T(ctx, "recipes.import") }</span>
 	</a>

@@ -42,6 +42,10 @@ HSTS stays with the TLS-terminating proxy (`docs/operations.md`).
 
 `/settings/ai` lets an admin point the provider at any URL, including the local network (needed for Ollama), and the connection test shows the provider's error text. With one household per server the admin is the operator. Revisit if the UI ever exposes several households.
 
+## Added after the review
+
+- **API tokens** (`docs/api.md`): bearer only, never the cookie; stored hashed; read/write scope; deleted with the member and on password reset; creation and revocation need a browser session. No per-token rate limit: a 256-bit token cannot be guessed, and sign-in limits do not apply to it.
+
 ## Checked without findings
 
 - **Sessions:** 256-bit random tokens, stored as hashes; cookie `HttpOnly`, `SameSite=Lax`, `Secure` on https; a new token at every sign-in; removed members' sessions end; live streams re-check the session.

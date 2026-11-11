@@ -182,6 +182,10 @@ func (s *Service) CompleteReset(ctx context.Context, token, password, userAgent 
 		if _, err := q.Exec(ctx, `DELETE FROM sessions WHERE user_id = ?`, row.UserID); err != nil {
 			return err
 		}
+		// A reset recovers an account that may be compromised: tokens go too.
+		if _, err := q.Exec(ctx, `DELETE FROM api_tokens WHERE user_id = ?`, row.UserID); err != nil {
+			return err
+		}
 		session, err = s.createSession(ctx, q, row.UserID, row.HouseholdID, userAgent)
 		return err
 	})

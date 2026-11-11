@@ -48,8 +48,11 @@ func TestAISettingsPage(t *testing.T) {
 		strings.Contains(body, `name="allow_search_items" checked`) {
 		t.Errorf("saved settings not shown:\n%.3000s", body)
 	}
-	if !strings.Contains(anna.get("/settings").body, ">On<") {
-		t.Error("settings overview doesn't say AI import is on")
+	if !strings.Contains(body, `placeholder="••••`) {
+		t.Error("stored key not masked in the key field")
+	}
+	if !strings.Contains(anna.get("/settings").body, ">Not tested<") {
+		t.Error("settings overview doesn't show the AI connection status")
 	}
 
 	// Bad endpoint for an OpenAI-compatible server.

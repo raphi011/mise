@@ -62,7 +62,7 @@ func AISettings(p Page, v AISettingsView) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<form class=\"narrow stack\" method=\"post\" action=\"/settings/ai\" novalidate>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<form class=\"stack\" method=\"post\" action=\"/settings/ai\" novalidate>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -287,7 +287,7 @@ func AISettings(p Page, v AISettingsView) templ.Component {
 				}
 			}
 			templ_7745c5c3_Err = textField(Field{ID: "ai-key", Name: "api_key", Label: i18n.T(ctx, "ai.settings.key"), Type: "password",
-				Autocomplete: "off", Hint: keyHint(ctx, v), LabelNote: keyNote(ctx, v)}, v.Form).Render(ctx, templ_7745c5c3_Buffer)
+				Autocomplete: "off", Hint: keyHint(ctx, v), LabelNote: keyNote(ctx, v), Attrs: keyAttrs(v)}, v.Form).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -543,6 +543,15 @@ func keyNote(ctx context.Context, v AISettingsView) string {
 		return i18n.T(ctx, "ai.settings.keyReplace")
 	}
 	return ""
+}
+
+// keyAttrs masks the field while a key is stored; the key itself is never
+// sent back to the browser.
+func keyAttrs(v AISettingsView) templ.Attributes {
+	if v.HasKey && !v.KeyUnreadable {
+		return templ.Attributes{"placeholder": "••••••••••••••••"}
+	}
+	return nil
 }
 
 var _ = templruntime.GeneratedTemplate

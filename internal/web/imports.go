@@ -49,6 +49,16 @@ func (s *Server) importForm(ctx context.Context, sc store.Scoped, id *auth.Ident
 }
 
 func (s *Server) renderImportForm(w http.ResponseWriter, r *http.Request, status int, v ui.ImportFormView) {
+	if isDatastar(r) {
+		// Opening shows the dialog; a failed submit only refreshes its form,
+		// since re-patching the open dialog would close it.
+		if r.Method == http.MethodPost {
+			s.sendPatches(w, r, patchTempl(ui.ImportBody(v, true)))
+			return
+		}
+		s.sendPatches(w, r, patchTempl(ui.ImportSheet(v)))
+		return
+	}
 	p := s.page(r, importTitle(r.Context(), v.AI), ui.NavRecipes)
 	p.BackHref, p.BackLabel = "/recipes", i18n.T(r.Context(), "recipes.back")
 	s.render(w, r, status, ui.ImportForm(p, v))
@@ -96,7 +106,7 @@ func (s *Server) startImport(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
-		seeOther(w, r, ui.ImportHref(id.String()))
+		s.redirect(w, r, ui.ImportHref(id.String()))
 		return
 	}
 	f := ui.Form{Values: map[string]string{"url": r.PostFormValue("url"), "text": r.PostFormValue("text")}}

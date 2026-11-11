@@ -168,7 +168,11 @@ func (s *Service) clock() store.Time { return store.T(s.now()) }
 // Identity is the signed-in user in their active household, as loaded from
 // the session for every request.
 type Identity struct {
-	SessionID   string
+	SessionID string
+	// TokenID and APIScope are set for requests made with an API token
+	// instead of a session; SessionID is empty then.
+	TokenID     uuid.UUID
+	APIScope    TokenScope
 	UserID      uuid.UUID
 	HouseholdID uuid.UUID
 	Role        Role

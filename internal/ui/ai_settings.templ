@@ -26,7 +26,7 @@ type AISettingsView struct {
 
 templ AISettings(p Page, v AISettingsView) {
 	@Layout(p) {
-		<form class="narrow stack" method="post" action="/settings/ai" novalidate>
+		<form class="stack" method="post" action="/settings/ai" novalidate>
 			@notice(v.Notice)
 			@formAlert(v.Form)
 			<div class="card">
@@ -69,7 +69,7 @@ templ AISettings(p Page, v AISettingsView) {
 						<p class="alert" role="alert">{ i18n.T(ctx, "ai.settings.keyUnreadable") }</p>
 					}
 					@textField(Field{ID: "ai-key", Name: "api_key", Label: i18n.T(ctx, "ai.settings.key"), Type: "password",
-						Autocomplete: "off", Hint: keyHint(ctx, v), LabelNote: keyNote(ctx, v)}, v.Form)
+						Autocomplete: "off", Hint: keyHint(ctx, v), LabelNote: keyNote(ctx, v), Attrs: keyAttrs(v)}, v.Form)
 					if v.TestError != "" {
 						<div class="alert" role="alert">
 							<p class="alert__title">{ i18n.T(ctx, "ai.settings.testFailed") }</p>
@@ -125,4 +125,13 @@ func keyNote(ctx context.Context, v AISettingsView) string {
 		return i18n.T(ctx, "ai.settings.keyReplace")
 	}
 	return ""
+}
+
+// keyAttrs masks the field while a key is stored; the key itself is never
+// sent back to the browser.
+func keyAttrs(v AISettingsView) templ.Attributes {
+	if v.HasKey && !v.KeyUnreadable {
+		return templ.Attributes{"placeholder": "••••••••••••••••"}
+	}
+	return nil
 }

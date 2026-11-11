@@ -52,7 +52,7 @@ func (s *Server) renderTags(w http.ResponseWriter, r *http.Request, status int, 
 		v.Tags = append(v.Tags, ui.TagRow{ID: t.ID.String(), Name: t.Name, Pinned: t.Pinned, Count: t.Count})
 	}
 	p := s.page(r, i18n.T(ctx, "tags.title"), ui.NavSettings)
-	p.BackHref, p.BackLabel = "/settings#library", i18n.T(ctx, "settings.back")
+	p.BackHref, p.BackLabel, p.Settings = "/settings#library", i18n.T(ctx, "settings.back"), "library"
 	s.render(w, r, status, ui.Tags(p, v))
 }
 

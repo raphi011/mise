@@ -140,6 +140,12 @@ func (s *Service) Authenticate(ctx context.Context, token string) (id *Identity,
 		refreshed = true
 	}
 
+	return row.identity(), refreshed, nil
+}
+
+// identity is the row as the request identity; a token adds its own
+// fields.
+func (row sessionRow) identity() *Identity {
 	return &Identity{
 		SessionID:         row.ID,
 		UserID:            row.UserID,
@@ -156,7 +162,7 @@ func (s *Service) Authenticate(ctx context.Context, token string) (id *Identity,
 		HouseholdLanguage: row.HouseholdLanguage,
 		Timezone:          row.Timezone,
 		WeekStart:         row.WeekStart,
-	}, refreshed, nil
+	}
 }
 
 // SessionActive reports whether a session still exists, has not expired and

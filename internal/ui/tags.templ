@@ -31,7 +31,7 @@ func tagForm(v TagsView, t TagRow) Form {
 
 templ Tags(p Page, v TagsView) {
 	@Layout(p) {
-		<div class="narrow stack">
+		<div class="stack">
 			@notice(v.Notice)
 			<p class="lead">{ i18n.T(ctx, "tags.lead") }</p>
 			<form class="stack" method="post" action="/settings/tags" novalidate>

@@ -31,7 +31,7 @@ templ Categories(p Page, v CategoriesView) {
 
 // CategoriesBody is the categories page content, patched after a drag.
 templ CategoriesBody(v CategoriesView) {
-	<div id="categories" class="narrow stack">
+	<div id="categories" class="stack">
 		@notice(v.Notice)
 		<p class="lead">{ i18n.T(ctx, "categories.lead") }</p>
 		<p class="muted hint-row">

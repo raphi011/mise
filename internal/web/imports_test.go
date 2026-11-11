@@ -495,3 +495,46 @@ func TestStepText(t *testing.T) {
 		}
 	}
 }
+
+// With JavaScript the import form opens as a dialog over the library; a
+// failed submit refreshes only the form, since patching the open dialog
+// would close it.
+func TestImportDialog(t *testing.T) {
+	_, srv := startImportServer(t, storetest.SQLite(t))
+	anna, _ := household(t, srv)
+
+	datastar := func(method, path string, form url.Values) page {
+		t.Helper()
+		req, err := http.NewRequestWithContext(t.Context(), method, anna.url(path), strings.NewReader(form.Encode()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("Datastar-Request", "true")
+		if method == http.MethodPost {
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			req.Header.Set("Sec-Fetch-Site", "same-origin")
+			req.Header.Set("Origin", anna.base)
+		}
+		return anna.do(req)
+	}
+
+	open := datastar(http.MethodGet, "/recipes/import", nil)
+	for _, want := range []string{`id="sheet"`, `<dialog id="import-sheet"`, `id="import-form"`, `@post(`} {
+		if !strings.Contains(open.body, want) {
+			t.Errorf("dialog lacks %q:\n%.1500s", want, open.body)
+		}
+	}
+	if !strings.Contains(anna.get("/recipes").body, `@get(&#39;/recipes/import&#39;)`) {
+		t.Error("library's Import link does not open the dialog")
+	}
+
+	bad := datastar(http.MethodPost, "/recipes/import", url.Values{"url": {"not a url"}})
+	if !strings.Contains(bad.body, `id="import-body"`) || strings.Contains(bad.body, "<dialog") || !strings.Contains(bad.body, "not a url") {
+		t.Errorf("failed submit patches the dialog itself or loses the input:\n%.1500s", bad.body)
+	}
+
+	// Without JavaScript it is still a page.
+	if p := anna.get("/recipes/import").expect(t, "import page", http.StatusOK); strings.Contains(p.body, "<dialog") {
+		t.Error("plain page renders a dialog")
+	}
+}

@@ -37,6 +37,7 @@ var notices = map[string]i18n.Key{
 	"categoryDeleted": "notice.categoryDeleted",
 	"linked":          "notice.ssoLinked",
 	"unlinked":        "notice.ssoUnlinked",
+	"tokenRevoked":    "notice.tokenRevoked",
 }
 
 func noticeFor(r *http.Request) string {
@@ -151,7 +152,7 @@ func (s *Server) renderSettings(w http.ResponseWriter, r *http.Request, status i
 			s.serverError(w, r, err)
 			return
 		}
-		v.AIEnabled = ai.Enabled
+		v.AIStatus, v.AIStatusClass = connectionStatus(ai)
 	}
 	for _, l := range lists {
 		v.Lists = append(v.Lists, ui.ListTab{ID: l.ID.String(), Name: l.Name, Open: l.Open})
@@ -184,7 +185,9 @@ func (s *Server) renderSettings(w http.ResponseWriter, r *http.Request, status i
 			})
 		}
 	}
-	s.render(w, r, status, ui.Settings(s.page(r, i18n.T(ctx, "page.settings.title"), ui.NavSettings), v))
+	p := s.page(r, i18n.T(ctx, "page.settings.title"), ui.NavSettings)
+	p.Settings = "home"
+	s.render(w, r, status, ui.Settings(p, v))
 }
 
 // languageOptions lists the household default and every supported UI
@@ -268,7 +271,7 @@ func (s *Server) renderAccount(w http.ResponseWriter, r *http.Request, status in
 		})
 	}
 	p := s.page(r, i18n.T(ctx, "account.title"), ui.NavSettings)
-	p.BackHref, p.BackLabel = "/settings", i18n.T(ctx, "settings.back")
+	p.BackHref, p.BackLabel, p.Settings = "/settings", i18n.T(ctx, "settings.back"), "account"
 	s.render(w, r, status, ui.Account(p, v))
 }
 
@@ -439,7 +442,7 @@ func (s *Server) invitePage(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) renderInvitePage(w http.ResponseWriter, r *http.Request, status int, v ui.InvitePageView) {
 	p := s.page(r, i18n.T(r.Context(), "invite.title"), ui.NavSettings)
-	p.BackHref, p.BackLabel = "/settings", i18n.T(r.Context(), "settings.back")
+	p.BackHref, p.BackLabel, p.Settings = "/settings#people", i18n.T(r.Context(), "settings.back"), "people"
 	// The page may show a secret link.
 	w.Header().Set("Cache-Control", "no-store")
 	s.render(w, r, status, ui.InvitePage(p, v))
@@ -554,7 +557,7 @@ func (s *Server) renderMember(w http.ResponseWriter, r *http.Request, status int
 		RoleForm: forms.role, Password: forms.password, Remove: forms.remove, Notice: notice,
 	}
 	p := s.page(r, m.Name, ui.NavSettings)
-	p.BackHref, p.BackLabel = "/settings#people", i18n.T(ctx, "settings.back")
+	p.BackHref, p.BackLabel, p.Settings = "/settings#people", i18n.T(ctx, "settings.back"), "people"
 	s.render(w, r, status, ui.MemberPage(p, v))
 }
 

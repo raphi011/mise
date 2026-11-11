@@ -31,8 +31,10 @@ type SettingsView struct {
 	Categories int
 	// Tags counts the household's recipe tags.
 	Tags int
-	// AIEnabled is whether AI import is on (shown to admins only).
-	AIEnabled bool
+	// AIStatus labels the AI connection (off, not tested, connected, failed)
+	// and AIStatusClass styles it. Shown to admins only.
+	AIStatus      i18n.Key
+	AIStatusClass string
 }
 
 // MemberRow is one person in the People list.
@@ -65,31 +67,6 @@ templ Settings(p Page, v SettingsView) {
 		} else {
 			@notice(v.Notice)
 		}
-		<div class="settings">
-			<nav class="settings-nav" aria-label={ i18n.T(ctx, "settings.sections") }>
-				<a href="#people">
-					@iconPeople()
-					{ i18n.T(ctx, "settings.people") }
-				</a>
-				<a href="#lists">
-					@iconGroceries()
-					{ i18n.T(ctx, "settings.lists") }
-				</a>
-				<a href="#library">
-					@iconRecipes()
-					{ i18n.T(ctx, "settings.groceriesRecipes") }
-				</a>
-				<a href="#app">
-					@iconSliders()
-					{ i18n.T(ctx, "settings.app") }
-				</a>
-				<hr class="settings-nav__rule"/>
-				<a href="/settings/account">
-					@iconUser()
-					{ i18n.T(ctx, "settings.accountAndSecurity") }
-				</a>
-			</nav>
-			<div class="settings-body">
 				<a class="profile-card profile-card--link" href="/settings/account">
 					@avatar(v.Name, v.Color, "md")
 					<span class="profile-card__text">
@@ -169,11 +146,7 @@ templ Settings(p Page, v SettingsView) {
 							<li class="list__row">
 								<a class="list__link" href="/settings/ai">
 									<span class="list__text">{ i18n.T(ctx, "settings.ai") }</span>
-									if v.AIEnabled {
-										<span class="conn-status conn-status--ok">{ i18n.T(ctx, "settings.on") }</span>
-									} else {
-										<span class="conn-status">{ i18n.T(ctx, "settings.off") }</span>
-									}
+									<span class={ "conn-status", v.AIStatusClass }>{ i18n.T(ctx, v.AIStatus) }</span>
 									@chevron()
 								</a>
 							</li>
@@ -224,8 +197,6 @@ templ Settings(p Page, v SettingsView) {
 				<div class="settings-signout">
 					@postButton("/signout", i18n.T(ctx, "settings.signOut"), "btn btn--destructive", nil)
 				</div>
-			</div>
-		</div>
 	}
 }
 
@@ -296,7 +267,7 @@ type SessionRow struct {
 templ Account(p Page, v AccountView) {
 	@Layout(p) {
 		@notice(v.Notice)
-		<div class="narrow stack-lg">
+		<div class="stack-lg">
 			<form class="stack-lg" method="post" action="/settings/account/profile" novalidate>
 				@formAlert(v.Profile)
 				<div class="account-hero">
@@ -364,6 +335,13 @@ templ Account(p Page, v AccountView) {
 							</span>
 						</div>
 					}
+					<a class="list__link" href="/settings/account/tokens">
+						<span class="list__text">
+							<span>{ i18n.T(ctx, "account.tokens") }</span>
+							<span class="muted">{ i18n.T(ctx, "account.tokensNote") }</span>
+						</span>
+						@chevron()
+					</a>
 					if v.SSO != nil {
 						<div class="list__row">
 							<span class="list__link">
@@ -439,7 +417,7 @@ type InvitePageView struct {
 
 templ InvitePage(p Page, v InvitePageView) {
 	@Layout(p) {
-		<div class="sheet narrow">
+		<div class="sheet">
 			<p class="lead">{ i18n.T(ctx, "invite.lead") }</p>
 			if v.Link != "" {
 				<div class="stack" data-signals:copied="false">
@@ -518,7 +496,7 @@ type MemberPageView struct {
 templ MemberPage(p Page, v MemberPageView) {
 	@Layout(p) {
 		@notice(v.Notice)
-		<div class="narrow stack-lg">
+		<div class="stack-lg">
 			<div class="profile-card">
 				@avatar(v.Name, v.Color, "md")
 				<span class="profile-card__text">

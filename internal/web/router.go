@@ -59,6 +59,12 @@ func (r *router) fallback(h http.Handler) {
 	r.mux.Handle("/", recordRoute(h))
 }
 
+// prefix handles every request under a path prefix (a pattern ending in "/")
+// that no other route matches, for any method.
+func (r *router) prefix(path string, h http.Handler) {
+	r.mux.Handle(path, recordRoute(h))
+}
+
 // pattern returns the registered pattern that would serve req, so requests
 // rejected before routing are logged by route rather than by path.
 func (r *router) pattern(req *http.Request) string {

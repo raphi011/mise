@@ -6,89 +6,129 @@ import "github.com/raphi011/mise/internal/i18n"
 // above it.
 templ ImportForm(p Page, v ImportFormView) {
 	@Layout(p) {
-		<div class="import narrow stack-lg">
-			if v.Failure != nil {
-				<section class="import-failure" role="alert">
-					@iconAlert(22)
-					<div class="import-failure__body">
-						<p class="import-failure__title">{ v.Failure.Title }</p>
-						<p class="import-failure__text">{ v.Failure.Body }</p>
-						if v.Failure.Detail != "" {
-							<details class="import-failure__detail">
-								<summary>{ i18n.T(ctx, "import.failed.details") }</summary>
-								<p>{ v.Failure.Detail }</p>
-							</details>
-						}
-					</div>
-				</section>
-			} else {
-				<p class="lead">
-					if v.AI {
-						{ i18n.T(ctx, "import.form.leadAI") }
-					} else {
-						{ i18n.T(ctx, "import.form.lead") }
-					}
-				</p>
-			}
-			<form id="import-form" class="stack import-form" method="post" action="/recipes/import" novalidate>
-				@formAlert(v.Form)
-				if v.Replace != "" {
-					<input type="hidden" name="replace" value={ v.Replace }/>
-				}
-				if v.AI {
-					<div class="segmented segmented--fill" role="radiogroup" aria-label={ i18n.T(ctx, "import.form.source") }>
-						<label class="segmented__option">
-							<input type="radio" name="tab" value={ ImportTabLink } checked?={ v.Tab != ImportTabText }/>
-							<span>{ i18n.T(ctx, "import.form.tabLink") }</span>
-						</label>
-						<label class="segmented__option">
-							<input type="radio" name="tab" value={ ImportTabText } checked?={ v.Tab == ImportTabText }/>
-							<span>{ i18n.T(ctx, "import.form.tabText") }</span>
-						</label>
-					</div>
-				}
-				<div class="import-panel import-panel--link">
-					@textField(Field{ID: "import-url", Name: "url", Type: "url", Label: i18n.T(ctx, "import.form.url"),
-						Attrs: templ.Attributes{"inputmode": "url", "autocomplete": "off", "placeholder": "https://", "autofocus": v.Failure == nil && v.Tab != ImportTabText}}, v.Form)
-				</div>
-				if v.AI {
-					<div class="import-panel import-panel--text field">
-						<label class="field__label" for="import-text">{ i18n.T(ctx, "import.form.text") }</label>
-						@textarea("import-text", "text", 12, v.Form.Value("text"), v.Form.Error("text"), "")
-						<span class="field__hint">{ i18n.T(ctx, "import.form.textHint") }</span>
-					</div>
-				}
-				<div class="import-actions">
-					if v.Failure != nil {
-						<a class="btn btn--secondary btn--tall" href="/recipes/new">{ i18n.T(ctx, "import.typeItMyself") }</a>
-					}
-					<button class="btn btn--primary" type="submit">
-						<span class="import-panel--link">
-							if v.Failure != nil {
-								{ i18n.T(ctx, "import.form.again") }
-							} else {
-								{ i18n.T(ctx, "import.form.submit") }
-							}
-						</span>
-						if v.AI {
-							<span class="import-panel--text">{ i18n.T(ctx, "import.form.submitText") }</span>
-						}
-					</button>
-				</div>
-			</form>
-			<p class="fine-print import-note">
-				if v.AI {
-					{ i18n.T(ctx, "import.form.noteAI", v.Model) }
-					if v.Admin {
-						{ " " }
-						<a href="/settings/ai">{ i18n.T(ctx, "import.form.change") }</a>
-					}
-				} else {
-					{ i18n.T(ctx, "import.form.note") }
-				}
-			</p>
-		</div>
+		@ImportBody(v, false)
 	}
+}
+
+// ImportBody is the form with its note. A failed submit patches just this
+// into the open dialog: patching the dialog itself would morph it closed.
+templ ImportBody(v ImportFormView, modal bool) {
+	<div id="import-body" class={ "import stack-lg", templ.KV("narrow", !modal) }>
+		@importFormBody(v, modal)
+	</div>
+}
+
+// ImportSheet is the import form as a modal dialog over the library.
+templ ImportSheet(v ImportFormView) {
+	<div id="sheet">
+		<dialog id="import-sheet" class="sheet-dialog" aria-labelledby="import-title" data-init="el.open || el.showModal()" data-on:close="el.remove()">
+			<div class="sheet__head">
+				<h2 class="sheet__title" id="import-title">
+					if v.AI {
+						{ i18n.T(ctx, "import.titleAI") }
+					} else {
+						{ i18n.T(ctx, "import.title") }
+					}
+				</h2>
+				<button type="button" class="icon-btn" aria-label={ i18n.T(ctx, "groceries.edit.close") } data-on:click="el.closest('dialog').close()">
+					@iconClose()
+				</button>
+			</div>
+			@ImportBody(v, true)
+		</dialog>
+	</div>
+}
+
+templ importFormBody(v ImportFormView, modal bool) {
+	if v.Failure != nil {
+		<section class="import-failure" role="alert">
+			@iconAlert(22)
+			<div class="import-failure__body">
+				<p class="import-failure__title">{ v.Failure.Title }</p>
+				<p class="import-failure__text">{ v.Failure.Body }</p>
+				if v.Failure.Detail != "" {
+					<details class="import-failure__detail">
+						<summary>{ i18n.T(ctx, "import.failed.details") }</summary>
+						<p>{ v.Failure.Detail }</p>
+					</details>
+				}
+			</div>
+		</section>
+	} else {
+		<p class="lead">
+			if v.AI {
+				{ i18n.T(ctx, "import.form.leadAI") }
+			} else {
+				{ i18n.T(ctx, "import.form.lead") }
+			}
+		</p>
+	}
+	<form
+			id="import-form"
+			class="stack import-form"
+			method="post"
+			action="/recipes/import"
+			if modal {
+				data-on:submit={ postForm("/recipes/import") }
+			}
+			novalidate
+		>
+		@formAlert(v.Form)
+		if v.Replace != "" {
+			<input type="hidden" name="replace" value={ v.Replace }/>
+		}
+		if v.AI {
+			<div class="segmented segmented--fill" role="radiogroup" aria-label={ i18n.T(ctx, "import.form.source") }>
+				<label class="segmented__option">
+					<input type="radio" name="tab" value={ ImportTabLink } checked?={ v.Tab != ImportTabText }/>
+					<span>{ i18n.T(ctx, "import.form.tabLink") }</span>
+				</label>
+				<label class="segmented__option">
+					<input type="radio" name="tab" value={ ImportTabText } checked?={ v.Tab == ImportTabText }/>
+					<span>{ i18n.T(ctx, "import.form.tabText") }</span>
+				</label>
+			</div>
+		}
+		<div class="import-panel import-panel--link">
+			@textField(Field{ID: "import-url", Name: "url", Type: "url", Label: i18n.T(ctx, "import.form.url"),
+				Attrs: templ.Attributes{"inputmode": "url", "autocomplete": "off", "placeholder": "https://", "autofocus": v.Failure == nil && v.Tab != ImportTabText}}, v.Form)
+		</div>
+		if v.AI {
+			<div class="import-panel import-panel--text field">
+				<label class="field__label" for="import-text">{ i18n.T(ctx, "import.form.text") }</label>
+				@textarea("import-text", "text", 12, v.Form.Value("text"), v.Form.Error("text"), "")
+				<span class="field__hint">{ i18n.T(ctx, "import.form.textHint") }</span>
+			</div>
+		}
+		<div class="import-actions">
+			if v.Failure != nil {
+				<a class="btn btn--secondary btn--tall" href="/recipes/new">{ i18n.T(ctx, "import.typeItMyself") }</a>
+			}
+			<button class="btn btn--primary" type="submit">
+				<span class="import-panel--link">
+					if v.Failure != nil {
+						{ i18n.T(ctx, "import.form.again") }
+					} else {
+						{ i18n.T(ctx, "import.form.submit") }
+					}
+				</span>
+				if v.AI {
+					<span class="import-panel--text">{ i18n.T(ctx, "import.form.submitText") }</span>
+				}
+			</button>
+		</div>
+	</form>
+	<p class="fine-print import-note">
+		if v.AI {
+			{ i18n.T(ctx, "import.form.noteAI", v.Model) }
+			if v.Admin {
+				{ " " }
+				<a href="/settings/ai">{ i18n.T(ctx, "import.form.change") }</a>
+			}
+		} else {
+			{ i18n.T(ctx, "import.form.note") }
+		}
+	</p>
 }
 
 // ImportRunning is the screen of a queued or running import. Its region
