@@ -28,6 +28,33 @@ templ CookPage(p Page, v CookView) {
 					{ i18n.T(ctx, "cook.awake") }
 				</span>
 			</header>
+			if len(v.Ingredients) > 0 {
+				<details class="cook-ings">
+					<summary class="cook-ings__toggle">
+						<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"></path></svg>
+						{ i18n.T(ctx, "cook.ingredients", len(v.Ingredients)) }
+						<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>
+					</summary>
+					<ul class="cook-ings__list" role="list">
+						for _, ing := range v.Ingredients {
+							<li class="cook-ings__row">
+								<span>
+									{ ing.Name }
+									if ing.Note != "" {
+										<span class="cook-ings__note">{ ing.Note }</span>
+									}
+									if ing.Optional {
+										<span class="cook-ings__note">{ i18n.T(ctx, "recipes.optional") }</span>
+									}
+								</span>
+								if ing.Amount != "" {
+									<span class="cook-ings__amount">{ ing.Amount }</span>
+								}
+							</li>
+						}
+					</ul>
+				</details>
+			}
 			<div class="cook__chips" data-cook-chips>
 				for i, st := range v.Steps {
 					if st.TimerSeconds > 0 {

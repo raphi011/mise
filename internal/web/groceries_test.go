@@ -178,7 +178,7 @@ func TestShoppingTogether(t *testing.T) {
 		}
 		list := m[1]
 		annaLive, benLive := anna.openStream(list), ben.openStream(list)
-		annaLive.next("anna initial", liveDeadline, "datastar-patch-elements", `id="groceries-live"`, "All done")
+		annaLive.next("anna initial", liveDeadline, "datastar-patch-elements", `id="groceries-live"`, "Nothing on this list yet")
 		benLive.next("ben initial", liveDeadline, `id="groceries-live"`)
 
 		// The streams outlive the server's read and write timeouts.

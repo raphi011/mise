@@ -28,6 +28,16 @@ type PlanWeekView struct {
 	ListHref    string
 }
 
+// HasMeals is true when a day of the week has a meal planned.
+func (v PlanWeekView) HasMeals() bool {
+	for _, d := range v.Days {
+		if len(d.Meals) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // PlanDay is one day of the week or month.
 type PlanDay struct {
 	// Date is 'YYYY-MM-DD'.
@@ -370,6 +380,9 @@ type TonightCard struct {
 	Photo      string
 	// Meta is the translated second line.
 	Meta string
+	// Planned is set when the recipe is on tonight's plan, not a
+	// suggestion.
+	Planned bool
 }
 
 // ---- Drag and drop ----

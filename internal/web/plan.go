@@ -899,7 +899,9 @@ func (s *Server) pickView(ctx context.Context, sc store.Scoped, id *auth.Identit
 		return ui.PlanPickView{}, err
 	}
 	v.Shown, v.Matched = clampShown(shown), matched
-	if q == "" {
+	// Suggestions only help when the list below does not already show the
+	// whole library.
+	if q == "" && matched > len(cards) {
 		week := cal.WeekOf(date)
 		sugg, err := s.plan.Suggestions(ctx, sc, week, week.AddDays(7), staleShown)
 		if err != nil {
@@ -1386,8 +1388,8 @@ func (s *Server) tonightCard(ctx context.Context, sc store.Scoped) (*ui.TonightC
 	switch {
 	case t.Meal != nil:
 		r := t.Meal.Recipe
-		return &ui.TonightCard{RecipeID: r.ID.String(), RecipeSlug: r.Slug, Name: r.Name, Photo: r.Photo,
-			Meta: joinNonEmpty(" · ", minutes(ctx, r.TotalMin), i18n.T(ctx, "plan.tonight.planned"))}, nil
+		return &ui.TonightCard{RecipeID: r.ID.String(), RecipeSlug: r.Slug, Name: r.Name, Photo: r.Photo, Planned: true,
+			Meta: minutes(ctx, r.TotalMin)}, nil
 	case t.Suggestion != nil:
 		r := t.Suggestion.Recipe
 		return &ui.TonightCard{RecipeID: r.ID.String(), RecipeSlug: r.Slug, Name: r.Name, Photo: r.Photo,

@@ -13,7 +13,7 @@ templ RecipePage(p Page, v RecipeView) {
 		<div class="recipe" data-signals={ "{servings: " + itoa(v.Servings) + ", nutOpen: false}" } data-effect={ recipeLive(v.ID) }>
 			@RecipeRegion(v)
 			<div class="recipe-cta only-phone">
-				@AddToPlanButton(v.ID, "btn--block")
+				@AddToPlanButton(v.ID, "")
 			</div>
 			if v.Toast != nil {
 				@ToastRegion(*v.Toast)
@@ -100,7 +100,7 @@ templ RecipeRegion(v RecipeView) {
 									@metaTile(i18n.T(ctx, "recipes.cook"), v.Cook, "")
 								}
 								@metaTile(i18n.T(ctx, "recipes.yield"), plural(ctx, v.Base, "recipes.servingsOne", "recipes.servings"), "only-wide")
-								@metaTile(i18n.T(ctx, "recipes.cooked"), v.Cooked, "")
+								@cookedTile(v)
 							</dl>
 							if v.Nutrition != nil {
 								@nutritionTile(v.ID, *v.Nutrition)
@@ -135,7 +135,15 @@ templ RecipeRegion(v RecipeView) {
 					if len(v.Ingredients) > 0 {
 						<div class="recipe-status">
 							<span role="status" aria-live="polite">{ v.ListStatus }</span>
-							<a class="section-action" href={ templ.SafeURL("/groceries/lists/" + v.ListID) }>{ i18n.T(ctx, "recipes.openList") }</a>
+							<span class="recipe-status__actions">
+								if v.CanAddAll {
+									<form class="inline-form" method="post" action={ templ.SafeURL(addAllURL(v.ID)) } data-on:submit={ postForm(addAllURL(v.ID)) }>
+										<input type="hidden" name="servings" value={ itoa(v.Servings) }/>
+										<button type="submit" class="section-action">{ i18n.T(ctx, "recipes.addAll") }</button>
+									</form>
+								}
+								<a class="section-action" href={ templ.SafeURL("/groceries/lists/" + v.ListID) }>{ i18n.T(ctx, "recipes.openList") }</a>
+							</span>
 						</div>
 						<ul class="list ingredients" role="list">
 							for _, ing := range v.Ingredients {
@@ -162,7 +170,10 @@ templ RecipeRegion(v RecipeView) {
 						@stepList(v.Steps)
 						<p class="muted">{ i18n.T(ctx, "recipes.method.hint") }</p>
 					} else {
-						<p class="muted">{ i18n.T(ctx, "recipes.noSteps") }</p>
+						<p class="muted">
+							{ i18n.T(ctx, "recipes.noSteps") }
+							<a href={ templ.SafeURL(RecipeEditHref(v.Slug) + "#method") }>{ i18n.T(ctx, "recipes.addSteps") }</a>
+						</p>
 					}
 				</section>
 				<section class="recipe-section" aria-labelledby="notes-title">
@@ -240,13 +251,13 @@ templ pairThumb(l LinkView) {
 }
 
 // stepList is the numbered method with ingredient mentions.
-templ stepList(steps [][]StepPart) {
+templ stepList(steps []Step) {
 	<ol class="steps">
-		for i, parts := range steps {
+		for i, st := range steps {
 			<li class="step">
 				<span class="step__n" aria-hidden="true">{ itoa(i + 1) }</span>
 				<p class="step__text">
-					for _, part := range parts {
+					for _, part := range st.Parts {
 						if part.Mention {
 							<span class="mention">
 								@mentionIcon(part.Icon)
@@ -258,6 +269,13 @@ templ stepList(steps [][]StepPart) {
 						} else {
 							{ part.Text }
 						}
+					}
+					if st.TimerSeconds > 0 {
+						<span class="step__timer">
+							@iconTimer(14)
+							<span class="visually-hidden">{ i18n.T(ctx, "recipes.timer") }</span>
+							{ Clock(st.TimerSeconds) }
+						</span>
 					}
 				</p>
 			</li>
@@ -273,6 +291,23 @@ templ mentionIcon(icon string) {
 			@templ.Raw(svg)
 		</i>
 	}
+}
+
+// cookedTile is how often the recipe was cooked, with "I made this" to count
+// today.
+templ cookedTile(v RecipeView) {
+	<div class="meta-tile">
+		<dt>{ i18n.T(ctx, "recipes.cooked") }</dt>
+		<dd>{ v.Cooked }</dd>
+		<dd>
+			<form class="inline-form" method="post" action={ templ.SafeURL("/recipes/" + v.ID + "/cooked") } data-on:submit={ postForm("/recipes/" + v.ID + "/cooked") }>
+				<button type="submit" class="meta-tile__action">
+					@iconCheck(14)
+					{ i18n.T(ctx, "plan.menu.cooked") }
+				</button>
+			</form>
+		</dd>
+	</div>
 }
 
 templ metaTile(label, value, class string) {
@@ -373,7 +408,7 @@ templ recipeMenu(v RecipeMenuView, modal bool) {
 		}
 	</div>
 	<ul class="menu" role="list">
-		<li>
+		<li class="only-phone">
 			<a class="menu__item" href={ templ.SafeURL(RecipeEditHref(v.Slug)) }>
 				<span class="menu__icon">
 					@iconEdit()

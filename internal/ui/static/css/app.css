@@ -380,6 +380,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
   --brand-panel-muted: #C8D9CD;
   --strong: #1B1F1A;
   --on-strong: #FFFFFF;
+  /* A featured card ("Suggested for tonight"): dark in both themes. */
+  --feature: #1B1F1A;
+  --on-feature: #FFFFFF;
+  --feature-accent: #A9D3B5;
   --herb-ink: #3E4A40;
   --pending: #B9B6AB;
 
@@ -400,6 +404,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
     --brand-panel-muted: #A9C2B0;
     --strong: #ECEDE8;
     --on-strong: #121411;
+    --feature: #1F3326;
+    --on-feature: #ECEDE8;
     --herb-ink: #C9CDC6;
     --pending: #5E655C;
 
@@ -420,6 +426,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
   --brand-panel-muted: #A9C2B0;
   --strong: #ECEDE8;
   --on-strong: #121411;
+  --feature: #1F3326;
+  --on-feature: #ECEDE8;
   --herb-ink: #C9CDC6;
   --pending: #5E655C;
 
@@ -1498,7 +1506,10 @@ a.list__link:hover, summary.list__link:hover { color: var(--ink); background: va
 
   .add-form { box-shadow: var(--shadow-pop); }
   .suggest { left: 0; right: 0; }
-  .toast-region { bottom: 96px; left: 88px; }
+  /* Low in the corner of the content, clear of what pages show near the
+     bottom; above the sticky add bar on the groceries page. */
+  .toast-region { bottom: 24px; left: 88px; }
+  body:has(.add-bar) .toast-region { bottom: 96px; }
   .list-tabs { margin: 0; padding: 2px 0; flex-wrap: wrap; overflow: visible; }
 
   .sheet-dialog {
@@ -1817,6 +1828,22 @@ mark {
 
 .meta-tile dt { font-size: 12px; color: var(--muted); }
 .meta-tile dd { margin: 0; font-size: 16px; font-weight: 600; }
+.meta-tile__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  margin: 2px 0 -6px -2px;
+  padding: 0 2px;
+  border: none;
+  background: none;
+  color: var(--herb);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.meta-tile__action:hover { text-decoration: underline; }
 
 .recipe-body { display: flex; flex-direction: column; gap: 24px; }
 /* Method, links and notes stack in their own column, so a long ingredient list does not stretch a row and gap them apart. */
@@ -1855,6 +1882,9 @@ mark {
 .stepper__value { min-width: 92px; text-align: center; font-size: 14px; font-weight: 600; }
 
 .recipe-status { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); font-size: 13px; color: var(--muted); }
+.recipe-status__actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.recipe-status__actions .section-action { border: none; background: none; font-family: inherit; cursor: pointer; }
+.recipe-status__actions > :not(:last-child) .section-action { margin-right: 0; }
 
 .ingredient { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 4px 4px 4px 14px; }
 .ingredient + .ingredient { border-top: 1px solid var(--surface-2); }
@@ -1910,6 +1940,21 @@ mark {
 }
 
 .step__text { margin: 0; line-height: 1.7; overflow-wrap: anywhere; }
+.step__timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 6px;
+  padding: 0 8px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  vertical-align: 0.05em;
+}
 
 .mention {
   padding: 2px 7px;
@@ -1921,7 +1966,7 @@ mark {
   box-decoration-break: clone;
 }
 
-.mention__amount { font-size: 13px; font-weight: 500; }
+.mention__amount { font-size: 13px; font-weight: 500; white-space: nowrap; }
 .mention__icon {
   display: inline-flex;
   width: 1.15em;
@@ -2108,6 +2153,8 @@ a.menu__item:hover { color: var(--ink); background: var(--surface-2); }
 .step-row__error { grid-column: 2; }
 .step-row__timer { grid-column: 2; display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; }
 .step-row__minutes { width: 5.5em; min-height: var(--target); text-align: right; }
+/* Steps grow with their text instead of scrolling inside two lines. */
+.step-row__text { field-sizing: content; min-height: calc(2lh + 24px); resize: none; }
 
 .photo-drop {
   height: 160px;
@@ -2141,7 +2188,12 @@ a.menu__item:hover { color: var(--ink); background: var(--surface-2); }
     grid-template-rows: auto auto auto auto 1fr;
     gap: 24px 32px;
   }
+}
 
+/* An ingredient row goes on one line only where its column leaves the name
+   room; the editor's ingredient column is narrow on mid-sized screens. */
+.ing-rows { container-type: inline-size; }
+@container (min-width: 560px) {
   .ing-row { grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "fields opt moves" "error error error"; align-items: center; }
 }
 
@@ -2544,14 +2596,19 @@ button.menu__item:hover { background: var(--surface-2); }
 .sheet__head .tile img { width: 100%; height: 100%; object-fit: cover; }
 
 /* Recipe page: "Add to plan" sits above the bottom bar on phones. */
+/* A pill at the right rather than a full-width bar, so it hides little of
+   the ingredients and stepper it floats over. */
 .recipe-cta {
   position: sticky;
   bottom: calc(var(--nav-height) + 16px);
   z-index: 5;
   margin-top: 8px;
+  display: flex;
+  justify-content: flex-end;
+  pointer-events: none;
 }
 
-.recipe-cta .btn { box-shadow: var(--shadow-pop); }
+.recipe-cta .btn { box-shadow: var(--shadow-pop); pointer-events: auto; }
 
 /* Library: "Suggested for tonight". */
 .tonight {
@@ -2560,13 +2617,13 @@ button.menu__item:hover { background: var(--surface-2); }
   gap: 12px;
   padding: 16px;
   border-radius: 20px;
-  background: var(--strong);
-  color: var(--on-strong);
+  background: var(--feature);
+  color: var(--on-feature);
   text-decoration: none;
 }
 
-.tonight:hover { color: var(--on-strong); }
-.tonight__label { font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--toast-action); }
+.tonight:hover { color: var(--on-feature); }
+.tonight__label { font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--feature-accent); }
 .tonight__body { display: flex; align-items: center; gap: 14px; }
 
 .tonight__media {
@@ -2704,7 +2761,27 @@ button.menu__item:hover { background: var(--surface-2); }
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
 }
-.cook__amount { font-family: var(--font-body); font-size: 0.56em; font-weight: 500; }
+.cook__amount { font-family: var(--font-body); font-size: 0.56em; font-weight: 500; white-space: nowrap; }
+.cook-ings { border-radius: 16px; background: var(--surface); border: 1px solid var(--line-soft); }
+.cook-ings__toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--target);
+  padding: 0 14px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+.cook-ings__toggle::-webkit-details-marker { display: none; }
+.cook-ings__toggle svg:last-child { margin-left: auto; transition: transform 0.15s; }
+.cook-ings[open] .cook-ings__toggle svg:last-child { transform: rotate(180deg); }
+.cook-ings__list { margin: 0; padding: 0 14px 8px; list-style: none; max-height: 45dvh; overflow-y: auto; }
+.cook-ings__row { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; font-size: 15px; }
+.cook-ings__row + .cook-ings__row { border-top: 1px solid var(--line-soft); }
+.cook-ings__note { display: block; font-size: 13px; color: var(--muted); }
+.cook-ings__amount { flex-shrink: 0; color: var(--ink-2); font-variant-numeric: tabular-nums; }
 .cook-timer { display: flex; gap: 10px; }
 .cook-timer[hidden], .cook-timer [hidden] { display: none; }
 .cook-timer__main, .cook-timer__reset {

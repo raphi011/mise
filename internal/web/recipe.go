@@ -143,6 +143,7 @@ func (s *Server) recipeView(ctx context.Context, sc store.Scoped, id *auth.Ident
 	}
 	on, total := st.Count(rec.Ingredients)
 	v.ListStatus = i18n.T(ctx, "recipes.onList", on, total, st.List.Name)
+	v.CanAddAll = on < total
 
 	v.Steps = stepParts(rec, amounts, sys, firstInMethod)
 	return v, nil
@@ -175,9 +176,9 @@ const (
 
 // stepParts splits each step into text and ingredient mentions carrying
 // their amounts. Temperatures in the text are shown in the scale of sys.
-func stepParts(rec recipes.Recipe, amounts []string, sys groceries.System, scope mentionScope) [][]ui.StepPart {
+func stepParts(rec recipes.Recipe, amounts []string, sys groceries.System, scope mentionScope) []ui.Step {
 	seen := map[int]bool{}
-	out := make([][]ui.StepPart, 0, len(rec.Steps))
+	out := make([]ui.Step, 0, len(rec.Steps))
 	for _, step := range rec.Steps {
 		if scope == firstInStep {
 			clear(seen)
@@ -192,7 +193,11 @@ func stepParts(rec recipes.Recipe, amounts []string, sys groceries.System, scope
 			}
 			parts = append(parts, part)
 		}
-		out = append(out, parts)
+		st := ui.Step{Parts: parts}
+		if step.TimerSeconds != nil {
+			st.TimerSeconds = *step.TimerSeconds
+		}
+		out = append(out, st)
 	}
 	return out
 }
@@ -385,6 +390,64 @@ func (s *Server) restoreIngredients(w http.ResponseWriter, r *http.Request) {
 			s.serverError(w, r, err)
 			return
 		}
+	}
+	s.respondRecipe(w, r, sc, recipeID, servingsParam(r, "servings"), clearToast)
+}
+
+// putAllOnList is the ingredients' "Add all": every ingredient that is not
+// optional goes on the default list at the viewer's servings.
+func (s *Server) putAllOnList(w http.ResponseWriter, r *http.Request) {
+	recipeID, _, sc, ok := s.recipeTarget(w, r)
+	if !ok {
+		return
+	}
+	ctx := r.Context()
+	servings := servingsParam(r, "servings")
+	out, err := s.recipes.PutAllOnList(ctx, sc, identity(r).UserID, recipeID, servings, i18n.Locale(ctx))
+	if errors.Is(err, recipes.ErrNotFound) || errors.Is(err, groceries.ErrNotFound) {
+		s.recipeGone(w, r)
+		return
+	}
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	msg := clearToast
+	if n := len(out.Added); n > 0 {
+		ids := make([]string, n)
+		for i, e := range out.Added {
+			ids[i] = e.ID.String()
+		}
+		text := i18n.T(ctx, "recipes.toast.addedAll", n, out.List.Name)
+		if n == 1 {
+			text = i18n.T(ctx, "recipes.toast.addedAllOne", out.List.Name)
+		}
+		msg = toast(text,
+			"/recipes/"+recipeID.String()+"/ingredients/all/undo",
+			map[string]string{"entries": strings.Join(ids, ","), "servings": strconv.Itoa(servings)})
+	}
+	s.respondRecipe(w, r, sc, recipeID, servings, msg)
+}
+
+// undoPutAll is the Undo of "Add all": it takes off the entries it added
+// that have not changed since.
+func (s *Server) undoPutAll(w http.ResponseWriter, r *http.Request) {
+	recipeID, _, sc, ok := s.recipeTarget(w, r)
+	if !ok {
+		return
+	}
+	var ids []uuid.UUID
+	for _, raw := range strings.Split(r.PostFormValue("entries"), ",") {
+		id, err := uuid.Parse(raw)
+		if err != nil {
+			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+			return
+		}
+		ids = append(ids, id)
+	}
+	if err := s.recipes.TakeOffList(r.Context(), sc, recipeID, ids); err != nil && !errors.Is(err, groceries.ErrNotFound) {
+		s.serverError(w, r, err)
+		return
 	}
 	s.respondRecipe(w, r, sc, recipeID, servingsParam(r, "servings"), clearToast)
 }

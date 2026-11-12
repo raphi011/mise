@@ -131,7 +131,9 @@ templ Layout(p Page) {
 			@nav(p.Active, p.User, p.NavExtra, p.Households)
 			<main class="main" id="main">
 				<div class="content">
-					if p.Households != nil && !p.Bar {
+					// Sub-pages (with a back link) leave the switcher out: switching
+					// household leaves them anyway, and it would push the back link down.
+					if p.Households != nil && !p.Bar && p.BackHref == "" {
 						@householdChip(p.Households)
 					}
 					<header class={ "page-header", templ.KV("page-header--bar", p.Bar), templ.KV("page-header--settings", p.Settings != "") }>

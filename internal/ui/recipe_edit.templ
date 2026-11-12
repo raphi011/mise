@@ -58,21 +58,27 @@ templ RecipeEdit(p Page, v RecipeEditView) {
 						@numberField("recipe-cook", "cook_min", i18n.T(ctx, "recipes.edit.cook"), v.Form)
 						@numberField("recipe-servings", "servings", i18n.T(ctx, "recipes.edit.servings"), v.Form)
 					</div>
-					<fieldset class="choices">
-						<legend class="field__label">{ i18n.T(ctx, "recipes.tags") }</legend>
-						if len(v.Tags) > 0 {
-							<div class="chips">
-								for _, t := range v.Tags {
-									<label class="chip chip--radio">
-										<input type="checkbox" name="tags" value={ t.Name } checked?={ t.Checked }/>
-										<span>{ t.Name }</span>
-									</label>
-								}
-							</div>
-						}
-						@fieldError("recipe-tags-error", v.Form.Error("tags"))
-					</fieldset>
-					@textField(Field{ID: "recipe-new-tags", Name: "new_tags", Label: i18n.T(ctx, "recipes.edit.newTags"), LabelNote: i18n.T(ctx, "field.optional"), Hint: i18n.T(ctx, "recipes.edit.newTagsHint"), Attrs: templ.Attributes{"autocomplete": "off"}}, v.Form)
+					// Without tags to pick from, the field for new ones is the tags
+					// field.
+					if len(v.Tags) > 0 || v.Form.Error("tags") != "" {
+						<fieldset class="choices">
+							<legend class="field__label">{ i18n.T(ctx, "recipes.tags") }</legend>
+							if len(v.Tags) > 0 {
+								<div class="chips">
+									for _, t := range v.Tags {
+										<label class="chip chip--radio">
+											<input type="checkbox" name="tags" value={ t.Name } checked?={ t.Checked }/>
+											<span>{ t.Name }</span>
+										</label>
+									}
+								</div>
+							}
+							@fieldError("recipe-tags-error", v.Form.Error("tags"))
+						</fieldset>
+						@textField(Field{ID: "recipe-new-tags", Name: "new_tags", Label: i18n.T(ctx, "recipes.edit.newTags"), LabelNote: i18n.T(ctx, "field.optional"), Hint: i18n.T(ctx, "recipes.edit.newTagsHint"), Attrs: templ.Attributes{"autocomplete": "off"}}, v.Form)
+					} else {
+						@textField(Field{ID: "recipe-new-tags", Name: "new_tags", Label: i18n.T(ctx, "recipes.tags"), LabelNote: i18n.T(ctx, "field.optional"), Hint: i18n.T(ctx, "recipes.edit.newTagsHint"), Attrs: templ.Attributes{"autocomplete": "off"}}, v.Form)
+					}
 					@textField(Field{ID: "recipe-source", Name: "source_url", Type: "url", Label: i18n.T(ctx, "recipes.edit.source"), LabelNote: i18n.T(ctx, "field.optional"), Attrs: templ.Attributes{"inputmode": "url", "autocomplete": "off"}}, v.Form)
 				</section>
 				<section class="editor__ingredients editor-section" aria-labelledby="edit-ingredients-title">
@@ -107,7 +113,7 @@ templ RecipeEdit(p Page, v RecipeEditView) {
 					</div>
 					<p class="muted">{ i18n.T(ctx, "recipes.edit.ingredientsHint") }</p>
 				</section>
-				<section class="editor__method editor-section" aria-labelledby="edit-method-title">
+				<section class="editor__method editor-section" id="method" aria-labelledby="edit-method-title">
 					<h2 class="recipe-section__title" id="edit-method-title">{ i18n.T(ctx, "recipes.method") }</h2>
 					@fieldError("recipe-steps-error", v.Form.Error("steps"))
 					<div class="stack" data-steps-fields>
@@ -226,6 +232,11 @@ templ RecipeEdit(p Page, v RecipeEditView) {
 					<span class="field__hint" id="photo-hint">{ i18n.T(ctx, "recipes.edit.photoHint") }</span>
 					<span class="field__error" id="photo-error" role="alert" data-photo-error>{ v.Form.Error("photo") }</span>
 				</section>
+			</div>
+			// The header's Save is out of reach at the end of a long form on a
+			// phone.
+			<div class="editor__save only-phone">
+				<button type="submit" class="btn btn--primary btn--block btn--tall">{ i18n.T(ctx, "recipes.edit.save") }</button>
 			</div>
 		</form>
 	}

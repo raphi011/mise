@@ -174,9 +174,12 @@ type RecipeView struct {
 	ListID      string
 	ListName    string
 	// ListStatus is the translated "N of M on <list>" line.
-	ListStatus  string
+	ListStatus string
+	// CanAddAll is true while ingredients that are not optional are missing
+	// from the list.
+	CanAddAll   bool
 	Ingredients []IngredientView
-	Steps       [][]StepPart
+	Steps       []Step
 	Notes       string
 	// NotesBy and NotesWhen describe the last edit of the notes.
 	NotesBy    *Viewer
@@ -237,6 +240,14 @@ type IngredientView struct {
 }
 
 // StepPart is plain text, or an ingredient mention with its amount.
+// Step is one step of a method: its text with ingredient mentions and its
+// timer.
+type Step struct {
+	Parts []StepPart
+	// TimerSeconds is the step's timer, or 0 for none.
+	TimerSeconds int
+}
+
 type StepPart struct {
 	Text    string
 	Mention bool
@@ -282,7 +293,7 @@ type SharedRecipeView struct {
 	SourceURL   string
 	SourceHost  string
 	Ingredients []IngredientView
-	Steps       [][]StepPart
+	Steps       []Step
 	// Nutrition is the estimate per serving, nil when it is not shown.
 	Nutrition *NutritionView
 }
@@ -443,6 +454,8 @@ func boolValue(b bool) string {
 	}
 	return "false"
 }
+
+func addAllURL(recipeID string) string { return "/recipes/" + recipeID + "/ingredients/all" }
 
 func toggleURL(recipeID, ingredientID string) string {
 	return "/recipes/" + recipeID + "/ingredients/" + ingredientID + "/toggle"

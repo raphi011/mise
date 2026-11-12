@@ -50,12 +50,10 @@ func (s *Server) cookPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sys := unitSystem(identity(r))
-	for i, parts := range stepParts(rec, scaledAmounts(ctx, rec, servings, sys), sys, firstInStep) {
-		st := ui.CookStep{Parts: parts}
-		if t := rec.Steps[i].TimerSeconds; t != nil {
-			st.TimerSeconds = *t
-		}
-		v.Steps = append(v.Steps, st)
+	amounts := scaledAmounts(ctx, rec, servings, sys)
+	v.Steps = stepParts(rec, amounts, sys, firstInStep)
+	for i, ing := range rec.Ingredients {
+		v.Ingredients = append(v.Ingredients, ui.IngredientView{Name: ing.ItemName, Amount: amounts[i], Note: ing.Note, Optional: ing.Optional})
 	}
 	if n, err := strconv.Atoi(r.FormValue("step")); err == nil {
 		v.Step = min(max(n, 1), len(v.Steps)) - 1

@@ -140,6 +140,27 @@ func TestHouseholdIsolation(t *testing.T) {
 			notFound("toggle other's ingredient", err)
 			_, err = s.ToggleIngredient(ctx, sc, me, own.recipe.ID, other.recipe.Ingredients[0].ID, 2, true, language.English)
 			notFound("toggle other's ingredient on own recipe", err)
+			_, err = s.PutAllOnList(ctx, sc, me, other.recipe.ID, 2, language.English)
+			notFound("put all of other's recipe on the list", err)
+
+			// Undoing "Add all" through the other's recipe takes nothing off.
+			put, err := s.PutAllOnList(ctx, sc, me, own.recipe.ID, 2, language.English)
+			if err != nil || len(put.Added) == 0 || put.List.ID != own.list.ID {
+				t.Fatalf("put all on own list: %+v, %v", put, err)
+			}
+			ids := make([]uuid.UUID, len(put.Added))
+			for i, e := range put.Added {
+				ids[i] = e.ID
+			}
+			if err := s.TakeOffList(ctx, sc, other.recipe.ID, ids); err != nil {
+				t.Errorf("take off through other's recipe: %v", err)
+			}
+			if st, err := s.ListStatus(ctx, sc, own.recipe.Ingredients); err != nil || !st.On[own.recipe.Ingredients[0].ItemID] {
+				t.Errorf("take off through other's recipe removed own entries: %v", err)
+			}
+			if err := s.TakeOffList(ctx, sc, own.recipe.ID, ids); err != nil {
+				t.Fatal(err)
+			}
 
 			// Links to the other's recipes are ignored; names stay apart.
 			linked := own.create(t, Input{Name: "Naan", Links: []uuid.UUID{other.recipe.ID, own.recipe.ID}})
