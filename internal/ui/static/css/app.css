@@ -1130,6 +1130,22 @@ a.list__link:hover, summary.list__link:hover { color: var(--ink); background: va
 .tile--lg { width: 48px; height: 48px; border-radius: 14px; font-size: 20px; }
 .tile--dashed { background: transparent; border: 1.5px dashed var(--pending); color: var(--ink-2); }
 
+/* Catalogue icons are drawn in currentColor, so they take the tile's
+   foreground (--av-fg) in both themes. */
+.tile svg:not([width]) { width: 24px; height: 24px; flex-shrink: 0; }
+.tile--lg svg:not([width]) { width: 28px; height: 28px; }
+
+.import-icon { color: var(--herb); margin-right: 6px; }
+.import-icon svg { width: 20px; height: 20px; vertical-align: -4px; }
+
+.badge.badge--quiet { margin-left: 8px; padding: 1px 7px; background: transparent; border: 1px solid var(--line); color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .02em; vertical-align: 1px; }
+
+.icon-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: var(--space-3); }
+.icon-pick { position: relative; display: inline-flex; border-radius: 13px; cursor: pointer; }
+.icon-pick input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+.icon-pick:has(input:checked) { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--herb); }
+.icon-pick:has(input:focus-visible) { outline: 2px solid var(--herb); outline-offset: 4px; }
+
 .avatar--xs { width: 22px; height: 22px; font-size: 11px; }
 
 .entries .entry { display: flex; align-items: center; }
@@ -2864,7 +2880,7 @@ details.import-activity:not([open]) { gap: 0; }
 .match { padding: 3px 9px; border-radius: var(--radius-tag); font-size: 12px; font-weight: 500; white-space: nowrap; }
 .match--matched { background: var(--herb-soft); color: var(--herb); }
 .match--check { background: var(--amber-soft); color: var(--amber-ink); }
-.match--new { background: var(--surface-2); color: var(--ink-2); }
+.match--new, .match--catalog { background: var(--surface-2); color: var(--ink-2); }
 
 .pick-items { padding: 0 14px; }
 .pick-items__form { display: contents; }

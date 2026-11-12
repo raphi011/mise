@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/text/language"
 
+	"github.com/raphi011/mise/internal/catalog"
 	"github.com/raphi011/mise/internal/live"
 	"github.com/raphi011/mise/internal/store"
 )
@@ -21,6 +22,8 @@ type Entry struct {
 	ListID   uuid.UUID
 	ItemID   uuid.UUID
 	ItemName string
+	// ItemIcon is the item's icon to show, "" for the initial tile.
+	ItemIcon string
 	// Category is nil for uncategorised items.
 	Category *Category
 	Amount   Amount
@@ -46,6 +49,8 @@ type entryRow struct {
 	ItemID           uuid.UUID
 	ItemName         string
 	NameKey          string
+	ItemIcon         *string
+	ItemCatalogKey   *string
 	CategoryID       *uuid.UUID
 	CategoryName     *string
 	CategoryColor    *string
@@ -64,7 +69,7 @@ type entryRow struct {
 
 func (r entryRow) entry() Entry {
 	e := Entry{
-		ID: r.ID, ListID: r.ListID, ItemID: r.ItemID, ItemName: r.ItemName,
+		ID: r.ID, ListID: r.ListID, ItemID: r.ItemID, ItemName: r.ItemName, ItemIcon: showIcon(r.ItemIcon, r.ItemCatalogKey),
 		Amount:  Amount{Quantity: r.Quantity, Unit: deref(r.Unit), Text: r.AmountText},
 		Note:    deref(r.Note),
 		AddedBy: r.AddedBy, AddedByName: r.AddedByName, AddedByColor: r.AddedByColor,
@@ -83,7 +88,7 @@ func (r entryRow) entry() Entry {
 }
 
 // entrySelect selects entryRow columns; callers add WHERE conditions on e.
-const entrySelect = `SELECT e.id, e.list_id, e.item_id, i.name AS item_name, i.name_key, i.category_id,
+const entrySelect = `SELECT e.id, e.list_id, e.item_id, i.name AS item_name, i.name_key, i.icon AS item_icon, i.catalog_key AS item_catalog_key, i.category_id,
 		c.name AS category_name, c.color AS category_color, c.position AS category_position,
 		e.quantity, e.unit, e.amount_text, e.note, e.added_by,
 		u.name AS added_by_name, u.avatar_color AS added_by_color,
@@ -118,8 +123,11 @@ type AddInput struct {
 	// ItemID picks a catalogue item. When nil, Name names the item: an
 	// existing one with the same NameKey, or a new one.
 	ItemID *uuid.UUID
-	Name   string
-	Amount Amount
+	// CatalogKey picks a catalogue entry instead, creating the household's
+	// item for it when it has none (ItemID must be nil).
+	CatalogKey string
+	Name       string
+	Amount     Amount
 	// AddedBy is the acting member.
 	AddedBy uuid.UUID
 	// RecipeID tags the entry with the recipe it comes from, if any. An
@@ -174,7 +182,7 @@ func (s *Service) Add(ctx context.Context, sc store.Scoped, in AddInput) (Added,
 // list after commit.
 func (s *Service) AddTx(ctx context.Context, q store.Querier, sc store.Scoped, in AddInput) (Added, error) {
 	errs := FieldErrors{}
-	if in.ItemID == nil {
+	if in.ItemID == nil && in.CatalogKey == "" {
 		in.Name = CleanName(in.Name)
 		checkName(errs, "text", in.Name)
 	}
@@ -191,6 +199,11 @@ func (s *Service) AddTx(ctx context.Context, q store.Querier, sc store.Scoped, i
 	if in.ItemID != nil {
 		if err := q.Get(ctx, &itemID, `SELECT id FROM items WHERE household_id = ? AND id = ?`, hh, *in.ItemID); err != nil {
 			return Added{}, notFound(err)
+		}
+	} else if in.CatalogKey != "" {
+		var err error
+		if itemID, _, err = EnsureCatalogItem(ctx, q, sc, in.CatalogKey, now); err != nil {
+			return Added{}, err
 		}
 	} else {
 		var err error
@@ -275,16 +288,41 @@ func EnsureItemIn(ctx context.Context, q store.Querier, sc store.Scoped, name, c
 		}
 	}
 	key := NameKey(name)
-	res, err := q.Exec(ctx, `INSERT INTO items (id, household_id, name, name_key, category_id, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (household_id, name_key) DO NOTHING`,
-		store.NewID(), hh, name, key, categoryID, now, now)
-	if err != nil {
+	// A name that is a catalogue entry's links the new item to it and fills
+	// in its default category; an existing item is left as it is.
+	var exists int
+	if err := q.QueryRow(ctx, `SELECT count(*) FROM items WHERE household_id = ? AND name_key = ?`, hh, key).Scan(&exists); err != nil {
 		return uuid.Nil, false, err
 	}
-	if created, err = affected(res); err != nil {
+	var catalogKey *string
+	if exists == 0 {
+		var err error
+		if catalogKey, categoryID, err = linkNew(ctx, q, sc, name, categoryID); err != nil {
+			return uuid.Nil, false, err
+		}
+	}
+	insert := func(catalogKey *string) (bool, error) {
+		// No conflict target: a concurrent add of the same name and a
+		// concurrent link to the same catalogue key both just insert nothing.
+		res, err := q.Exec(ctx, `INSERT INTO items (id, household_id, name, name_key, category_id, catalog_key, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`,
+			store.NewID(), hh, name, key, categoryID, catalogKey, now, now)
+		if err != nil {
+			return false, err
+		}
+		return affected(res)
+	}
+	if created, err = insert(catalogKey); err != nil {
 		return uuid.Nil, false, err
 	}
 	err = q.Get(ctx, &id, `SELECT id FROM items WHERE household_id = ? AND name_key = ?`, hh, key)
+	if errors.Is(err, sql.ErrNoRows) && catalogKey != nil {
+		// Someone linked the key first: create the item unlinked.
+		if created, err = insert(nil); err != nil {
+			return uuid.Nil, false, err
+		}
+		err = q.Get(ctx, &id, `SELECT id FROM items WHERE household_id = ? AND name_key = ?`, hh, key)
+	}
 	return id, created, err
 }
 
@@ -628,6 +666,9 @@ type EntryUpdate struct {
 	// picks the next one from Colors.
 	NewCategory NewCategory
 	ListID      uuid.UUID
+	// Icon is the item's icon: "" inherits the catalogue's, IconNone shows
+	// none, anything else is an icon key (catalog.IconKeys).
+	Icon string
 }
 
 // UpdateEntry saves the edit sheet.
@@ -649,12 +690,15 @@ func (s *Service) UpdateEntry(ctx context.Context, sc store.Scoped, id uuid.UUID
 			checkColor(errs, "new_category", u.NewCategory.Color)
 		}
 	}
+	if u.Icon != "" && u.Icon != IconNone && !catalog.HasIcon(u.Icon) {
+		errs["icon"] = "form.error.choice"
+	}
 	if err := errs.orNil(); err != nil {
 		return err
 	}
 
 	var before Entry
-	catalog := false
+	catalogEdited := false
 	err := sc.Tx(ctx, func(ctx context.Context, q store.Querier) error {
 		// The household lock orders the edit against category changes
 		// (DeleteCategory) and other catalogue edits, so the checks below
@@ -725,10 +769,14 @@ func (s *Service) UpdateEntry(ctx context.Context, sc store.Scoped, id uuid.UUID
 		if categoryID != nil {
 			newCategory = *categoryID
 		}
-		if u.Name != before.ItemName || newCategory != oldCategory {
-			catalog = true
-			_, err := q.Exec(ctx, `UPDATE items SET name = ?, name_key = ?, category_id = ?, updated_at = ?
-				WHERE household_id = ? AND id = ?`, u.Name, key, categoryID, now, hh, before.ItemID)
+		var oldIcon *string
+		if err := q.Get(ctx, &oldIcon, `SELECT icon FROM items WHERE household_id = ? AND id = ?`, hh, before.ItemID); err != nil {
+			return err
+		}
+		if u.Name != before.ItemName || newCategory != oldCategory || deref(oldIcon) != u.Icon {
+			catalogEdited = true
+			_, err := q.Exec(ctx, `UPDATE items SET name = ?, name_key = ?, category_id = ?, icon = ?, updated_at = ?
+				WHERE household_id = ? AND id = ?`, u.Name, key, categoryID, nullable(u.Icon), now, hh, before.ItemID)
 			if store.IsUniqueViolation(err) {
 				// Add created an item with this name after the check above;
 				// Add takes no household lock.
@@ -750,7 +798,7 @@ func (s *Service) UpdateEntry(ctx context.Context, sc store.Scoped, id uuid.UUID
 	if u.ListID != before.ListID {
 		events = append(events, listChanged(u.ListID), listsChanged)
 	}
-	if catalog {
+	if catalogEdited {
 		events = append(events, catalogChanged)
 	}
 	s.publish(sc, events...)

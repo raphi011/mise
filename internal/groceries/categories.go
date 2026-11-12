@@ -17,6 +17,9 @@ type Category struct {
 	Name     string
 	Color    string
 	Position int
+	// CatalogKey is the catalogue category the household's category stands
+	// for ("" for a category it made itself).
+	CatalogKey string
 	// Items is the number of catalogue items in the category (Categories
 	// only).
 	Items int
@@ -26,13 +29,15 @@ type Category struct {
 type NewCategory struct {
 	Name  string
 	Color string
+	// CatalogKey links a seeded category to the catalogue; "" for none.
+	CatalogKey string
 }
 
 // Categories lists the household's categories in aisle order, with item
 // counts.
 func (s *Service) Categories(ctx context.Context, sc store.Scoped) ([]Category, error) {
 	var rows []Category
-	err := sc.Read().Select(ctx, &rows, `SELECT c.id, c.name, c.color, c.position,
+	err := sc.Read().Select(ctx, &rows, `SELECT c.id, c.name, c.color, c.position, COALESCE(c.catalog_key, '') AS catalog_key,
 			(SELECT count(*) FROM items i WHERE i.household_id = c.household_id AND i.category_id = c.id) AS items
 		FROM categories c WHERE c.household_id = ? ORDER BY c.position, c.name_key`, sc.HouseholdID())
 	return rows, err
@@ -92,8 +97,9 @@ func (s *Service) insertCategory(ctx context.Context, q store.Querier, sc store.
 	}
 	out := Category{ID: store.NewID(), Name: c.Name, Color: c.Color, Position: pos}
 	now := s.clock()
-	_, err := q.Exec(ctx, `INSERT INTO categories (id, household_id, name, name_key, color, position, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, out.ID, sc.HouseholdID(), out.Name, key, out.Color, pos, now, now)
+	_, err := q.Exec(ctx, `INSERT INTO categories (id, household_id, name, name_key, color, position, catalog_key, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, out.ID, sc.HouseholdID(), out.Name, key, out.Color, pos, nullable(c.CatalogKey), now, now)
+	out.CatalogKey = c.CatalogKey
 	return out, err
 }
 

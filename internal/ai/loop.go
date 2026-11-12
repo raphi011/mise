@@ -494,6 +494,7 @@ func (l *loop) draft(ctx context.Context, in recipeInput) (Draft, string, error)
 			if k, err := strconv.Atoi(n); err == nil && k >= 1 && k <= len(l.proposals) && di.Match != MatchExact {
 				p := l.proposals[k-1]
 				di.ItemID, di.ItemName, di.Match, di.Category = nil, p.Name, MatchNew, p.Category
+				di.CatalogKey, di.Icon = "", ""
 			}
 		}
 		d.Ingredients = append(d.Ingredients, di)

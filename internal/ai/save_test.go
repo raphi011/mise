@@ -44,7 +44,7 @@ func TestSaveImport(t *testing.T) {
 		for _, ing := range job.Draft.Ingredients {
 			matches = append(matches, ing.Match)
 		}
-		if want := []ai.Match{ai.MatchExact, ai.MatchCheck, ai.MatchNew}; !slices.Equal(matches, want) {
+		if want := []ai.Match{ai.MatchExact, ai.MatchCheck, ai.MatchCatalog}; !slices.Equal(matches, want) {
 			t.Fatalf("matches %v, want %v", matches, want)
 		}
 

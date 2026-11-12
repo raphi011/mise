@@ -1,6 +1,9 @@
 package ui
 
-import "github.com/raphi011/mise/internal/i18n"
+import (
+	"github.com/raphi011/mise/internal/catalog"
+	"github.com/raphi011/mise/internal/i18n"
+)
 
 // ImportForm is the import form, and the failed screen with the error
 // above it.
@@ -273,8 +276,11 @@ templ importRow(id string, row ImportRow) {
 	<div class={ "import-table__row", templ.KV("import-table__row--check", row.Match == "check") } role="row">
 		<span role="cell" class="import-table__text">{ row.Text }</span>
 		<span role="cell" class="import-table__item">
+			if svg := catalog.IconSVG(row.Icon); svg != "" {
+				<span class="import-icon" aria-hidden="true">@templ.Raw(svg)</span>
+			}
 			<a href={ templ.SafeURL(importPickHref(id, row.Index)) } aria-label={ i18n.T(ctx, "import.review.choose", row.Text) }>{ row.Item }</a>
-			if row.Match == "new" && row.Category != "" {
+			if (row.Match == "new" || row.Match == "catalog") && row.Category != "" {
 				<span class="muted">{ row.Category }</span>
 			}
 		</span>

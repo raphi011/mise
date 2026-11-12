@@ -146,9 +146,9 @@ All tables also have `household_id` (except `households`, `users`) and `created_
 | sessions | id (hash of token), user_id, household_id, expires_at, user_agent, last_seen_at |
 | invites | id, token_hash, email, role, invited_by, expires_at (7 days), used_at |
 | password_resets | id, token_hash, user_id, expires_at (1 hour), used_at; global like sessions (no household_id) |
-| categories | id, name, name_key, color, position; "Uncategorised" is implicit (NULL) and sorts last |
-| items | id, name, name_key, category_id, purchase_count, last_purchased_at |
-| shopping_lists | id, name, position (first = default), deleted_at (Undo for list delete). First-run setup creates the default list and categories in the household's language, in its transaction; startup backfills households created before P1b, so every GET stays read-only. |
+| categories | id, name, name_key, color, position, catalog_key (nullable; the catalogue category this one stands for, see Default ingredients); "Uncategorised" is implicit (NULL) and sorts last |
+| items | id, name, name_key, category_id, purchase_count, last_purchased_at, icon (nullable override), catalog_key (nullable link to the embedded catalogue; unique per household when set) |
+| shopping_lists | id, name, position (first = default), deleted_at (Undo for list delete). First-run setup creates the default list and categories in the household's language (categories carry `catalog_key`, see Default ingredients), in its transaction; startup backfills households created before P1b, so every GET stays read-only. |
 | list_entries | id, list_id, item_id, quantity, unit, amount_text, note, added_by, recipe_id (added in P2 with its FK), checked_at, deleted_at |
 | recipes | id, name, name_key, description, photo, prep_min, cook_min, servings, source_url, notes, notes_by, notes_at, draft, created_by, updated_by, deleted_at |
 | recipe_ingredients | id, recipe_id, item_id, quantity, unit, amount_text, optional, position |
@@ -163,8 +163,10 @@ All tables also have `household_id` (except `households`, `users`) and `created_
 | api_tokens | id, household_id, user_id (composite FK to memberships), name, token_hash (SHA-256, unique), scope (`read`, `write`), expires_at, last_used_at, created_at, updated_at; global like sessions (looked up by hash) |
 | recipe_links | recipe_id, linked_id; one row per direction, written and deleted in pairs ("Goes well with", see Linked recipes) |
 | recipe_shares | recipe_id (one link per recipe), token (unique, stored as issued), created_by (see Public recipe links) |
+| item_nutrition | item_id (PK with household_id), kcal, protein_g, fat_g, saturated_fat_g, carbs_g, sugars_g, fibre_g, sodium_mg (all per 100 g, nullable except kcal), density_g_ml (nullable), updated_by (see Nutrition; decided, not built) |
+| item_unit_weights | item_id, unit (`piece`, `clove`, `slice`, `bunch`, `can`, `pack`), grams; PK (household_id, item_id, unit) (see Nutrition; decided, not built) |
 
-Derived, not stored: "on a list" per ingredient, times cooked (count of `cook_events`), "not cooked in a month", suggestion ranking.
+Derived, not stored: "on a list" per ingredient, times cooked (count of `cook_events`), "not cooked in a month", suggestion ranking, nutrition per serving (see Nutrition).
 
 ### Decisions on the feature doc's open questions
 
@@ -353,6 +355,74 @@ Each phase ends with something usable and is merged before the next starts.
 - A recipe scales in the unit it was written in and converts after, so the unit fits the scaled amount (800 g reads as 1.75 lb, not 28 oz).
 - Temperatures in step text ("180°C", "350 °F", "180–200 °C") convert on the detail page and in cook mode: to five degrees from 100, whole degrees below. The editor always shows what was written. The parser knows `fl oz` ("fl oz", "fl. oz", "floz").
 
+### Default ingredients
+Status: built (migration `00013_item_catalog`), with a seed catalogue of 139 entries and 8 icons; growing it to 300 entries and about 200 icons is data work (D2, D4). Where the built version differs from the text below, the notes marked "Built" say how. Icons: see `docs/icon-experiments/VERDICT.md`. Design: the "Catalogue" boards of the design artifact.
+
+**Today.** A new household starts with one list and six categories (`groceryDefaults`, `internal/web/groceries.go:34`, run by `SeedTx` in the setup transaction and by `SeedGroceries` at startup for older households) and **no items**. Items appear only through `EnsureItem`/`EnsureItemIn` (`internal/groceries/entries.go:257`): typing a name in the add field, the recipe editor, and saving an import. Add-field suggestions (`SearchItems`) search only the household's own items, so a new household gets no suggestions. Import matching (`matchIngredient`, `internal/ai/draft.go:135`) searches the same table; a line with no hit becomes `MatchNew`, shown as "New item" (`import.match.new`) with only the model's category guess. Items have no icon; the UI shows a category-coloured initial tile (`.tile`).
+
+**Goal.** Ship a catalogue of common ingredients with a stable key, a localized name, a default category and an icon, so suggestions work from the first minute, imported ingredients arrive categorised and with an icon, and other features (nutrition) have one key per ingredient to hang data on.
+
+#### Catalogue
+- Embedded data, not database rows and not `en.json` entries, loaded once into an in-memory index per language. Built: `internal/catalog/data/entries.json` holds key, category and icon once (`{"key": "lemon", "category": "produce", "icon": "lemon"}`); `names.en.json` and `names.de.json` hold `{"lemon": {"name": "Lemon", "aliases": ["lemons"]}}`, so category and icon cannot differ between languages. Same key set in both languages; German entries add their own aliases ("Zitronen"). The seed set has 139 entries, the target is 300.
+- **The key is the contract.** English snake_case ASCII slug, `^[a-z][a-z0-9_]*$`, unique, immutable, never reused. Other features (nutrition density and piece weights, allergens, seasonality) live in their own files keyed by it, never in the name files. Renaming a name or alias is free; changing a key is a breaking change. A key is retired by moving it to `data/retired.json` as `{"key": "old", "replaced_by": "new" | null}`; `TestCatalogKeysAppendOnly` compares against the committed `data/keys.lock` and fails when a key disappears without a `retired` entry.
+- `category` is one of a fixed catalogue category key set (see D3), each with a `groceries.category.<key>` translation in both locales. `icon` is a key of the shipped sprite; several entries may share an icon (clustering, about 150-250 SVGs for 400 entries).
+- Icons: mono duotone on `currentColor` (`stroke-width` 1.75, 24 px grid, 20 % fill). Built: one file per icon in `internal/catalog/icons/<icon>.svg`, embedded and rendered inline inside the existing tile (`catalog.IconSVG`), so `--av-fg` colours it in both themes; no sprite and no generate step. Several entries share an icon (clustering, about 150-250 SVGs for 400 entries). No icon, or an unknown icon key (e.g. after a downgrade): initial tile as today.
+- Package API: `catalog.For(lang) *Catalog` with `Entry(key)`, `Lookup(phrase)` (NameKey on name or alias, exact), `Within(text)` (longest entry name inside a phrase; built and tested, not used by the importer, see below) and `Search(typed, n, skip)`. `catalog.NameKey` is the one implementation; `groceries.NameKey` calls it. Languages: `For` takes a tag or code; an unsupported language falls back to English.
+
+#### Schema (migration `00013_item_catalog`, both dialects)
+```sql
+ALTER TABLE items ADD COLUMN icon TEXT;
+ALTER TABLE items ADD COLUMN catalog_key TEXT;
+CREATE UNIQUE INDEX items_catalog_key ON items (household_id, catalog_key) WHERE catalog_key IS NOT NULL;
+ALTER TABLE categories ADD COLUMN catalog_key TEXT;
+CREATE UNIQUE INDEX categories_catalog_key ON categories (household_id, catalog_key) WHERE catalog_key IS NOT NULL;
+```
+No backfill in SQL: names are translated, so linking existing rows is Go (below). Both columns nullable, so the migration is reversible by dropping them. `TestSchemaParity` must see the same columns and partial indexes on both engines; `isolation_test.go` gains cases for the new reads and writes.
+
+#### Resolution rules
+- Item icon shown = `items.icon` if set, else the catalogue entry's icon for `items.catalog_key`, else the initial tile. Category is a household choice and wins over the catalogue's default once an item exists.
+- `items.catalog_key` is set when an item is created from a catalogue entry (picked in the add field, import save) or when a typed or imported name matches an entry's name or alias in `EnsureItemIn`. It survives renames: the household may call it "Zitronen" and still has the lemon icon and, later, nutrition data. Clearing it is not offered.
+- A household's own items always win over the catalogue: lookup order is existing item (exact), existing item (near), catalogue entry, new free-text item.
+
+#### Seeding and the add field (D1)
+Recommended: catalogue entries stay virtual until used.
+- Setup seeds only categories, now with `categories.catalog_key` set from the catalogue category set (the six existing ones plus the additions of D3). `groceryDefaults` reads the key set from `internal/catalog`.
+- `Suggest` (the add field; `SearchItems` stays household-only because the importer relies on its exact match) merges: household items first (current ranking), then catalogue entries whose key is not already an item's `catalog_key`, ranked by the same Exact/Prefix/Word order (Built: mid-word matches are dropped for catalogue entries, "lem" would otherwise offer "wholemeal flour"), marked `Suggestion.Catalog *catalog.Entry`. Picking one calls `EnsureCatalogItem(key)`: creates the item in the household's language name, the entry's default category (resolved through `categories.catalog_key`; uncategorised if the household deleted it) and `catalog_key`, in the caller's transaction, publishing `CatalogChanged`.
+- Why not insert 400 rows per household (the eager variant, D1 option B): the Items settings list and category counts fill with things nobody bought, a deleted item comes back on the next catalogue upgrade unless tombstoned, every catalogue upgrade needs a per-household migration, and purchase-count ranking is buried. The eager variant is simpler to search (one table) and works unchanged for the REST API. If chosen: `SeedTx` inserts every entry (`ON CONFLICT DO NOTHING`), and upgrades insert missing keys guarded by a `catalog_version` column on `households` plus a `deleted_catalog_keys` tombstone table.
+
+#### Importer
+- `matchIngredient` gains a step after `ItemsWithin`/near fail. Built: only an exact name or alias of the name the item would get (`name.New`) matches, in the recipe language first, then the household's; `Within` is left out because "firm tofu" proposing "Tofu" would drop what the recipe said. A hit sets `DraftIngredient.CatalogKey`, `Icon`, `ItemName` to the household-language name, `Category` to the entry's default category name (the household's category name, or empty), and `Match = MatchCatalog` ("From catalogue", `import.match.catalog`). The model's category guess is used only when no entry matched; deterministic data beats it.
+- The lookup tries the recipe's language first, then the household's, so an English recipe in a German household yields "Zitrone" (key `lemon`). Keys make that cross-language step trivial; names alone would not.
+- `Draft` JSON gains `catalog_key` (omitted when empty, so drafts stored before the change still load). `NewItems()` counts both `MatchNew` and `MatchCatalog`. `Save` calls `EnsureCatalogItem` for `MatchCatalog` rows and `EnsureItemIn` for the rest, which now also links a typed name to the catalogue.
+- The review row shows the icon next to the name and the category chip; the "New item" badge stays for free text, catalogue hits show the neutral "Catalogue" badge. Picking another item or naming one clears `CatalogKey`.
+
+#### Upgrades and renames
+- Existing households: `jobs.LinkCatalog` runs at startup next to `SeedGroceries` (`internal/jobs` may use `ScopeFor`). It sets `categories.catalog_key` where a category's `name_key` equals the translation of a catalogue category in the household's language, and `items.catalog_key` where an item's `name_key` equals an entry's name or alias. Idempotent; never changes names, categories or icons; skips an item whose key is already used by another item of the household.
+- Catalogue upgrades (new release adds entries, fixes names, swaps icons): lazy variant needs nothing per household. A changed icon key shows everywhere at once; a changed name affects only items created afterwards. Existing item names are the household's.
+- Keys never change; retired keys keep resolving to their `replaced_by` entry (`catalog.Entry` follows it) so `items.catalog_key` rows never dangle. A `catalog_key` unknown to the binary (downgrade) is treated as unlinked.
+- Household renames an item: name changes, `catalog_key` stays. Household merges or deletes: deleting frees the key (the partial unique index), the catalogue entry reappears in suggestions. A second item that resolves to an already-linked key is created unlinked.
+- Language change (`households.default_language`): existing names stay; only new items use the new language's names. No renaming sweep.
+
+#### i18n and tests
+- Catalogue names are data files, not `i18n.Key`s: 2 x 400 strings in `en.json` would drown the UI strings and `TestKeysUsedExist` only covers code literals. New UI strings (icon picker, "From catalogue", category names, aria labels) go to `en.json` and `de.json` with the usual format-verb parity.
+- `TestCatalogParity`: en and de have identical key sets; keys match the pattern; per language, NameKey of every name and alias is unique across entries (a collision would make `Lookup` ambiguous); every `category` is in the category set and has a translation in both locales; every `icon` exists in the sprite and every sprite symbol is used.
+- `TestCatalogKeysAppendOnly` (above). `TestSchemaParity` covers migration 13. Service tests on both engines: create from catalogue, typed-name linking, rename keeps key, deleted category leaves the item uncategorised, `LinkCatalog` idempotency; web tests for the add field suggestions through `b.post` and `b.datastar`; an importer test for `MatchCatalog` including the cross-language case.
+- Works without JavaScript: catalogue suggestions use the same plain form-post path as household suggestions today; the item editor's icon picker is radio inputs in a `<fieldset>`.
+
+#### UI
+- Icon (24 px glyph on the 38 px `.tile--sm`) on list rows, cart rows, add-field suggestions, recipe ingredient rows, import review. Item editor (Settings, and the sheet from a list row): name, category select, icon picker (search, grid, "Use catalogue icon" reset, "No icon"). Boards: Catalogue Add, Catalogue Item editor, Catalogue List.
+
+#### Decisions (all decided, recommended options)
+- D1 Virtual catalogue: nothing is inserted at setup, entries become items on first use (eager seeding rejected, reasons above).
+- D2 Icons are mono duotone `currentColor` SVGs, model-drafted from a written style spec, human-reviewed on a contact sheet, clustered to 150-250 files in one sprite, under the repo's licence. No emoji anywhere, not as fallback and not as a user choice.
+- D3 Nine catalogue categories: produce, bakery, fridge, meat_fish, frozen, pantry, spices, drinks, household. New households get all nine; existing households keep theirs, and entries whose category they lack land uncategorised.
+- D4 First release: 300 entries (about 200 icons), growing by release.
+- D5 Custom item icons are picked from the shipped icons only. Built: `items.icon` is an icon key, NULL (inherit the catalogue icon) or `none` (deliberately no icon). The picker is a radio grid of all icons without a search field yet; add one when the set passes about 40 icons.
+- D6 `items.catalog_key` is unique per household (partial unique index).
+- D7 Plural and synonym aliases ship per language.
+- D8 Existing items without a catalogue match stay unlinked and keep the initial tile.
+- D9 Nutrition data lives in a separate `internal/catalog/data/nutrition.json` keyed by catalogue key, agreed with the nutrition plan.
+
 ### Library paging
 - The library shows 48 cards (whole rows at 2, 3, 4 and 6 columns) and "Show more" adds 48. Sorting stays in Go, so every match is read and only the shown cards get their tags. The page size is the `$shown` signal on the live stream, as servings are on the recipe page: raising it reopens the stream and the first render is the longer page; without JavaScript "Show more" links to `?shown=`.
 - The plan's recipe picker ("All recipes") and the meal menu's swap list page the same way, 48 at a time by name. They are not live, so "Show more" links to the next page size (`shown=`) and Datastar fetches just the list with it, as the search does. Searches list every match. The swap list leaves out the meal's own recipe in the query (`recipes.Filter.Exclude`), so its count is right.
@@ -368,6 +438,109 @@ Each phase ends with something usable and is merged before the next starts.
 - **Photo:** `/s/{token}/photo/{full|thumb}` serves the shared recipe's current photo from the link's household. It takes no image hash, so a link cannot open any other image, and the members' `/images/` route stays authenticated. `Cache-Control: private, no-cache` with an ETag: browsers revalidate each time (a cheap 304), so a turned-off link stops serving the photo too.
 - **Headers** on every `/s/` response, 404s included: `X-Robots-Tag: noindex, nofollow, noarchive`, `Referrer-Policy: no-referrer` (the token is in the URL; the source link also has `rel="noreferrer"`), `Cache-Control: no-store` (the photo as above); the page repeats robots and referrer as `<meta>`. An unknown, revoked or binned link answers 404 "This link doesn't work" without the app shell and without saying which. Logs record the route pattern, never the token.
 - Routes: `POST /recipes/{id}/share` (create), `POST /recipes/{id}/share/revoke`; both answer Datastar with the menu's link entry and a toast, and a form post with a redirect to the menu page. Schema: `recipe_shares` (migration `00011_recipe_shares`): household_id, recipe_id (primary key with household_id; composite FK to recipes, cascade), token (unique), created_by (composite FK to memberships), created_at, updated_at.
+
+### Nutrition (decided, not built)
+
+Per-serving nutrition on the recipe page, estimated from the ingredients. An estimate, labelled as one. Decisions D1–D8 at the end of this section are all decided as recommended (user, 2026-11-12).
+
+#### Data source
+
+- **USDA FoodData Central, Foundation Foods and SR Legacy.** The API Guide (`fdc.nal.usda.gov/api-guide`, "Licensing") says the data are public domain, published under CC0 1.0, no permission needed; users are *asked* (not required) to list FoodData Central as the source. Suggested wording: "U.S. Department of Agriculture, Agricultural Research Service. FoodData Central, 2019. fdc.nal.usda.gov." No other page (FAQ, downloads, data documentation) restates the licence, and it makes no per-dataset exception. We credit it anyway: `docs/credits.md` holds the full citation (the repo's credit file), and a footnote under the nutrition block and on the public page names it.
+- **Sets.** Foundation Foods is current (October 2026 release, CSV 4.1 MB zipped) but has only a few hundred foods. SR Legacy is frozen (April 2018, final; CSV 6.7 MB zipped, about 7,800 foods) and covers everyday ingredients; its portion rows (`food_portion`, grams per cup, per piece) are the source for densities and piece weights. Both are used: Foundation row where one exists, else SR Legacy.
+- **Rejected.** Open Food Facts: ODbL, derivative databases must be shared alike, and attribution is required. German BLS 4.0: the BLS site says "ohne Lizenzbarrieren" and the FAQ says the data "kann frei genutzt werden", including for app development, but names no licence and gives no redistribution terms, so it stays out until the Max Rubner-Institut confirms in writing (D6). Swiss database: allows reuse with source credit on its home page, but its legal page requires written consent for reproducing any element; the two are not reconciled. Ciqual, Fineli and Frida could not be read (HTTP 503, 403, a script-only shell), so their licences are unverified.
+- **Embedded subset, not the runtime API.** The API needs a key, allows 1,000 requests per hour per IP (DEMO_KEY: 30 per hour), and would send household ingredient names to a US government service from a self-hosted app. A subset of about 500 ingredients is a JSON file of roughly 100 KB (about 15 KB gzipped): per catalogue key, FDC ID, 8 nutrients per 100 g, density, piece weights. It lives at `internal/catalog/data/nutrition.json`, keyed by catalogue key (ingredient catalogue decision D9), embedded with the catalogue and loaded into a map at start; no table, since it is global reference data and every table carries `household_id`.
+- **Build step, not runtime.** `go run ./internal/catalog/gen/nutrition <fdc-csv-dir>` reads downloaded FDC CSVs (not committed) and the hand-kept `nutrition_map.csv` (catalogue key → FDC ID, plus the portion description to take density or piece weight from) and writes `nutrition.json`. A reviewer diffs `nutrition.json`. Keys are append-only and immutable, so rows never move; a retired key keeps its row via `replaced_by`. Every row keeps its `fdc_id` as provenance. Only raw foods are mapped ("rice, white, raw", not cooked), because recipes list raw amounts.
+- **German.** Names come from the ingredient catalogue's localized names; keys are language-neutral, so no German dataset is needed. Values for German products differ slightly from USDA ones (flour types, cheeses), which the "estimate" label covers.
+
+#### Keys and lookup
+
+- Nutrition hangs off the catalogue key (`items.catalog_key`, from the ingredient catalogue work: a virtual catalogue, the key is set on first use, unique per household, immutable; existing items that match no entry stay unlinked and so have no nutrition until a member types values or the item is linked). Resolution order for an ingredient's item: household row in `item_nutrition` (custom or overriding) → embedded entry for `items.catalog_key` → none.
+- A household row replaces the catalogue's nutrient values as a whole. `item_unit_weights` rows merge per unit with the catalogue's; `density_g_ml` follows the same rule as the nutrient row.
+- Items without a catalogue key and without a household row simply have no data; the recipe page names them.
+
+#### From ingredient line to grams
+
+New package `internal/nutrition` (no SQL beyond `item_nutrition`/`item_unit_weights`; pure conversion in `grams.go`). Input is `recipe_ingredients.quantity` + `unit` (canonical keys from `groceries.Units`), never `amount_text`. Conversion factors come from `internal/groceries`, which gains an exported `BaseAmount(Amount) (value float64, kind, ok)` over the existing constants; `toMetric` has no teaspoons or tablespoons today, so the function covers them (`mlPerTsp`, `mlPerTbsp` exist).
+
+| Line | Rule | Example |
+|---|---|---|
+| `g`, `kg`, `mg`, `oz`, `lb` | mass factor | 200 g spaghetti |
+| `ml`, `cl`, `dl`, `l`, `tsp`, `tbsp`, `cup`, `floz` | millilitres × `density_g_ml` of the item; no density → not counted | 2 tbsp olive oil |
+| no unit, `piece` | `piece` weight; an item with one weight row of any other unit also counts for a bare number | 4 eggs, 1 onion |
+| `clove`, `slice`, `bunch`, `can`, `pack` | that unit's weight row | 2 cloves garlic |
+| `pinch` | 0.4 g | 1 pinch salt |
+| no `quantity` ("1 thumb", "1 handful", "2-3 cloves", "ca. 200 g", "2 large") | not counted | |
+| empty `amount_text` ("salt") | skipped: left out of both sides of the coverage count | |
+| `optional` ingredient | left out of the total, mentioned under the block | |
+
+No guessing: a volume line for an item without density is not counted rather than assumed to be water. Conversion is independent of the viewer's metric/US setting; it uses the stored structured amount.
+
+**Prototype result** (full report in the notes folder, `nutrition-coverage-report.md`): 8 hand-written recipes, 64 lines, with a 45-entry table: 55 resolve (86 %), 1 skipped, 8 not counted (5 free-text measures, 2 missing weight or density, 1 item without data). Weakest recipe 73 %. Parser gaps worth fixing as part of this feature (D5): ranges ("2-3 cloves", "2–3 EL") and "ca." currently produce no quantity.
+
+#### Calculation
+
+- Derived at render, not stored. A recipe has about 10 ingredient rows; the work is a map lookup per row plus one query for the household's `item_nutrition` and `item_unit_weights` for those items (the recipe load already reads ingredients). Storing would need invalidation on every item, ingredient and servings edit and a live event per item edit; the saving is microseconds. Revisit only if a list page shows nutrition per card.
+- Per serving = Σ (grams × nutrient per 100 g / 100) over counted lines ÷ `recipes.servings`. Servings ≤ 0 shows nothing.
+- **Servings scaling does not change per-serving figures** (amounts and servings scale together). The detail page's scaler changes the amounts only; the block says "per serving" and is not recomputed on the client. No total for the whole recipe in v1.
+- Rounding: kcal to 5, grams to 1 (0.1 below 10), sodium to 10 mg. Salt is shown as sodium × 2.5 / 1000 in grams, EU-style.
+- **Coverage.** `counted` = lines with grams; `of` = non-optional lines with an amount. The block always states it when `counted < of`: "Based on 7 of 9 ingredients". Under 50 % (D3) the numbers are hidden: "Not enough data yet. 3 of 9 ingredients have nutrition." The detail list (disclosure) names each uncounted line with its reason: "no nutrition data", "no weight for 'handful'", "no density for volumes", and links to the item editor where fixable.
+- All figures are labelled "estimate"; the data credit sits under the block.
+
+#### Schema (new migration, number after the catalogue's, both dialects)
+
+SQLite shown; Postgres: `uuid` ids, `double precision`, `timestamptz`, same names and keys. `TestSchemaParity` covers both.
+
+```sql
+CREATE TABLE item_nutrition (
+    household_id TEXT NOT NULL,
+    item_id      TEXT NOT NULL,
+    kcal REAL NOT NULL CHECK (kcal >= 0 AND kcal <= 900),
+    protein_g REAL CHECK (protein_g >= 0), fat_g REAL CHECK (fat_g >= 0),
+    saturated_fat_g REAL CHECK (saturated_fat_g >= 0), carbs_g REAL CHECK (carbs_g >= 0),
+    sugars_g REAL CHECK (sugars_g >= 0), fibre_g REAL CHECK (fibre_g >= 0),
+    sodium_mg REAL CHECK (sodium_mg >= 0),
+    density_g_ml REAL CHECK (density_g_ml > 0),
+    updated_by TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+    PRIMARY KEY (household_id, item_id),
+    FOREIGN KEY (household_id, item_id) REFERENCES items (household_id, id) ON DELETE CASCADE,
+    FOREIGN KEY (household_id, updated_by) REFERENCES memberships (household_id, user_id) ON DELETE RESTRICT
+) STRICT;
+CREATE TABLE item_unit_weights (
+    household_id TEXT NOT NULL, item_id TEXT NOT NULL,
+    unit TEXT NOT NULL CHECK (unit IN ('piece','clove','slice','bunch','can','pack')),
+    grams REAL NOT NULL CHECK (grams > 0),
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+    PRIMARY KEY (household_id, item_id, unit),
+    FOREIGN KEY (household_id, item_id) REFERENCES items (household_id, id) ON DELETE CASCADE
+) STRICT;
+```
+
+Timestamps bound from Go (`store.T`). `item_id` is the leading key column after `household_id`, so every lookup is indexed. Items are hard-deleted only through the existing item delete, which cascades.
+
+#### UI and manual entry
+
+- **Recipe detail:** a "Nutrition per serving" block under the ingredients (beside the method on wide screens): kcal large, then protein, fat, carbs, with saturated fat, sugars, fibre and salt in a disclosure. Partial coverage adds the line "Based on 7 of 9 ingredients" and the "What's missing" list. Shown whenever the recipe has ingredients; with too little counted it is the "Not enough data" state.
+- **Item editor (edit sheet):** a "Nutrition" section: source line ("From catalogue · USDA", "Custom"), kcal and 7 nutrient fields per 100 g, "1 l weighs … g" (density, entered as g per 100 ml), unit weights ("1 piece = … g", add row for clove, slice, bunch, can, pack). "Reset to catalogue" deletes the household rows when the item has a catalogue key. Validation in `internal/nutrition` returns `FieldErrors` keyed by form field: non-negative, kcal ≤ 900, protein + fat + carbs + fibre ≤ 100 g. Plain form post works without JavaScript like every other form.
+- **Entry points and design:** boards "Nutrition · …" on the design canvas (recipe page phone, tablet and desktop in both themes, "not enough data" state, item editor with a validation error, public page). The editor opens from a "Nutrition" row in the existing item edit sheet and from the recipe's "What's missing" rows. Label values are typed as salt in grams (EU packs) and stored as sodium.
+- **Public recipe page:** shows the per-serving block when coverage is at least the threshold, with the estimate wording and the data credit, without the "what's missing" list (D4).
+- **Live:** saving an item's nutrition publishes `recipe.changed` for each recipe using the item, like linked recipes do, so open recipe pages recalculate.
+- **i18n keys** (en and de, `i18n.Key` constants): `nutrition.title`, `nutrition.per_serving`, `nutrition.estimate`, `nutrition.kcal`, `nutrition.protein`, `nutrition.fat`, `nutrition.fat_saturated`, `nutrition.carbs`, `nutrition.sugars`, `nutrition.fibre`, `nutrition.salt`, `nutrition.coverage` ("Based on {counted} of {of} ingredients", plural-aware), `nutrition.not_enough`, `nutrition.missing_title`, `nutrition.missing_no_data`, `nutrition.missing_no_weight`, `nutrition.missing_no_density`, `nutrition.optional_left_out`, `nutrition.source_catalogue`, `nutrition.source_custom`, `nutrition.credit`, `nutrition.edit_title`, `nutrition.per_100g`, `nutrition.density`, `nutrition.unit_weight`, `nutrition.add_weight`, `nutrition.reset`, `nutrition.err_range`, `nutrition.err_macros`.
+- **Tests:** conversion table tests per unit rule (no DB); calculation with partial coverage and servings; isolation cases for `item_nutrition` and `item_unit_weights` reads and writes in `internal/nutrition/isolation_test.go`; a test that every `nutrition.json` row has a key in the catalogue, an FDC ID, kcal ≤ 900 and macros ≤ 100 g; web tests (`b.post` and `b.datastar`) for the item editor and the recipe block; `go test` on both engines.
+
+#### Out of scope
+
+Daily targets and goals, meal-plan day or week totals, barcode lookup and Open Food Facts, per-recipe manual overrides ("I know this is 450 kcal"), micronutrients, cooked-versus-raw yield factors, allergens and diets, free-text measure weights ("1 handful"), a runtime USDA lookup, nutrition in list cards or filters, nutrition in the REST API (D7).
+
+#### Decisions (all decided as recommended)
+
+- **D1 Data: embedded USDA subset, no runtime API.** Recommend as written above. Alternative: optional API lookup for custom items; costs a key setup and sends names out.
+- **D2 Ship nutrition rows for the catalogue only.** Items outside the catalogue get data only by manual entry. Recommend yes; no fuzzy matching of free-text items to USDA names.
+- **D3 Coverage threshold: hide numbers under 50 % of counted ingredients.** Recommend 50 %. Alternative: always show with the warning.
+- **D4 Public recipe page shows nutrition** when above the threshold, estimate wording and credit, no missing list. Recommend show. Alternatives: hide, or a per-link switch (extra column on `recipe_shares`).
+- **D5 Parser: accept ranges ("2-3") and "ca." as a quantity** (a range would need a second quantity column or a midpoint stored as the quantity, so this touches the schema and scaling). Recommend a separate change before nutrition, since scaling and the shopping list benefit too, and the midpoint as the quantity with the typed text kept in `amount_text`. Alternative: leave as free text.
+- **D6 German BLS:** ask the Max Rubner-Institut for written confirmation of redistribution, as a background task. Recommend asking; nothing in v1 depends on it.
+- **D7 REST API:** leave nutrition out of `docs/api.md` for v1. Recommend out; add `nutrition` to the recipe resource when someone needs it.
+- **D8 Optional ingredients:** excluded from the total. Recommend excluded, with a note under the block. Alternative: include them.
 
 ### P5 — Later
 - KitchenOwl import, "always have" staples. (OIDC is done, see Auth; tablet polish is done.)
