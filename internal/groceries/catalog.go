@@ -1,9 +1,11 @@
 package groceries
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"errors"
+	"slices"
 
 	"github.com/google/uuid"
 	"golang.org/x/text/language"
@@ -202,7 +204,8 @@ func (s *Service) LookupCatalog(ctx context.Context, sc store.Scoped, name strin
 // LinkCatalog links a household created before the catalogue to it:
 // categories whose name is the translation of a seeded one (d lists them
 // with their keys), and items named like an entry in any catalogue language
-// (the oldest item wins a key). It never changes
+// (an item named like the entry wins a key, then the shorter name, then the
+// older item). It never changes
 // names, categories or icons and skips keys that are taken. It is
 // idempotent; the server runs it at startup.
 func (s *Service) LinkCatalog(ctx context.Context, sc store.Scoped, d Defaults) error {
@@ -239,15 +242,39 @@ func (s *Service) LinkCatalog(ctx context.Context, sc store.Scoped, d Defaults) 
 		if err := q.Select(ctx, &unlinked, `SELECT id, name_key FROM items WHERE household_id = ? AND catalog_key IS NULL ORDER BY created_at, id`, hh); err != nil {
 			return err
 		}
+		// Only one item can hold a key, so the best candidate goes first:
+		// an item named like the entry beats one that merely has it as an
+		// alias ("Salz" over "Meersalz"), then the shorter name, then the
+		// older item.
+		type candidate struct {
+			id    uuid.UUID
+			entry catalog.Entry
+			exact bool
+			size  int
+		}
+		var cands []candidate
 		for _, it := range unlinked {
 			e, ok := catalog.LookupAny(lang, it.NameKey)
 			if !ok {
 				continue
 			}
+			cands = append(cands, candidate{it.ID, e, isEntryName(e.Key, it.NameKey), len(it.NameKey)})
+		}
+		slices.SortStableFunc(cands, func(a, b candidate) int {
+			if a.exact != b.exact {
+				if a.exact {
+					return -1
+				}
+				return 1
+			}
+			return cmp.Compare(a.size, b.size)
+		})
+		for _, it := range cands {
+			e := it.entry
 			res, err := q.Exec(ctx, `UPDATE items SET catalog_key = ?, updated_at = ?
 				WHERE household_id = ? AND id = ? AND catalog_key IS NULL
 				AND NOT EXISTS (SELECT 1 FROM items o WHERE o.household_id = ? AND o.catalog_key = ?)`,
-				e.Key, now, hh, it.ID, hh, e.Key)
+				e.Key, now, hh, it.id, hh, e.Key)
 			if err != nil {
 				return err
 			}
@@ -312,4 +339,15 @@ func (s *Service) suggestCatalog(ctx context.Context, sc store.Scoped, typed str
 		out = append(out, Suggestion{Match: Match(h.Match), Catalog: &ch})
 	}
 	return out, nil
+}
+
+// isEntryName reports whether nameKey is the entry's own name in any
+// catalogue language, not one of its aliases.
+func isEntryName(key, nameKey string) bool {
+	for _, l := range catalog.Languages {
+		if e, ok := catalog.For(l).Entry(key); ok && NameKey(e.Name) == nameKey {
+			return true
+		}
+	}
+	return false
 }

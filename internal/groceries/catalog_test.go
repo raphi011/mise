@@ -248,6 +248,36 @@ func TestLinkCatalog(t *testing.T) {
 	})
 }
 
+// TestLinkCatalogPrefersEntryName: of two items that match one entry, the
+// one named like it gets the key, not the older one with an alias name.
+func TestLinkCatalogPrefersEntryName(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		ctx := t.Context()
+		e := newEnv(t, db, "home")
+		l, err := e.s.Start(ctx, e.sc, testDefaults)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sea := e.add(t, l.ID, "Meersalz").Entry
+		plain := e.add(t, l.ID, "Salz").Entry
+		if err := e.sc.Tx(ctx, func(ctx context.Context, q store.Querier) error {
+			_, err := q.Exec(ctx, `UPDATE items SET catalog_key = NULL WHERE household_id = ?`, e.sc.HouseholdID())
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err := e.s.LinkCatalog(ctx, e.sc, catalogDefaults); err != nil {
+			t.Fatal(err)
+		}
+		if got, _ := e.s.Entry(ctx, e.sc, plain.ID); got.ItemIcon != "shaker" {
+			t.Errorf("Salz not linked: %+v", got)
+		}
+		if got, _ := e.s.Entry(ctx, e.sc, sea.ID); got.ItemIcon == "shaker" {
+			t.Errorf("Meersalz took the key: %+v", got)
+		}
+	})
+}
+
 func TestCatalogueIsolation(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db *store.DB) {
 		ctx := t.Context()
