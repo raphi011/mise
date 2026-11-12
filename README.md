@@ -43,7 +43,7 @@ docker run -d --name mise -p 8080:8080 -v mise-data:/data ghcr.io/raphi011/mise:
 
 Then open <http://localhost:8080>. The container runs as uid 65532 (distroless `nonroot`). Use a named volume as above, or a host directory owned by that uid (`sudo chown 65532:65532 ./data`), for `/data`.
 
-Pin a version (`ghcr.io/raphi011/mise:1.2.3`, or `:1.2` for patch updates) rather than `latest` for anything you care about; `:edge` follows the main branch.
+Pin a version (`ghcr.io/raphi011/mise:1.2.3`, or `:1.2` for patch updates) rather than `latest` for anything you care about.
 
 ### Docker Compose
 
@@ -136,7 +136,7 @@ Generated `*_templ.go` files are committed; CI checks they are current.
 
 ### Releases
 
-Pushes to `main` publish `ghcr.io/raphi011/mise:edge`. A `vX.Y.Z` tag publishes the image (`X.Y.Z`, `X.Y`, `latest`) and the chart at version `X.Y.Z` to `oci://ghcr.io/raphi011/charts`, once CI passes.
+Pushes to `main` run CI only. A `vX.Y.Z` tag publishes the image (`X.Y.Z`, `X.Y`, `latest`) and the chart at version `X.Y.Z` to `oci://ghcr.io/raphi011/charts`, once CI passes.
 
 ### Screenshots
 

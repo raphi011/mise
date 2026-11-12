@@ -2,8 +2,9 @@ name: CI
 
 on:
   pull_request:
-  # Pushes to main and tags run these checks through release.yml, which
-  # publishes only when they pass.
+  push:
+    branches: [main]
+  # Tags run these checks through release.yml, which publishes only when they pass.
   workflow_call:
 
 permissions:
