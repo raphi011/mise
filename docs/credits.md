@@ -7,7 +7,7 @@ The built-in ingredient values in `internal/catalog/data/nutrition.json` come fr
 > U.S. Department of Agriculture, Agricultural Research Service. FoodData Central, 2019. fdc.nal.usda.gov.
 
 - Source and licence statement: <https://fdc.nal.usda.gov/api-guide/> ("Licensing").
-- 253 of the 263 catalogue entries have a row; each keeps its FoodData Central ID (`fdc_id`) as provenance. The rest (cleaning products, coffee, tea, vegetable stock, frozen berry mixes) have no raw USDA equivalent.
+- 257 of the 267 catalogue entries have a row; each keeps its FoodData Central ID (`fdc_id`) as provenance. The rest (cleaning products, coffee, tea, vegetable stock, frozen berry mixes) have no raw USDA equivalent.
 - Values are per 100 g of the raw food. Carbohydrate is the FoodData Central value minus fibre, the way EU labels give it. Values are estimates and may differ from the products you buy.
 - Densities and piece weights come from the source's portion rows where it has one. Where it has none, the value was set by hand (bunches, packs, cans, whole fillets, European roll and baguette sizes). Those rows are marked `hand_edited` with a reason in `internal/catalog/gen/nutrition/nutrition_map.csv`.
 - The file is generated: `go run ./internal/catalog/gen/nutrition <fdc-csv-dir>` reads the downloads (not committed) and that map.

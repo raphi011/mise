@@ -476,7 +476,10 @@
   ]
  },
  "brown_sugar": {
-  "name": "Brown sugar"
+  "name": "Brown sugar",
+  "aliases": [
+   "coconut sugar"
+  ]
  },
  "powdered_sugar": {
   "name": "Powdered sugar",
@@ -1328,5 +1331,26 @@
  },
  "apple_juice": {
   "name": "Apple juice"
+ },
+ "marjoram": {
+  "name": "Marjoram"
+ },
+ "dried_basil": {
+  "name": "Dried basil",
+  "aliases": [
+   "basil dried"
+  ]
+ },
+ "chicken_stock": {
+  "name": "Chicken stock",
+  "aliases": [
+   "chicken broth"
+  ]
+ },
+ "beef_stock": {
+  "name": "Beef stock",
+  "aliases": [
+   "beef broth"
+  ]
  }
 }
