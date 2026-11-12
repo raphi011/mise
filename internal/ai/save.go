@@ -86,12 +86,14 @@ func (s *Service) PickItem(ctx context.Context, sc store.Scoped, user, id uuid.U
 		if item != nil {
 			itemID := item.ID
 			ing.ItemID, ing.ItemName, ing.Match, ing.Category = &itemID, item.Name, MatchExact, ""
+			ing.CatalogKey, ing.Icon = "", ""
 		} else {
 			if groceries.NameKey(pick.Name) != groceries.NameKey(ing.ItemName) || ing.Match != MatchNew {
 				// The proposed category was for the proposed item.
 				ing.Category = ""
 			}
 			ing.ItemID, ing.ItemName, ing.Match = nil, pick.Name, MatchNew
+			ing.CatalogKey, ing.Icon = "", ""
 		}
 		b, err := json.Marshal(d)
 		if err != nil {

@@ -14,11 +14,9 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"golang.org/x/text/cases"
-	"golang.org/x/text/unicode/norm"
-
 	"github.com/google/uuid"
 
+	"github.com/raphi011/mise/internal/catalog"
 	"github.com/raphi011/mise/internal/i18n"
 	"github.com/raphi011/mise/internal/live"
 	"github.com/raphi011/mise/internal/store"
@@ -74,9 +72,7 @@ const (
 
 // NameKey returns the case-folded, space-normalised form of a name used for
 // uniqueness and lookup, so "Äpfel", "äpfel " and "ÄPFEL" are one item.
-func NameKey(name string) string {
-	return norm.NFC.String(cases.Fold().String(normalizeSpace(name)))
-}
+func NameKey(name string) string { return catalog.NameKey(name) }
 
 // CleanName normalises white space in a new item name and upper-cases its first
 // letter, so "lemons" typed into the add field becomes "Lemons".

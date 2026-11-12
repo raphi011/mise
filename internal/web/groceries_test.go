@@ -316,12 +316,12 @@ func TestGroceriesWithoutJavaScript(t *testing.T) {
 		// Categories page.
 		p = anna.get("/settings/categories").expect(t, "categories", http.StatusOK)
 		cats := categoryRe.FindAllStringSubmatch(p.body, -1)
-		if len(cats) != 7 { // six defaults and Asian
+		if len(cats) != 10 { // nine defaults and Asian
 			t.Fatalf("%d categories", len(cats))
 		}
 		anna.post("/settings/categories", url.Values{"name": {"produce"}, "color": {"herb"}}).
 			expect(t, "duplicate category", http.StatusUnprocessableEntity)
-		anna.post("/settings/categories", url.Values{"name": {"Drinks"}, "color": {"sky"}}).expect(t, "create category", http.StatusSeeOther)
+		anna.post("/settings/categories", url.Values{"name": {"Snacks"}, "color": {"sky"}}).expect(t, "create category", http.StatusSeeOther)
 		last := cats[len(cats)-1][1]
 		anna.post("/settings/categories/"+last+"/move", url.Values{"to": {"0"}}).expect(t, "move category", http.StatusSeeOther)
 		res := anna.datastar(http.MethodPost, "/settings/categories/"+last+"/move", nil)

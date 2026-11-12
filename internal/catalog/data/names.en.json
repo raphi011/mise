@@ -1,0 +1,722 @@
+{
+ "lemon": {
+  "name": "Lemon",
+  "aliases": [
+   "lemons"
+  ]
+ },
+ "lime": {
+  "name": "Lime",
+  "aliases": [
+   "limes"
+  ]
+ },
+ "orange": {
+  "name": "Orange",
+  "aliases": [
+   "oranges"
+  ]
+ },
+ "apple": {
+  "name": "Apple",
+  "aliases": [
+   "apples"
+  ]
+ },
+ "banana": {
+  "name": "Banana",
+  "aliases": [
+   "bananas"
+  ]
+ },
+ "pear": {
+  "name": "Pear",
+  "aliases": [
+   "pears"
+  ]
+ },
+ "strawberry": {
+  "name": "Strawberry",
+  "aliases": [
+   "strawberries"
+  ]
+ },
+ "blueberry": {
+  "name": "Blueberry",
+  "aliases": [
+   "blueberries"
+  ]
+ },
+ "grape": {
+  "name": "Grapes",
+  "aliases": [
+   "grape"
+  ]
+ },
+ "avocado": {
+  "name": "Avocado",
+  "aliases": [
+   "avocados"
+  ]
+ },
+ "onion": {
+  "name": "Onion",
+  "aliases": [
+   "onions",
+   "yellow onion"
+  ]
+ },
+ "red_onion": {
+  "name": "Red onion",
+  "aliases": [
+   "red onions"
+  ]
+ },
+ "shallot": {
+  "name": "Shallot",
+  "aliases": [
+   "shallots"
+  ]
+ },
+ "spring_onion": {
+  "name": "Spring onion",
+  "aliases": [
+   "spring onions",
+   "scallion",
+   "scallions",
+   "green onion"
+  ]
+ },
+ "garlic": {
+  "name": "Garlic",
+  "aliases": [
+   "garlic clove",
+   "garlic cloves",
+   "garlic bulb"
+  ]
+ },
+ "ginger": {
+  "name": "Ginger",
+  "aliases": [
+   "fresh ginger"
+  ]
+ },
+ "tomato": {
+  "name": "Tomato",
+  "aliases": [
+   "tomatoes"
+  ]
+ },
+ "cherry_tomato": {
+  "name": "Cherry tomatoes",
+  "aliases": [
+   "cherry tomato"
+  ]
+ },
+ "potato": {
+  "name": "Potato",
+  "aliases": [
+   "potatoes"
+  ]
+ },
+ "sweet_potato": {
+  "name": "Sweet potato",
+  "aliases": [
+   "sweet potatoes"
+  ]
+ },
+ "carrot": {
+  "name": "Carrot",
+  "aliases": [
+   "carrots"
+  ]
+ },
+ "celery": {
+  "name": "Celery",
+  "aliases": [
+   "celery stalk",
+   "celery sticks"
+  ]
+ },
+ "cucumber": {
+  "name": "Cucumber",
+  "aliases": [
+   "cucumbers"
+  ]
+ },
+ "bell_pepper": {
+  "name": "Bell pepper",
+  "aliases": [
+   "bell peppers",
+   "pepper",
+   "peppers",
+   "capsicum"
+  ]
+ },
+ "zucchini": {
+  "name": "Zucchini",
+  "aliases": [
+   "courgette",
+   "courgettes",
+   "zucchinis"
+  ]
+ },
+ "eggplant": {
+  "name": "Aubergine",
+  "aliases": [
+   "eggplant",
+   "eggplants",
+   "aubergines"
+  ]
+ },
+ "broccoli": {
+  "name": "Broccoli"
+ },
+ "cauliflower": {
+  "name": "Cauliflower"
+ },
+ "spinach": {
+  "name": "Spinach",
+  "aliases": [
+   "baby spinach"
+  ]
+ },
+ "lettuce": {
+  "name": "Lettuce",
+  "aliases": [
+   "salad",
+   "romaine"
+  ]
+ },
+ "arugula": {
+  "name": "Arugula",
+  "aliases": [
+   "rocket"
+  ]
+ },
+ "cabbage": {
+  "name": "Cabbage",
+  "aliases": [
+   "white cabbage"
+  ]
+ },
+ "mushroom": {
+  "name": "Mushrooms",
+  "aliases": [
+   "mushroom",
+   "button mushrooms"
+  ]
+ },
+ "leek": {
+  "name": "Leek",
+  "aliases": [
+   "leeks"
+  ]
+ },
+ "corn": {
+  "name": "Corn",
+  "aliases": [
+   "sweetcorn",
+   "corn on the cob"
+  ]
+ },
+ "peas": {
+  "name": "Peas",
+  "aliases": [
+   "green peas"
+  ]
+ },
+ "green_beans": {
+  "name": "Green beans",
+  "aliases": [
+   "string beans"
+  ]
+ },
+ "parsley": {
+  "name": "Parsley",
+  "aliases": [
+   "fresh parsley"
+  ]
+ },
+ "basil": {
+  "name": "Basil",
+  "aliases": [
+   "fresh basil"
+  ]
+ },
+ "cilantro": {
+  "name": "Cilantro",
+  "aliases": [
+   "coriander leaves",
+   "fresh coriander"
+  ]
+ },
+ "mint": {
+  "name": "Mint",
+  "aliases": [
+   "fresh mint"
+  ]
+ },
+ "dill": {
+  "name": "Dill",
+  "aliases": [
+   "fresh dill"
+  ]
+ },
+ "chives": {
+  "name": "Chives"
+ },
+ "rosemary": {
+  "name": "Rosemary",
+  "aliases": [
+   "fresh rosemary"
+  ]
+ },
+ "thyme": {
+  "name": "Thyme",
+  "aliases": [
+   "fresh thyme"
+  ]
+ },
+ "chili": {
+  "name": "Chili",
+  "aliases": [
+   "chilli",
+   "chillies",
+   "chili pepper"
+  ]
+ },
+ "bread": {
+  "name": "Bread",
+  "aliases": [
+   "loaf"
+  ]
+ },
+ "baguette": {
+  "name": "Baguette",
+  "aliases": [
+   "baguettes"
+  ]
+ },
+ "toast_bread": {
+  "name": "Toast bread",
+  "aliases": [
+   "sandwich bread"
+  ]
+ },
+ "bread_rolls": {
+  "name": "Bread rolls",
+  "aliases": [
+   "rolls",
+   "buns"
+  ]
+ },
+ "tortillas": {
+  "name": "Tortillas",
+  "aliases": [
+   "tortilla",
+   "wraps"
+  ]
+ },
+ "pita": {
+  "name": "Pita bread",
+  "aliases": [
+   "pita"
+  ]
+ },
+ "chicken_breast": {
+  "name": "Chicken breast",
+  "aliases": [
+   "chicken breasts"
+  ]
+ },
+ "chicken_thighs": {
+  "name": "Chicken thighs",
+  "aliases": [
+   "chicken thigh"
+  ]
+ },
+ "ground_beef": {
+  "name": "Ground beef",
+  "aliases": [
+   "minced beef",
+   "beef mince"
+  ]
+ },
+ "beef": {
+  "name": "Beef",
+  "aliases": [
+   "stewing beef"
+  ]
+ },
+ "pork": {
+  "name": "Pork"
+ },
+ "bacon": {
+  "name": "Bacon"
+ },
+ "ham": {
+  "name": "Ham"
+ },
+ "sausage": {
+  "name": "Sausages",
+  "aliases": [
+   "sausage"
+  ]
+ },
+ "salmon": {
+  "name": "Salmon",
+  "aliases": [
+   "salmon fillet"
+  ]
+ },
+ "tuna": {
+  "name": "Tuna",
+  "aliases": [
+   "tuna can"
+  ]
+ },
+ "shrimp": {
+  "name": "Shrimp",
+  "aliases": [
+   "prawns"
+  ]
+ },
+ "milk": {
+  "name": "Milk",
+  "aliases": [
+   "whole milk"
+  ]
+ },
+ "butter": {
+  "name": "Butter"
+ },
+ "cream": {
+  "name": "Cream",
+  "aliases": [
+   "heavy cream",
+   "double cream"
+  ]
+ },
+ "sour_cream": {
+  "name": "Sour cream"
+ },
+ "yogurt": {
+  "name": "Yogurt",
+  "aliases": [
+   "yoghurt"
+  ]
+ },
+ "cheese": {
+  "name": "Cheese"
+ },
+ "parmesan": {
+  "name": "Parmesan"
+ },
+ "mozzarella": {
+  "name": "Mozzarella"
+ },
+ "feta": {
+  "name": "Feta"
+ },
+ "cream_cheese": {
+  "name": "Cream cheese"
+ },
+ "eggs": {
+  "name": "Eggs",
+  "aliases": [
+   "egg"
+  ]
+ },
+ "tofu": {
+  "name": "Tofu"
+ },
+ "hummus": {
+  "name": "Hummus"
+ },
+ "oat_milk": {
+  "name": "Oat milk",
+  "aliases": [
+   "oat drink"
+  ]
+ },
+ "frozen_peas": {
+  "name": "Frozen peas"
+ },
+ "frozen_spinach": {
+  "name": "Frozen spinach"
+ },
+ "frozen_berries": {
+  "name": "Frozen berries",
+  "aliases": [
+   "frozen fruit"
+  ]
+ },
+ "ice_cream": {
+  "name": "Ice cream"
+ },
+ "flour": {
+  "name": "Flour",
+  "aliases": [
+   "plain flour",
+   "all-purpose flour",
+   "wheat flour"
+  ]
+ },
+ "whole_wheat_flour": {
+  "name": "Whole wheat flour",
+  "aliases": [
+   "wholemeal flour"
+  ]
+ },
+ "sugar": {
+  "name": "Sugar",
+  "aliases": [
+   "white sugar"
+  ]
+ },
+ "brown_sugar": {
+  "name": "Brown sugar"
+ },
+ "powdered_sugar": {
+  "name": "Powdered sugar",
+  "aliases": [
+   "icing sugar"
+  ]
+ },
+ "baking_powder": {
+  "name": "Baking powder"
+ },
+ "baking_soda": {
+  "name": "Baking soda",
+  "aliases": [
+   "bicarbonate of soda"
+  ]
+ },
+ "yeast": {
+  "name": "Yeast",
+  "aliases": [
+   "dry yeast"
+  ]
+ },
+ "salt": {
+  "name": "Salt"
+ },
+ "black_pepper": {
+  "name": "Black pepper",
+  "aliases": [
+   "ground pepper"
+  ]
+ },
+ "paprika_powder": {
+  "name": "Paprika powder",
+  "aliases": [
+   "paprika"
+  ]
+ },
+ "cumin": {
+  "name": "Cumin",
+  "aliases": [
+   "ground cumin"
+  ]
+ },
+ "cinnamon": {
+  "name": "Cinnamon"
+ },
+ "nutmeg": {
+  "name": "Nutmeg"
+ },
+ "oregano": {
+  "name": "Oregano",
+  "aliases": [
+   "dried oregano"
+  ]
+ },
+ "turmeric": {
+  "name": "Turmeric"
+ },
+ "curry_powder": {
+  "name": "Curry powder"
+ },
+ "vanilla": {
+  "name": "Vanilla",
+  "aliases": [
+   "vanilla extract"
+  ]
+ },
+ "rice": {
+  "name": "Rice"
+ },
+ "basmati_rice": {
+  "name": "Basmati rice"
+ },
+ "pasta": {
+  "name": "Pasta"
+ },
+ "spaghetti": {
+  "name": "Spaghetti"
+ },
+ "oats": {
+  "name": "Oats",
+  "aliases": [
+   "rolled oats"
+  ]
+ },
+ "couscous": {
+  "name": "Couscous"
+ },
+ "lentils": {
+  "name": "Lentils",
+  "aliases": [
+   "red lentils"
+  ]
+ },
+ "chickpeas": {
+  "name": "Chickpeas",
+  "aliases": [
+   "garbanzo beans"
+  ]
+ },
+ "kidney_beans": {
+  "name": "Kidney beans",
+  "aliases": [
+   "red kidney beans"
+  ]
+ },
+ "canned_tomatoes": {
+  "name": "Canned tomatoes",
+  "aliases": [
+   "chopped tomatoes",
+   "tinned tomatoes"
+  ]
+ },
+ "tomato_paste": {
+  "name": "Tomato paste",
+  "aliases": [
+   "tomato puree"
+  ]
+ },
+ "coconut_milk": {
+  "name": "Coconut milk"
+ },
+ "olive_oil": {
+  "name": "Olive oil"
+ },
+ "vegetable_oil": {
+  "name": "Vegetable oil",
+  "aliases": [
+   "sunflower oil",
+   "cooking oil"
+  ]
+ },
+ "vinegar": {
+  "name": "Vinegar",
+  "aliases": [
+   "white vinegar"
+  ]
+ },
+ "balsamic_vinegar": {
+  "name": "Balsamic vinegar"
+ },
+ "soy_sauce": {
+  "name": "Soy sauce"
+ },
+ "honey": {
+  "name": "Honey"
+ },
+ "maple_syrup": {
+  "name": "Maple syrup"
+ },
+ "mustard": {
+  "name": "Mustard"
+ },
+ "ketchup": {
+  "name": "Ketchup"
+ },
+ "mayonnaise": {
+  "name": "Mayonnaise",
+  "aliases": [
+   "mayo"
+  ]
+ },
+ "peanut_butter": {
+  "name": "Peanut butter"
+ },
+ "jam": {
+  "name": "Jam"
+ },
+ "chocolate": {
+  "name": "Chocolate",
+  "aliases": [
+   "dark chocolate"
+  ]
+ },
+ "almonds": {
+  "name": "Almonds"
+ },
+ "walnuts": {
+  "name": "Walnuts"
+ },
+ "vegetable_stock": {
+  "name": "Vegetable stock",
+  "aliases": [
+   "vegetable broth"
+  ]
+ },
+ "coffee": {
+  "name": "Coffee"
+ },
+ "tea": {
+  "name": "Tea"
+ },
+ "orange_juice": {
+  "name": "Orange juice"
+ },
+ "water": {
+  "name": "Water",
+  "aliases": [
+   "sparkling water",
+   "mineral water"
+  ]
+ },
+ "beer": {
+  "name": "Beer"
+ },
+ "wine": {
+  "name": "Wine",
+  "aliases": [
+   "red wine",
+   "white wine"
+  ]
+ },
+ "dish_soap": {
+  "name": "Dish soap",
+  "aliases": [
+   "washing-up liquid"
+  ]
+ },
+ "laundry_detergent": {
+  "name": "Laundry detergent"
+ },
+ "toilet_paper": {
+  "name": "Toilet paper"
+ },
+ "paper_towels": {
+  "name": "Paper towels",
+  "aliases": [
+   "kitchen roll"
+  ]
+ },
+ "trash_bags": {
+  "name": "Trash bags",
+  "aliases": [
+   "bin bags"
+  ]
+ },
+ "sponges": {
+  "name": "Sponges",
+  "aliases": [
+   "sponge"
+  ]
+ }
+}

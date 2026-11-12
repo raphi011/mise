@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/a-h/templ"
@@ -13,6 +14,7 @@ import (
 	"github.com/starfederation/datastar-go/datastar"
 
 	"github.com/raphi011/mise/internal/auth"
+	"github.com/raphi011/mise/internal/catalog"
 	"github.com/raphi011/mise/internal/groceries"
 	"github.com/raphi011/mise/internal/i18n"
 	"github.com/raphi011/mise/internal/jobs"
@@ -36,12 +38,15 @@ func groceryDefaults(ctx context.Context, lang string) groceries.Defaults {
 	return groceries.Defaults{
 		ListName: i18n.T(ctx, "groceries.defaultList"),
 		Categories: []groceries.NewCategory{
-			{Name: i18n.T(ctx, "groceries.category.produce"), Color: "herb"},
-			{Name: i18n.T(ctx, "groceries.category.bakery"), Color: "sand"},
-			{Name: i18n.T(ctx, "groceries.category.fridge"), Color: "sky"},
-			{Name: i18n.T(ctx, "groceries.category.frozen"), Color: "plum"},
-			{Name: i18n.T(ctx, "groceries.category.pantry"), Color: "amber"},
-			{Name: i18n.T(ctx, "groceries.category.household"), Color: "coral"},
+			{Name: i18n.T(ctx, "groceries.category.produce"), Color: "herb", CatalogKey: "produce"},
+			{Name: i18n.T(ctx, "groceries.category.bakery"), Color: "sand", CatalogKey: "bakery"},
+			{Name: i18n.T(ctx, "groceries.category.meatFish"), Color: "coral", CatalogKey: "meat_fish"},
+			{Name: i18n.T(ctx, "groceries.category.fridge"), Color: "sky", CatalogKey: "fridge"},
+			{Name: i18n.T(ctx, "groceries.category.frozen"), Color: "plum", CatalogKey: "frozen"},
+			{Name: i18n.T(ctx, "groceries.category.pantry"), Color: "amber", CatalogKey: "pantry"},
+			{Name: i18n.T(ctx, "groceries.category.spices"), Color: "herb", CatalogKey: "spices"},
+			{Name: i18n.T(ctx, "groceries.category.drinks"), Color: "sky", CatalogKey: "drinks"},
+			{Name: i18n.T(ctx, "groceries.category.household"), Color: "coral", CatalogKey: "household"},
 		},
 	}
 }
@@ -94,7 +99,7 @@ func (s *Server) groceriesView(ctx context.Context, sc store.Scoped, id *auth.Id
 // unit system.
 func entryRow(ctx context.Context, e groceries.Entry, id *auth.Identity) ui.EntryRow {
 	amount := groceries.Convert(e.Amount, unitSystem(id), i18n.Locale(ctx)).Text
-	row := ui.EntryRow{ID: e.ID.String(), Name: e.ItemName, Amount: amount, Note: e.Note, Recipe: e.RecipeName}
+	row := ui.EntryRow{ID: e.ID.String(), Name: e.ItemName, Icon: e.ItemIcon, Amount: amount, Note: e.Note, Recipe: e.RecipeName}
 	if e.Category != nil {
 		row.Color = e.Category.Color
 	}
@@ -240,7 +245,9 @@ func (s *Server) addEntry(w http.ResponseWriter, r *http.Request) {
 	}
 	amount, name := groceries.ParseEntry(text, lang)
 	in := groceries.AddInput{ListID: listID, Name: name, Amount: amount, AddedBy: identity(r).UserID, Lang: lang}
-	if pick != "" && pick != "new" {
+	if key, ok := strings.CutPrefix(pick, "cat:"); ok {
+		in.CatalogKey = key
+	} else if pick != "" && pick != "new" {
 		itemID, err := uuid.Parse(pick)
 		if err != nil {
 			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
@@ -306,8 +313,9 @@ func (s *Server) suggest(w http.ResponseWriter, r *http.Request) {
 		exact := false
 		for _, sg := range found {
 			exact = exact || sg.Match == groceries.MatchExact
-			v.Options = append(v.Options, suggestOption(ctx, sg, unitSystem(identity(r))))
-			opts = append(opts, sg.Item.ID.String())
+			o := suggestOption(ctx, sg, unitSystem(identity(r)))
+			v.Options = append(v.Options, o)
+			opts = append(opts, o.Pick)
 		}
 		if !exact {
 			v.Create = groceries.CleanName(name)
@@ -331,7 +339,15 @@ func (s *Server) suggest(w http.ResponseWriter, r *http.Request) {
 const oftenBought = 3
 
 func suggestOption(ctx context.Context, sg groceries.Suggestion, sys groceries.System) ui.SuggestOption {
-	o := ui.SuggestOption{ItemID: sg.Item.ID.String(), Name: sg.Item.Name, OnList: sg.OnList != nil}
+	if sg.Catalog != nil {
+		o := ui.SuggestOption{Pick: "cat:" + sg.Catalog.Key, Name: sg.Catalog.Name, Icon: sg.Catalog.Icon, Catalogue: true,
+			Detail: i18n.T(ctx, "groceries.uncategorised")}
+		if c := sg.Catalog.Category; c != nil {
+			o.Detail, o.Color = c.Name, c.Color
+		}
+		return o
+	}
+	o := ui.SuggestOption{Pick: sg.Item.ID.String(), Name: sg.Item.Name, Icon: sg.Item.Icon, OnList: sg.OnList != nil}
 	category := i18n.T(ctx, "groceries.uncategorised")
 	if sg.Item.Category != nil {
 		category, o.Color = sg.Item.Category.Name, sg.Item.Category.Color
@@ -519,7 +535,14 @@ func (s *Server) editView(ctx context.Context, sc store.Scoped, e groceries.Entr
 	if err != nil {
 		return ui.EntryEditView{}, err
 	}
-	v := ui.EntryEditView{ID: e.ID.String(), ItemID: e.ItemID.String(), ItemName: e.ItemName, ListID: e.ListID.String(), Form: f}
+	v := ui.EntryEditView{ID: e.ID.String(), ItemID: e.ItemID.String(), ItemName: e.ItemName, ItemIcon: e.ItemIcon, ListID: e.ListID.String(), Form: f}
+	for _, k := range catalog.IconKeys() {
+		v.Icons = append(v.Icons, ui.IconOption{Key: k, Label: i18n.T(ctx, i18n.Key("icon."+k))})
+	}
+	icon, err := s.groceries.ItemIcon(ctx, sc, e.ItemID)
+	if err != nil {
+		return ui.EntryEditView{}, err
+	}
 	if e.Category != nil {
 		v.Color = e.Category.Color
 	}
@@ -536,7 +559,7 @@ func (s *Server) editView(ctx context.Context, sc store.Scoped, e groceries.Entr
 			category = e.Category.ID.String()
 		}
 		v.Form.Values = map[string]string{
-			"name": e.ItemName, "amount": e.Amount.Text, "note": e.Note, "category": category, "list": e.ListID.String(),
+			"name": e.ItemName, "amount": e.Amount.Text, "note": e.Note, "category": category, "list": e.ListID.String(), "icon": icon,
 		}
 	}
 	return v, nil
@@ -591,13 +614,14 @@ func (s *Server) saveEntry(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	f := formOf(r, "name", "amount", "category", "new_category", "list", "note")
+	f := formOf(r, "name", "amount", "category", "new_category", "list", "note", "icon")
 	u := groceries.EntryUpdate{
 		Name:        f.Value("name"),
 		Amount:      groceries.ParseAmount(f.Value("amount"), i18n.Locale(ctx)),
 		Note:        f.Value("note"),
 		NewCategory: groceries.NewCategory{Name: f.Value("new_category")},
 		ListID:      e.ListID,
+		Icon:        f.Value("icon"),
 	}
 	if c := f.Value("category"); c != "" {
 		catID, err := uuid.Parse(c)
@@ -709,6 +733,13 @@ func (s *Server) CloseStreams() { s.live.Close() }
 // serving.
 func (s *Server) SeedGroceries(ctx context.Context) error {
 	return jobs.SeedGroceries(ctx, s.db, s.groceries, func(lang string) groceries.Defaults {
+		return groceryDefaults(ctx, lang)
+	})
+}
+
+// LinkCatalog links households created before the catalogue to it.
+func (s *Server) LinkCatalog(ctx context.Context) error {
+	return jobs.LinkCatalog(ctx, s.db, s.groceries, func(lang string) groceries.Defaults {
 		return groceryDefaults(ctx, lang)
 	})
 }

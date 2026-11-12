@@ -1,0 +1,577 @@
+[
+ {
+  "key": "lemon",
+  "category": "produce",
+  "icon": "lemon"
+ },
+ {
+  "key": "lime",
+  "category": "produce"
+ },
+ {
+  "key": "orange",
+  "category": "produce"
+ },
+ {
+  "key": "apple",
+  "category": "produce"
+ },
+ {
+  "key": "banana",
+  "category": "produce"
+ },
+ {
+  "key": "pear",
+  "category": "produce"
+ },
+ {
+  "key": "strawberry",
+  "category": "produce"
+ },
+ {
+  "key": "blueberry",
+  "category": "produce"
+ },
+ {
+  "key": "grape",
+  "category": "produce"
+ },
+ {
+  "key": "avocado",
+  "category": "produce"
+ },
+ {
+  "key": "onion",
+  "category": "produce",
+  "icon": "onion"
+ },
+ {
+  "key": "red_onion",
+  "category": "produce",
+  "icon": "onion"
+ },
+ {
+  "key": "shallot",
+  "category": "produce",
+  "icon": "onion"
+ },
+ {
+  "key": "spring_onion",
+  "category": "produce",
+  "icon": "onion"
+ },
+ {
+  "key": "garlic",
+  "category": "produce",
+  "icon": "garlic"
+ },
+ {
+  "key": "ginger",
+  "category": "produce"
+ },
+ {
+  "key": "tomato",
+  "category": "produce",
+  "icon": "tomato"
+ },
+ {
+  "key": "cherry_tomato",
+  "category": "produce",
+  "icon": "tomato"
+ },
+ {
+  "key": "potato",
+  "category": "produce"
+ },
+ {
+  "key": "sweet_potato",
+  "category": "produce"
+ },
+ {
+  "key": "carrot",
+  "category": "produce"
+ },
+ {
+  "key": "celery",
+  "category": "produce"
+ },
+ {
+  "key": "cucumber",
+  "category": "produce"
+ },
+ {
+  "key": "bell_pepper",
+  "category": "produce"
+ },
+ {
+  "key": "zucchini",
+  "category": "produce"
+ },
+ {
+  "key": "eggplant",
+  "category": "produce"
+ },
+ {
+  "key": "broccoli",
+  "category": "produce"
+ },
+ {
+  "key": "cauliflower",
+  "category": "produce"
+ },
+ {
+  "key": "spinach",
+  "category": "produce"
+ },
+ {
+  "key": "lettuce",
+  "category": "produce"
+ },
+ {
+  "key": "arugula",
+  "category": "produce"
+ },
+ {
+  "key": "cabbage",
+  "category": "produce"
+ },
+ {
+  "key": "mushroom",
+  "category": "produce"
+ },
+ {
+  "key": "leek",
+  "category": "produce"
+ },
+ {
+  "key": "corn",
+  "category": "produce"
+ },
+ {
+  "key": "peas",
+  "category": "produce"
+ },
+ {
+  "key": "green_beans",
+  "category": "produce"
+ },
+ {
+  "key": "parsley",
+  "category": "produce"
+ },
+ {
+  "key": "basil",
+  "category": "produce"
+ },
+ {
+  "key": "cilantro",
+  "category": "produce"
+ },
+ {
+  "key": "mint",
+  "category": "produce"
+ },
+ {
+  "key": "dill",
+  "category": "produce"
+ },
+ {
+  "key": "chives",
+  "category": "produce"
+ },
+ {
+  "key": "rosemary",
+  "category": "produce"
+ },
+ {
+  "key": "thyme",
+  "category": "produce"
+ },
+ {
+  "key": "chili",
+  "category": "produce"
+ },
+ {
+  "key": "bread",
+  "category": "bakery",
+  "icon": "bread"
+ },
+ {
+  "key": "baguette",
+  "category": "bakery",
+  "icon": "bread"
+ },
+ {
+  "key": "toast_bread",
+  "category": "bakery",
+  "icon": "bread"
+ },
+ {
+  "key": "bread_rolls",
+  "category": "bakery",
+  "icon": "bread"
+ },
+ {
+  "key": "tortillas",
+  "category": "bakery"
+ },
+ {
+  "key": "pita",
+  "category": "bakery"
+ },
+ {
+  "key": "chicken_breast",
+  "category": "meat_fish"
+ },
+ {
+  "key": "chicken_thighs",
+  "category": "meat_fish"
+ },
+ {
+  "key": "ground_beef",
+  "category": "meat_fish"
+ },
+ {
+  "key": "beef",
+  "category": "meat_fish"
+ },
+ {
+  "key": "pork",
+  "category": "meat_fish"
+ },
+ {
+  "key": "bacon",
+  "category": "meat_fish"
+ },
+ {
+  "key": "ham",
+  "category": "meat_fish"
+ },
+ {
+  "key": "sausage",
+  "category": "meat_fish"
+ },
+ {
+  "key": "salmon",
+  "category": "meat_fish"
+ },
+ {
+  "key": "tuna",
+  "category": "meat_fish"
+ },
+ {
+  "key": "shrimp",
+  "category": "meat_fish"
+ },
+ {
+  "key": "milk",
+  "category": "fridge",
+  "icon": "milk"
+ },
+ {
+  "key": "butter",
+  "category": "fridge"
+ },
+ {
+  "key": "cream",
+  "category": "fridge"
+ },
+ {
+  "key": "sour_cream",
+  "category": "fridge"
+ },
+ {
+  "key": "yogurt",
+  "category": "fridge"
+ },
+ {
+  "key": "cheese",
+  "category": "fridge"
+ },
+ {
+  "key": "parmesan",
+  "category": "fridge"
+ },
+ {
+  "key": "mozzarella",
+  "category": "fridge"
+ },
+ {
+  "key": "feta",
+  "category": "fridge"
+ },
+ {
+  "key": "cream_cheese",
+  "category": "fridge"
+ },
+ {
+  "key": "eggs",
+  "category": "fridge",
+  "icon": "egg"
+ },
+ {
+  "key": "tofu",
+  "category": "fridge"
+ },
+ {
+  "key": "hummus",
+  "category": "fridge"
+ },
+ {
+  "key": "oat_milk",
+  "category": "fridge",
+  "icon": "milk"
+ },
+ {
+  "key": "frozen_peas",
+  "category": "frozen"
+ },
+ {
+  "key": "frozen_spinach",
+  "category": "frozen"
+ },
+ {
+  "key": "frozen_berries",
+  "category": "frozen"
+ },
+ {
+  "key": "ice_cream",
+  "category": "frozen"
+ },
+ {
+  "key": "flour",
+  "category": "pantry",
+  "icon": "flour"
+ },
+ {
+  "key": "whole_wheat_flour",
+  "category": "pantry",
+  "icon": "flour"
+ },
+ {
+  "key": "sugar",
+  "category": "pantry"
+ },
+ {
+  "key": "brown_sugar",
+  "category": "pantry"
+ },
+ {
+  "key": "powdered_sugar",
+  "category": "pantry"
+ },
+ {
+  "key": "baking_powder",
+  "category": "pantry"
+ },
+ {
+  "key": "baking_soda",
+  "category": "pantry"
+ },
+ {
+  "key": "yeast",
+  "category": "pantry"
+ },
+ {
+  "key": "salt",
+  "category": "spices"
+ },
+ {
+  "key": "black_pepper",
+  "category": "spices"
+ },
+ {
+  "key": "paprika_powder",
+  "category": "spices"
+ },
+ {
+  "key": "cumin",
+  "category": "spices"
+ },
+ {
+  "key": "cinnamon",
+  "category": "spices"
+ },
+ {
+  "key": "nutmeg",
+  "category": "spices"
+ },
+ {
+  "key": "oregano",
+  "category": "spices"
+ },
+ {
+  "key": "turmeric",
+  "category": "spices"
+ },
+ {
+  "key": "curry_powder",
+  "category": "spices"
+ },
+ {
+  "key": "vanilla",
+  "category": "spices"
+ },
+ {
+  "key": "rice",
+  "category": "pantry"
+ },
+ {
+  "key": "basmati_rice",
+  "category": "pantry"
+ },
+ {
+  "key": "pasta",
+  "category": "pantry"
+ },
+ {
+  "key": "spaghetti",
+  "category": "pantry"
+ },
+ {
+  "key": "oats",
+  "category": "pantry"
+ },
+ {
+  "key": "couscous",
+  "category": "pantry"
+ },
+ {
+  "key": "lentils",
+  "category": "pantry"
+ },
+ {
+  "key": "chickpeas",
+  "category": "pantry"
+ },
+ {
+  "key": "kidney_beans",
+  "category": "pantry"
+ },
+ {
+  "key": "canned_tomatoes",
+  "category": "pantry",
+  "icon": "tomato"
+ },
+ {
+  "key": "tomato_paste",
+  "category": "pantry",
+  "icon": "tomato"
+ },
+ {
+  "key": "coconut_milk",
+  "category": "pantry"
+ },
+ {
+  "key": "olive_oil",
+  "category": "pantry"
+ },
+ {
+  "key": "vegetable_oil",
+  "category": "pantry"
+ },
+ {
+  "key": "vinegar",
+  "category": "pantry"
+ },
+ {
+  "key": "balsamic_vinegar",
+  "category": "pantry"
+ },
+ {
+  "key": "soy_sauce",
+  "category": "pantry"
+ },
+ {
+  "key": "honey",
+  "category": "pantry"
+ },
+ {
+  "key": "maple_syrup",
+  "category": "pantry"
+ },
+ {
+  "key": "mustard",
+  "category": "pantry"
+ },
+ {
+  "key": "ketchup",
+  "category": "pantry"
+ },
+ {
+  "key": "mayonnaise",
+  "category": "pantry"
+ },
+ {
+  "key": "peanut_butter",
+  "category": "pantry"
+ },
+ {
+  "key": "jam",
+  "category": "pantry"
+ },
+ {
+  "key": "chocolate",
+  "category": "pantry"
+ },
+ {
+  "key": "almonds",
+  "category": "pantry"
+ },
+ {
+  "key": "walnuts",
+  "category": "pantry"
+ },
+ {
+  "key": "vegetable_stock",
+  "category": "pantry"
+ },
+ {
+  "key": "coffee",
+  "category": "drinks"
+ },
+ {
+  "key": "tea",
+  "category": "drinks"
+ },
+ {
+  "key": "orange_juice",
+  "category": "drinks"
+ },
+ {
+  "key": "water",
+  "category": "drinks"
+ },
+ {
+  "key": "beer",
+  "category": "drinks"
+ },
+ {
+  "key": "wine",
+  "category": "drinks"
+ },
+ {
+  "key": "dish_soap",
+  "category": "household"
+ },
+ {
+  "key": "laundry_detergent",
+  "category": "household"
+ },
+ {
+  "key": "toilet_paper",
+  "category": "household"
+ },
+ {
+  "key": "paper_towels",
+  "category": "household"
+ },
+ {
+  "key": "trash_bags",
+  "category": "household"
+ },
+ {
+  "key": "sponges",
+  "category": "household"
+ }
+]

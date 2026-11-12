@@ -3,6 +3,7 @@ package ui
 import (
 	"net/url"
 
+	"github.com/raphi011/mise/internal/catalog"
 	"github.com/raphi011/mise/internal/i18n"
 )
 
@@ -125,7 +126,7 @@ templ entryRow(e EntryRow) {
 	<li class="entry">
 		<form class="entry__check" method="post" action={ templ.SafeURL("/groceries/entries/" + e.ID + "/check") } data-on:submit={ postForm("/groceries/entries/" + e.ID + "/check") }>
 			<button type="submit" class="entry__main" aria-label={ entryLabel(ctx, e) }>
-				<span class={ tileClass(e.Color, "") } aria-hidden="true">{ Initial(e.Name) }</span>
+				<span class={ tileClass(e.Color, "") } aria-hidden="true">@tileInner(e.Icon, e.Name)</span>
 				<span class="entry__text">
 					<span class="entry__name">{ e.Name }</span>
 					if e.Amount != "" || e.Note != "" || e.Recipe != "" {
@@ -228,10 +229,15 @@ templ Suggestions(v SuggestView) {
 		<ul class="suggest__options" role="listbox" aria-label={ i18n.T(ctx, "groceries.suggest.matching") }>
 			for i, o := range v.Options {
 				<li role="option" data-attr:aria-selected={ selectedExpr(i) }>
-					<button type="submit" form="add-form" name="pick" value={ o.ItemID } class="suggest__option">
-						<span class={ tileClass(o.Color, "sm") } aria-hidden="true">{ Initial(o.Name) }</span>
+					<button type="submit" form="add-form" name="pick" value={ o.Pick } class="suggest__option">
+						<span class={ tileClass(o.Color, "sm") } aria-hidden="true">@tileInner(o.Icon, o.Name)</span>
 						<span class="suggest__text">
-							<span class="suggest__name">{ o.Name }</span>
+							<span class="suggest__name">
+								{ o.Name }
+								if o.Catalogue {
+									<span class="badge badge--quiet">{ i18n.T(ctx, "groceries.suggest.catalogue") }</span>
+								}
+							</span>
 							if o.Detail != "" {
 								<span class="suggest__detail">{ o.Detail }</span>
 							}
@@ -308,7 +314,7 @@ templ EntryEditPage(p Page, v EntryEditView) {
 
 templ entryEditForm(v EntryEditView, modal bool) {
 	<div class="sheet__head">
-		<span class={ tileClass(v.Color, "lg") } aria-hidden="true">{ Initial(v.ItemName) }</span>
+		<span class={ tileClass(v.Color, "lg") } aria-hidden="true">@tileInner(v.ItemIcon, v.ItemName)</span>
 		<h2 class="sheet__title" id="sheet-title">{ v.ItemName }</h2>
 		if modal {
 			<button type="button" class="icon-btn" aria-label={ i18n.T(ctx, "groceries.edit.close") } data-on:click="el.closest('dialog').close()">
@@ -339,6 +345,32 @@ templ entryEditForm(v EntryEditView, modal bool) {
 			</div>
 			@fieldError("edit-category-error", v.Form.Error("category"))
 			<span class="field__hint">{ i18n.T(ctx, "groceries.edit.categoryHint", v.ItemName) }</span>
+		</fieldset>
+		<fieldset class="choices">
+			<legend class="field__label">{ i18n.T(ctx, "groceries.edit.icon") }</legend>
+			<div class="chips">
+				<label class="chip chip--radio">
+					<input type="radio" name="icon" value="" checked?={ v.Form.Value("icon") == "" }/>
+					<span>{ i18n.T(ctx, "groceries.edit.iconDefault") }</span>
+				</label>
+				<label class="chip chip--radio">
+					<input type="radio" name="icon" value="none" checked?={ v.Form.Value("icon") == "none" }/>
+					<span>{ i18n.T(ctx, "groceries.edit.iconNone") }</span>
+				</label>
+			</div>
+			<div class="icon-grid">
+				for _, o := range v.Icons {
+					<label class="icon-pick">
+						<input type="radio" name="icon" value={ o.Key } checked?={ v.Form.Value("icon") == o.Key }/>
+						<span class={ tileClass(v.Color, "sm") } title={ o.Label }>
+							@tileInner(o.Key, o.Label)
+							<span class="visually-hidden">{ o.Label }</span>
+						</span>
+					</label>
+				}
+			</div>
+			@fieldError("edit-icon-error", v.Form.Error("icon"))
+			<span class="field__hint">{ i18n.T(ctx, "groceries.edit.iconHint") }</span>
 		</fieldset>
 		@textField(Field{ID: "edit-new-category", Name: "new_category", Label: i18n.T(ctx, "groceries.edit.newCategory"), LabelNote: i18n.T(ctx, "field.optional"), Hint: i18n.T(ctx, "groceries.edit.newCategoryHint"), Attrs: templ.Attributes{"autocomplete": "off"}}, v.Form)
 		<div class="field">
@@ -457,5 +489,15 @@ templ iconArrow(up bool) {
 		<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"></path></svg>
 	} else {
 		<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"></path></svg>
+	}
+}
+
+// tileInner is the content of an item tile: its icon, drawn in the tile's
+// colour, or the first letter of its name.
+templ tileInner(icon, name string) {
+	if svg := catalog.IconSVG(icon); svg != "" {
+		@templ.Raw(svg)
+	} else {
+		{ Initial(name) }
 	}
 }

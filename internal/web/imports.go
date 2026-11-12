@@ -327,14 +327,14 @@ func reviewView(ctx context.Context, job ai.Job) ui.ImportReviewView {
 	v.Meta = strings.Join(meta, " · ")
 	counts := map[ai.Match]int{}
 	for i, ing := range d.Ingredients {
-		row := ui.ImportRow{Index: i, Text: ing.Text, Item: ing.ItemName, Match: string(ing.Match), Category: ing.Category}
+		row := ui.ImportRow{Index: i, Text: ing.Text, Item: ing.ItemName, Match: string(ing.Match), Category: ing.Category, Icon: ing.Icon}
 		if ing.ItemID != nil {
 			row.ItemID = ing.ItemID.String()
 		}
 		counts[ing.Match]++
 		v.Rows = append(v.Rows, row)
 	}
-	v.Summary = i18n.T(ctx, "import.review.summary", len(d.Ingredients), counts[ai.MatchExact], counts[ai.MatchCheck], counts[ai.MatchNew])
+	v.Summary = i18n.T(ctx, "import.review.summary", len(d.Ingredients), counts[ai.MatchExact], counts[ai.MatchCheck], counts[ai.MatchNew]+counts[ai.MatchCatalog])
 	return v
 }
 

@@ -1,4 +1,4 @@
--- Must stay structurally identical to migrations/sqlite/00013_nutrition.sql;
+-- Must stay structurally identical to migrations/sqlite/00014_nutrition.sql;
 -- TestSchemaParity compares the two.
 
 -- +goose Up

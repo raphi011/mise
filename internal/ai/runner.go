@@ -272,7 +272,7 @@ func (s *Service) importJob(ctx context.Context, sc store.Scoped, job Job, lang 
 		}
 		matched := 0
 		for _, ing := range d.Ingredients {
-			if ing.Match != MatchNew {
+			if ing.Match != MatchNew && ing.Match != MatchCatalog {
 				matched++
 			}
 		}
