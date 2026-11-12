@@ -24,6 +24,9 @@ const (
 	MatchCheck Match = "check"
 	// MatchNew: no item fits; saving creates ItemName.
 	MatchNew Match = "new"
+	// MatchCatalog: no item fits, but a catalogue entry does; saving creates
+	// ItemName in the household's language, filed and iconed like the entry.
+	MatchCatalog Match = "catalog"
 )
 
 // Draft is an imported recipe waiting for review, stored as JSON on its
@@ -54,6 +57,9 @@ type DraftIngredient struct {
 	Match    Match  `json:"match"`
 	// Category is a new item's proposed category name, if any.
 	Category string `json:"category,omitempty"`
+	// CatalogKey and Icon describe the catalogue entry of a MatchCatalog row.
+	CatalogKey string `json:"catalog_key,omitempty"`
+	Icon       string `json:"icon,omitempty"`
 }
 
 // NewItems returns the distinct names of the items saving would create.
@@ -61,7 +67,7 @@ func (d Draft) NewItems() []string {
 	seen := map[string]bool{}
 	var out []string
 	for _, ing := range d.Ingredients {
-		if ing.Match == MatchNew && !seen[groceries.NameKey(ing.ItemName)] {
+		if (ing.Match == MatchNew || ing.Match == MatchCatalog) && !seen[groceries.NameKey(ing.ItemName)] {
 			seen[groceries.NameKey(ing.ItemName)] = true
 			out = append(out, ing.ItemName)
 		}
@@ -173,6 +179,19 @@ func (s *Service) matchIngredient(ctx context.Context, sc store.Scoped, line str
 	}
 	if near != nil {
 		return set(near[0].Item, MatchCheck)
+	}
+	// Nothing the household has fits: a catalogue entry, in the recipe's
+	// language or the household's, comes with a category and an icon.
+	hit, ok, err := s.groceries.LookupCatalog(ctx, sc, name.New, lang)
+	if err != nil {
+		return ing, err
+	}
+	if ok {
+		ing.ItemName, ing.Match, ing.CatalogKey, ing.Icon = hit.Name, MatchCatalog, hit.Key, hit.Icon
+		if hit.Category != nil {
+			ing.Category = hit.Category.Name
+		}
+		return ing, nil
 	}
 	ing.ItemName, ing.Match = groceries.CleanName(name.New), MatchNew
 	return ing, nil

@@ -95,9 +95,11 @@ type EntryGroup struct {
 
 // EntryRow is one entry on the list or in the cart.
 type EntryRow struct {
-	ID     string
-	Name   string
-	Color  string
+	ID    string
+	Name  string
+	Color string
+	// Icon is the catalogue icon key, "" for the initial tile.
+	Icon   string
 	Amount string
 	Note   string
 	// Recipe names the recipe the entry was added from, if any.
@@ -123,9 +125,15 @@ type SuggestView struct {
 
 // SuggestOption is one matching item.
 type SuggestOption struct {
-	ItemID string
-	Name   string
-	Color  string
+	// Pick is what choosing the option posts: an item id, or "cat:" and a
+	// catalogue key for an entry the household has no item for yet.
+	Pick  string
+	Name  string
+	Color string
+	// Icon is the icon key, "" for the initial tile.
+	Icon string
+	// Catalogue marks an entry from the catalogue.
+	Catalogue bool
 	// Detail is the translated second line (category, "already on the
 	// list", "you buy these often").
 	Detail string
@@ -145,9 +153,14 @@ type Toast struct {
 
 // EntryEditView is the item edit sheet.
 type EntryEditView struct {
-	ID         string
-	ItemName   string
-	Color      string
+	ID       string
+	ItemName string
+	Color    string
+	// ItemIcon is the icon shown now, "" for the initial tile.
+	ItemIcon string
+	// Icons are the icons to pick from; the form value "icon" is "" for the
+	// catalogue's, "none" for no icon, or an icon key.
+	Icons      []IconOption
 	ListID     string
 	Form       Form
 	Categories []Option
@@ -214,4 +227,11 @@ func joinNonEmpty(sep string, parts ...string) string {
 		}
 	}
 	return strings.Join(out, sep)
+}
+
+// IconOption is an icon to pick for an item.
+type IconOption struct {
+	Key string
+	// Label is the translated name.
+	Label string
 }

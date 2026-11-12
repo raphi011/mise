@@ -100,7 +100,7 @@ func TestHouseholdIsolation(t *testing.T) {
 			if err != nil || len(v.Groups) != 1 || len(v.Groups[0].Entries) != 1 || len(v.Cart) != 1 || len(v.Usual) != 1 {
 				t.Errorf("ListView(own): %+v, %v", v, err)
 			}
-			if sug, err := s.Suggest(ctx, sc, own.list.ID, "e", 50); err != nil || len(sug) != 3 {
+			if sug, err := s.Suggest(ctx, sc, own.list.ID, "e", 50); err != nil || len(householdOnly(sug)) != 3 {
 				t.Errorf("Suggest: %d suggestions, %v", len(sug), err)
 			} else {
 				for _, x := range sug {
@@ -202,4 +202,16 @@ func TestHouseholdIsolation(t *testing.T) {
 			}
 		}
 	})
+}
+
+// householdOnly leaves out catalogue suggestions, which are the same for
+// every household.
+func householdOnly(sug []Suggestion) []Suggestion {
+	var out []Suggestion
+	for _, s := range sug {
+		if s.Catalog == nil {
+			out = append(out, s)
+		}
+	}
+	return out
 }

@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Icon experiments</title>
+<link rel="stylesheet" href="../../internal/ui/static/css/app.css">
+<style>
+body{padding:16px;max-width:980px;margin:0 auto}
+h1{font-size:20px;margin:0 0 4px}
+.bar{display:flex;gap:8px;margin:8px 0 16px}
+.bar button{min-height:36px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:inherit}
+table{border-collapse:collapse;width:100%}
+th,td{padding:8px 6px;border-bottom:1px solid var(--line-soft);text-align:center;font-size:13px}
+th{color:var(--muted);font-weight:500}
+td:first-child,th:first-child{text-align:left}
+.cell{display:flex;gap:8px;align-items:center;justify-content:center}
+.ic{display:inline-flex;align-items:center;justify-content:center;border-radius:8px}
+.ic svg{width:100%;height:100%;display:block}
+.s24{width:24px;height:24px}.s48{width:48px;height:48px}
+.tile .ic{background:none}
+.plain{color:var(--ink-2)}
+.row{display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--surface);border:1px solid var(--line-soft);border-radius:14px;margin-bottom:8px}
+.row b{font-weight:600}.row span.m{color:var(--muted);font-size:13px;margin-left:auto}
+.list{max-width:375px}
+h2{font-size:15px;margin:24px 0 8px}
+</style></head><body>
+<h1>Icon experiments: lemon, onion, garlic, flour</h1>
+<div class="bar"><button data-t="light">Light</button><button data-t="dark">Dark</button></div>
+<table id="grid"><thead><tr><th>Approach</th><th>Item</th><th>24 px plain</th><th>24 px on tile</th><th>48 px on tile</th></tr></thead><tbody></tbody></table>
+<h2>Shopping list rows at phone width (hand | generated | emoji)</h2>
+<div id="lists" style="display:flex;gap:16px;flex-wrap:wrap"></div>
+<script>
+const items=[['lemon','amber','Lemons'],['onion','sand','Onions'],['garlic','sand','Garlic'],['flour','sand','Flour']];
+const sets=['hand','generated','emoji'];
+const q=new URLSearchParams(location.search).get('theme');
+function theme(t){document.documentElement.dataset.theme=t}
+theme(q||'light');
+document.querySelectorAll('.bar button').forEach(b=>b.onclick=()=>theme(b.dataset.t));
+const cache={};
+async function svg(set,n){const k=set+n;return cache[k]??=await (await fetch(`${set}/${n}.svg`)).text()}
+(async()=>{
+ const tb=document.querySelector('tbody');
+ for(const s of sets)for(const [n,c] of items){
+  const h=await svg(s,n);
+  const tr=document.createElement('tr');
+  tr.innerHTML=`<td>${s}</td><td>${n}</td>
+  <td><div class="cell"><span class="ic s24 plain">${h}</span></div></td>
+  <td><div class="cell"><span class="tile tile--sm avatar--${c}"><span class="ic s24">${h}</span></span></div></td>
+  <td><div class="cell"><span class="tile tile--lg avatar--${c}" style="width:64px;height:64px;border-radius:18px"><span class="ic s48">${h}</span></span></div></td>`;
+  tb.append(tr);
+ }
+ const L=document.getElementById('lists');
+ for(const s of sets){
+  const d=document.createElement('div');d.className='list';d.style.flex='1 1 300px';
+  for(const [n,c,t] of items){
+   d.insertAdjacentHTML('beforeend',`<div class="row"><span class="tile tile--sm avatar--${c}"><span class="ic s24">${await svg(s,n)}</span></span><b>${t}</b><span class="m">2</span></div>`);
+  }
+  L.append(d);
+ }
+})();
+</script></body></html>

@@ -194,6 +194,27 @@ func (s *Sweeper) Run(ctx context.Context) {
 	}
 }
 
+// LinkCatalog links every household's categories and items to the default
+// ingredient catalogue, in the household's language (docs/plan.md, Default
+// ingredients). It covers households created before the catalogue and items
+// they added since; it is idempotent and changes no names, categories or
+// icons.
+func LinkCatalog(ctx context.Context, db *store.DB, g *groceries.Service, defaults func(lang string) groceries.Defaults) error {
+	var households []struct {
+		ID              uuid.UUID
+		DefaultLanguage string
+	}
+	if err := db.System().Read().Select(ctx, &households, `SELECT id, default_language FROM households`); err != nil {
+		return err
+	}
+	for _, h := range households {
+		if err := g.LinkCatalog(ctx, db.ScopeFor(h.ID), defaults(h.DefaultLanguage)); err != nil {
+			return fmt.Errorf("link catalogue for household %s: %w", h.ID, err)
+		}
+	}
+	return nil
+}
+
 // SeedGroceries gives every household without shopping lists its grocery
 // defaults, in its default language. Setup seeds new households in its own
 // transaction; this covers households created before Groceries existed.
