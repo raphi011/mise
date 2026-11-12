@@ -1943,9 +1943,57 @@ a.menu__item:hover { color: var(--ink); background: var(--surface-2); }
   gap: 20px;
 }
 
-.shared__head { display: flex; align-items: center; gap: 8px; }
+.shared__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line-soft);
+}
 .shared__brand { font-family: var(--font-display); font-size: 20px; font-weight: 700; }
-.shared__foot { padding-top: 8px; border-top: 1px solid var(--line-soft); font-size: 13px; color: var(--muted); }
+.shared__tag { margin-left: auto; font-size: 13px; color: var(--muted); text-align: right; }
+.shared__foot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line-soft);
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* The recipe: the title leads the hero, ingredients sit on a card. */
+.shared-recipe { gap: 28px; }
+.shared-recipe__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+.shared-recipe .recipe-hero__media { height: 220px; margin: 0; border-radius: 22px; }
+.shared-recipe .recipe-hero__desc { font-size: 17px; }
+.recipe-section--card .list { border: 0; border-radius: 0; background: none; box-shadow: none; }
+@media (max-width: 520px) { .shared__tag { display: none; } }
+.recipe-section--card {
+  padding: 18px 16px 8px;
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  border-radius: 18px;
+}
+.shared-recipe .step__text { font-size: 17px; }
+@media (min-width: 900px) {
+  .shared-recipe__title { font-size: 44px; }
+  .shared-recipe .recipe-hero__media { height: 300px; flex-basis: 420px; }
+  .recipe-section--card { position: sticky; top: 16px; }
+}
+@media print {
+  .shared__head, .shared__foot { border: 0; }
+  .shared__tag { display: none; }
+  .recipe-section--card { position: static; border-color: #ccc; break-inside: avoid; }
+}
 .shared__gone-title { margin: 0; font-size: 16px; font-weight: 600; color: var(--ink); }
 .ingredient--static { padding-right: 14px; }
 

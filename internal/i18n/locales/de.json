@@ -394,6 +394,7 @@
   "recipes.toast.publicOn": "Öffentlicher Link erstellt. Alle mit dem Link können das Rezept ansehen.",
   "recipes.toast.publicOff": "Öffentlicher Link ausgeschaltet. Die alte Adresse funktioniert nicht mehr.",
   "recipes.public.on": "Öffentlicher Link an: Alle mit dem Link können das Rezept ansehen",
+  "shared.tag": "Rezepte, Wochenplan und Einkauf gemeinsam",
   "shared.footer": "Geteilt aus mise · nur zum Lesen",
   "shared.gone.title": "Dieser Link funktioniert nicht",
   "shared.gone.body": "Er wurde ausgeschaltet oder das Rezept entfernt. Bitte die Person, die ihn geschickt hat, um einen neuen.",

@@ -51,11 +51,15 @@ templ sharedFrame(p Page) {
 			<header class="shared__head">
 				@logo(28)
 				<span class="shared__brand" aria-hidden="true">mise</span>
+				<span class="shared__tag">{ i18n.T(ctx, "shared.tag") }</span>
 			</header>
 			<main class="shared__main" id="main">
 				{ children... }
 			</main>
-			<footer class="shared__foot">{ i18n.T(ctx, "shared.footer") }</footer>
+			<footer class="shared__foot">
+				@logo(20)
+				<span>{ i18n.T(ctx, "shared.footer") }</span>
+			</footer>
 		</div>
 	}
 }
@@ -64,8 +68,7 @@ templ sharedFrame(p Page) {
 // the recipe's own servings, without anything about the household.
 templ SharedRecipePage(p Page, v SharedRecipeView) {
 	@sharedFrame(p) {
-		<article class="recipe">
-			@PageTitle(v.Name)
+		<article class="recipe shared-recipe">
 			<div class="recipe-hero">
 				<div class={ "recipe-hero__media avatar--" + v.Tint }>
 					if v.PhotoURL != "" {
@@ -75,6 +78,7 @@ templ SharedRecipePage(p Page, v SharedRecipeView) {
 					}
 				</div>
 				<div class="recipe-hero__text">
+					<h1 class="shared-recipe__title" id="page-title">{ v.Name }</h1>
 					if v.Description != "" {
 						<p class="recipe-hero__desc">{ v.Description }</p>
 					}
@@ -95,7 +99,7 @@ templ SharedRecipePage(p Page, v SharedRecipeView) {
 				</div>
 			</div>
 			<div class="recipe-body">
-				<section class="recipe-section" aria-labelledby="ingredients-title">
+				<section class="recipe-section recipe-section--card" aria-labelledby="ingredients-title">
 					<div class="recipe-section__head">
 						<h2 class="recipe-section__title" id="ingredients-title">{ i18n.T(ctx, "recipes.ingredients") }</h2>
 					</div>
@@ -119,16 +123,18 @@ templ SharedRecipePage(p Page, v SharedRecipeView) {
 						<p class="muted">{ i18n.T(ctx, "recipes.noIngredients") }</p>
 					}
 				</section>
-				<section class="recipe-section" aria-labelledby="method-title">
-					<div class="recipe-section__head">
-						<h2 class="recipe-section__title" id="method-title">{ i18n.T(ctx, "recipes.method") }</h2>
-					</div>
-					if len(v.Steps) > 0 {
-						@stepList(v.Steps)
-					} else {
-						<p class="muted">{ i18n.T(ctx, "recipes.noSteps") }</p>
-					}
-				</section>
+				<div class="recipe-body__main">
+					<section class="recipe-section" aria-labelledby="method-title">
+						<div class="recipe-section__head">
+							<h2 class="recipe-section__title" id="method-title">{ i18n.T(ctx, "recipes.method") }</h2>
+						</div>
+						if len(v.Steps) > 0 {
+							@stepList(v.Steps)
+						} else {
+							<p class="muted">{ i18n.T(ctx, "recipes.noSteps") }</p>
+						}
+					</section>
+				</div>
 			</div>
 		</article>
 	}

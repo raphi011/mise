@@ -182,7 +182,11 @@ func (s *Server) sharedRecipePage(w http.ResponseWriter, r *http.Request) {
 		v.Ingredients = append(v.Ingredients, ui.IngredientView{Name: ing.ItemName, Amount: amounts[i], Optional: ing.Optional})
 	}
 	v.Steps = stepParts(rec, amounts, sys, firstInMethod)
-	s.render(w, r, http.StatusOK, ui.SharedRecipePage(ui.Page{Title: rec.Name, Public: true}, v))
+	page := ui.Page{Title: rec.Name, Public: true, Description: ui.SharedSummary(ctx, rec.Description, v)}
+	if v.PhotoURL != "" {
+		page.Image = s.publicOrigin(r) + v.PhotoURL
+	}
+	s.render(w, r, http.StatusOK, ui.SharedRecipePage(page, v))
 }
 
 // sharedPhoto serves the shared recipe's current photo, and nothing else:
@@ -239,4 +243,13 @@ func viewerSystem(r *http.Request) groceries.System {
 		return groceries.US
 	}
 	return groceries.Metric
+}
+
+// publicOrigin is the server's public address without a trailing slash: the
+// configured base URL, else the origin the request came in on.
+func (s *Server) publicOrigin(r *http.Request) string {
+	if base := s.BaseURL(); base != nil {
+		return strings.TrimRight(base.String(), "/")
+	}
+	return requestOrigin(r, s.cfg.TrustedProxies)
 }

@@ -394,6 +394,7 @@
   "recipes.toast.publicOn": "Public link created. Anyone with it can view this recipe.",
   "recipes.toast.publicOff": "Public link turned off. The old address no longer works.",
   "recipes.public.on": "Public link on: anyone with it can view this recipe",
+  "shared.tag": "Recipes, planned and shopped together",
   "shared.footer": "Shared from mise · read-only",
   "shared.gone.title": "This link doesn’t work",
   "shared.gone.body": "It was turned off, or the recipe was removed. Ask whoever sent it for a new link.",

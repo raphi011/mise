@@ -51,6 +51,10 @@ type Page struct {
 	// engines are asked not to index it, links send no referrer, and the
 	// app's manifest and scripts are left out.
 	Public bool
+	// Description and Image feed the link preview chat apps and social sites
+	// build from a public page; Image must be an absolute URL.
+	Description string
+	Image       string
 }
 
 func fontFaces() string {
@@ -75,6 +79,17 @@ templ document(p Page) {
 			if p.Public {
 				<meta name="robots" content="noindex, nofollow, noarchive"/>
 				<meta name="referrer" content="no-referrer"/>
+				<meta property="og:type" content="article"/>
+				<meta property="og:site_name" content="mise"/>
+				<meta property="og:title" content={ p.Title }/>
+				if p.Description != "" {
+					<meta property="og:description" content={ p.Description }/>
+					<meta name="description" content={ p.Description }/>
+				}
+				if p.Image != "" {
+					<meta property="og:image" content={ p.Image }/>
+					<meta name="twitter:card" content="summary_large_image"/>
+				}
 			}
 			if p.Refresh > 0 {
 				<noscript><meta http-equiv="refresh" content={ itoa(p.Refresh) }/></noscript>

@@ -103,7 +103,10 @@ func TestPublicLink(t *testing.T) {
 		}
 		for _, want := range []string{"<title>Sticky tofu · mise</title>", "Firm tofu", "400 g", "for 10 minutes.", `class="mention"`,
 			`<meta name="robots" content="noindex, nofollow, noarchive">`, `<meta name="referrer" content="no-referrer">`,
-			`src="` + link + `/photo/full"`} {
+			`src="` + link + `/photo/full"`,
+			// The link preview: title, a summary and an absolute image address.
+			`<meta property="og:title" content="Sticky tofu">`, `<meta property="og:description" content="`,
+			`<meta property="og:image" content="http`, link + `/photo/full"><meta name="twitter:card"`} {
 			if !strings.Contains(body, want) {
 				t.Errorf("public page has no %q", want)
 			}
