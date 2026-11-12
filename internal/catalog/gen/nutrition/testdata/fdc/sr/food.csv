@@ -1,0 +1,5 @@
+"fdc_id","data_type","description","food_category_id","publication_date"
+"1","sr_legacy_food","Flour, test, raw","20","2019-04-01"
+"2","sr_legacy_food","Eggs, test, raw","1","2019-04-01"
+"3","branded_food","Cereal, branded","1","2019-04-01"
+"4","sr_legacy_food","Rice, test, cooked","1","2019-04-01"

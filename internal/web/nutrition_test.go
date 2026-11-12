@@ -37,7 +37,7 @@ func TestNutrition(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db *store.DB) {
 		_, srv := startTimedServer(t, db)
 		anna, ben := household(t, srv)
-		id := createRecipe(t, anna, stickyTofu())
+		id := createRecipe(t, anna, noCatalogue())
 		page := "/recipes/" + id
 
 		// Nothing is known yet: the tile says so, the popup explains and
@@ -81,7 +81,7 @@ func TestNutrition(t *testing.T) {
 
 		editor := "/items/" + tofu + "/nutrition"
 		form := anna.get(editor+"?next="+url.QueryEscape(page)).expect(t, "editor", http.StatusOK).body
-		for _, want := range []string{"Nutrition of Firm tofu", `name="kcal"`, `name="salt"`, `name="per100ml"`, `name="weight_clove"`, "Used in 1 recipe."} {
+		for _, want := range []string{"Nutrition of Firm tempeh", `name="kcal"`, `name="salt"`, `name="per100ml"`, `name="weight_clove"`, "Used in 1 recipe."} {
 			if !strings.Contains(form, want) {
 				t.Errorf("editor has no %q", want)
 			}
@@ -128,7 +128,7 @@ func TestNutrition(t *testing.T) {
 			"page":   anna.get(popup).expect(t, "popup", http.StatusOK).body,
 			"dialog": anna.datastarGet(popup).expect(t, "popup dialog", http.StatusOK).body,
 		} {
-			for _, want := range []string{`nutrition__kcal">290<`, "Based on 1 of 2 ingredients", "What’s missing (1)", "Soy sauce", "No nutrition values for this item.",
+			for _, want := range []string{`nutrition__kcal">290<`, "Based on 1 of 2 ingredients", "What’s missing (1)", "Dark miso", "No nutrition values for this item.",
 				"Saturated fat", "Per serving · 2 servings"} {
 				if !strings.Contains(body, want) {
 					t.Errorf("popup %s has no %q:\n%.300s", how, want, between(body, "nutrition__energy"))
@@ -144,9 +144,9 @@ func TestNutrition(t *testing.T) {
 			}
 		}
 
-		// Weights turn "3 tbsp" into grams: soy sauce counts once it has a density.
+		// Weights turn "3 tbsp" into grams: dark miso counts once it has a density.
 		anna.post("/items/"+soy+"/nutrition", url.Values{"next": {page}, "kcal": {"53"}, "protein": {"8,1"}, "per100ml": {"115"}}).
-			expect(t, "save soy sauce", http.StatusSeeOther, page)
+			expect(t, "save dark miso", http.StatusSeeOther, page)
 		body = anna.get(popup).body
 		if strings.Contains(body, "Based on") || strings.Contains(body, "What’s missing") {
 			t.Errorf("all ingredients counted, but the page shows coverage or missing:\n%.300s", between(body, "nutrition__card"))
@@ -196,4 +196,12 @@ func between(s, marker string) string {
 		return "(missing " + marker + ")"
 	}
 	return s[i:min(len(s), i+400)]
+}
+
+// noCatalogue is stickyTofu with ingredients that have no catalogue entry, so
+// the built-in nutrition data does not answer for them.
+func noCatalogue() url.Values {
+	v := stickyTofu()
+	v["ing_name"] = []string{"Firm tempeh", "Dark miso"}
+	return v
 }

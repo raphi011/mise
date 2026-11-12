@@ -1,0 +1,4 @@
+key,fdc_id,portion_fdc_id,density,weights,hand_edited,note
+flour,1,,cup,pack=1000,yes,pack is hand-set
+egg,2,,,piece=large#2,,
+soap,,,,,,Not a food

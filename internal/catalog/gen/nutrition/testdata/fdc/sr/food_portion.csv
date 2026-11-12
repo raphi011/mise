@@ -1,0 +1,5 @@
+"id","fdc_id","seq_num","amount","measure_unit_id","portion_description","modifier","gram_weight","data_points","footnote","min_year_acquired"
+"1","1","1","1","1000","","","125","","",""
+"2","1","2","0.5","1000","sifted","","50","","",""
+"3","2","1","1","9999","large","","50","","",""
+"4","2","2","1","9999","large","","52","","",""
