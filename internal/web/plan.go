@@ -567,7 +567,7 @@ func (s *Server) addPlanView(ctx context.Context, sc store.Scoped, id *auth.Iden
 	v := ui.AddPlanView{
 		RecipeID: rec.ID.String(), Name: rec.Name, Meta: minutes(ctx, rec.TotalMin()), Days: picker,
 		Servings: clampServings(st.servings, rec.Servings), Base: rec.Servings, ListName: ls.List.Name,
-		Back: localPath(st.back, ui.RecipeHref(rec.ID.String())), Form: st.form,
+		Back: localPath(st.back, ui.RecipeHref(rec.Slug)), Form: st.form,
 	}
 	var already []string
 	for _, ing := range rec.Ingredients {
@@ -1028,7 +1028,7 @@ func (s *Server) mealMenuView(ctx context.Context, sc store.Scoped, id *auth.Ide
 	}
 	today := cal.Today(s.now())
 	v := ui.MealMenuView{
-		ID: m.ID.String(), RecipeID: m.Recipe.ID.String(), Name: m.Recipe.Name, Photo: m.Recipe.Photo,
+		ID: m.ID.String(), RecipeID: m.Recipe.ID.String(), RecipeSlug: m.Recipe.Slug, Name: m.Recipe.Name, Photo: m.Recipe.Photo,
 		DayLabel: fullDate(ctx, m.Date), Day: weekday(ctx, m.Date), Servings: m.Servings, Base: m.Recipe.Servings,
 		View: st.view, Cooked: !today.Before(m.Date), Query: st.query,
 		Back: localPath(st.back, weekHref(cal.WeekOf(m.Date))),
@@ -1331,7 +1331,7 @@ func (s *Server) restoreMeal(w http.ResponseWriter, r *http.Request) {
 
 // markCooked records "I made this" for today.
 func (s *Server) markCooked(w http.ResponseWriter, r *http.Request) {
-	recipeID, sc, ok := s.recipeTarget(w, r)
+	recipeID, slug, sc, ok := s.recipeTarget(w, r)
 	if !ok {
 		return
 	}
@@ -1345,15 +1345,22 @@ func (s *Server) markCooked(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	back := localPath(r.PostFormValue("back"), ui.RecipeHref(recipeID.String()))
-	if !isDatastar(r) && isRecipePage(back, recipeID) {
-		s.setCookedFlash(w, r, recipeID, event)
+	back := localPath(r.PostFormValue("back"), ui.RecipeHref(slug))
+	if !isDatastar(r) {
+		onPage, err := s.isRecipePage(ctx, sc, back, recipeID)
+		if err != nil {
+			s.serverError(w, r, err)
+			return
+		}
+		if onPage {
+			s.setCookedFlash(w, r, recipeID, event)
+		}
 	}
 	s.planDone(w, r, back, patchTempl(ui.ToastRegion(cookedToast(ctx, recipeID, event, back))))
 }
 
 func (s *Server) undoCooked(w http.ResponseWriter, r *http.Request) {
-	recipeID, sc, ok := s.recipeTarget(w, r)
+	recipeID, slug, sc, ok := s.recipeTarget(w, r)
 	if !ok {
 		return
 	}
@@ -1365,7 +1372,7 @@ func (s *Server) undoCooked(w http.ResponseWriter, r *http.Request) {
 	if s.planError(w, r, s.plan.UndoCooked(r.Context(), sc, recipeID, eventID)) {
 		return
 	}
-	s.planUndone(w, r, localPath(r.PostFormValue("back"), ui.RecipeHref(recipeID.String())))
+	s.planUndone(w, r, localPath(r.PostFormValue("back"), ui.RecipeHref(slug)))
 }
 
 // ---- Library ----
@@ -1379,11 +1386,11 @@ func (s *Server) tonightCard(ctx context.Context, sc store.Scoped) (*ui.TonightC
 	switch {
 	case t.Meal != nil:
 		r := t.Meal.Recipe
-		return &ui.TonightCard{RecipeID: r.ID.String(), Name: r.Name, Photo: r.Photo,
+		return &ui.TonightCard{RecipeID: r.ID.String(), RecipeSlug: r.Slug, Name: r.Name, Photo: r.Photo,
 			Meta: joinNonEmpty(" · ", minutes(ctx, r.TotalMin), i18n.T(ctx, "plan.tonight.planned"))}, nil
 	case t.Suggestion != nil:
 		r := t.Suggestion.Recipe
-		return &ui.TonightCard{RecipeID: r.ID.String(), Name: r.Name, Photo: r.Photo,
+		return &ui.TonightCard{RecipeID: r.ID.String(), RecipeSlug: r.Slug, Name: r.Name, Photo: r.Photo,
 			Meta: joinNonEmpty(" · ", minutes(ctx, r.TotalMin), lastCooked(ctx, s.now(), t.Suggestion.LastCookedAt))}, nil
 	}
 	return nil, nil

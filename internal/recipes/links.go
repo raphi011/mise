@@ -17,6 +17,7 @@ const maxLinks = 20
 // page lists it.
 type Link struct {
 	ID       uuid.UUID
+	Slug     string
 	Name     string
 	Photo    string
 	TotalMin *int
@@ -100,13 +101,14 @@ func writeLinks(ctx context.Context, q store.Querier, sc store.Scoped, id uuid.U
 func links(ctx context.Context, q store.Reader, sc store.Scoped, id uuid.UUID) ([]Link, error) {
 	var rows []struct {
 		ID      uuid.UUID
+		Slug    string
 		Name    string
 		NameKey string
 		Photo   *string
 		PrepMin *int
 		CookMin *int
 	}
-	if err := q.Select(ctx, &rows, `SELECT r.id, r.name, r.name_key, r.photo, r.prep_min, r.cook_min
+	if err := q.Select(ctx, &rows, `SELECT r.id, r.slug, r.name, r.name_key, r.photo, r.prep_min, r.cook_min
 		FROM recipe_links l JOIN recipes r ON r.household_id = l.household_id AND r.id = l.linked_id
 		WHERE l.household_id = ? AND l.recipe_id = ? AND r.deleted_at IS NULL AND r.draft = ?
 		ORDER BY r.name_key, r.id`, sc.HouseholdID(), id, false); err != nil {
@@ -114,7 +116,7 @@ func links(ctx context.Context, q store.Reader, sc store.Scoped, id uuid.UUID) (
 	}
 	out := make([]Link, len(rows))
 	for i, r := range rows {
-		out[i] = Link{ID: r.ID, Name: r.Name, Photo: deref(r.Photo), TotalMin: totalMin(r.PrepMin, r.CookMin)}
+		out[i] = Link{ID: r.ID, Slug: r.Slug, Name: r.Name, Photo: deref(r.Photo), TotalMin: totalMin(r.PrepMin, r.CookMin)}
 	}
 	return out, nil
 }

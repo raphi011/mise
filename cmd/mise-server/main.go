@@ -130,6 +130,11 @@ func serve(ctx context.Context, cfg config.Config, db *store.DB, log *slog.Logge
 	if err := server.LinkCatalog(ctx); err != nil {
 		return err
 	}
+	if n, err := server.SlugRecipes(ctx); err != nil {
+		return err
+	} else if n > 0 {
+		log.Info("gave recipes a slug", slog.Int("recipes", n))
+	}
 	if n, err := jobs.SplitIngredientAmounts(ctx, db); err != nil {
 		return err
 	} else if n > 0 {

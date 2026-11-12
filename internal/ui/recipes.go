@@ -22,8 +22,13 @@ func Tint(id string) string {
 // "full").
 func ImageURL(hash, size string) string { return "/images/" + hash + "/" + size }
 
-// RecipeHref is a recipe's detail page.
-func RecipeHref(id string) string { return "/recipes/" + id }
+// RecipeHref is a recipe's detail page, addressed by its slug. Actions on
+// a recipe (form posts, Datastar requests) address it by ID instead, so they
+// keep working in a page opened before a rename.
+func RecipeHref(slug string) string { return "/recipes/" + slug }
+
+// RecipeEditHref is a recipe's editor.
+func RecipeEditHref(slug string) string { return RecipeHref(slug) + "/edit" }
 
 // ---- Library ----
 
@@ -68,6 +73,7 @@ type ImportJobRow struct {
 // RecipeCard is one recipe in the library grid.
 type RecipeCard struct {
 	ID        string
+	Slug      string
 	Name      string
 	Photo     string
 	Meta      string
@@ -131,6 +137,7 @@ type SearchView struct {
 // SearchHit is one result, with the matched part of Pre+Hit+Post marked.
 type SearchHit struct {
 	ID    string
+	Slug  string
 	Name  string
 	Photo string
 	Pre   string
@@ -146,7 +153,10 @@ type SearchHit struct {
 
 // RecipeView is a recipe's detail page region.
 type RecipeView struct {
-	ID          string
+	ID string
+	// Slug is the recipe's address, for links to its pages (see
+	// recipes.Slugify); actions keep the ID.
+	Slug        string
 	Name        string
 	Description string
 	Photo       string
@@ -190,6 +200,7 @@ type RecipeView struct {
 // LinkView is a linked recipe under "Goes well with".
 type LinkView struct {
 	ID    string
+	Slug  string
 	Name  string
 	Photo string
 	// Meta is the translated total time, or "".
@@ -199,18 +210,18 @@ type LinkView struct {
 // CookHref is cook mode at the viewer's servings.
 func (v RecipeView) CookHref() string {
 	if v.Servings == v.Base {
-		return CookHref(v.ID)
+		return CookHref(v.Slug)
 	}
-	return CookHref(v.ID) + "?servings=" + strconv.Itoa(v.Servings)
+	return CookHref(v.Slug) + "?servings=" + strconv.Itoa(v.Servings)
 }
 
 // ServingsHref is the page at n servings, for the stepper without
 // JavaScript.
 func (v RecipeView) ServingsHref(n int) string {
 	if n == v.Base {
-		return RecipeHref(v.ID) + "#ingredients"
+		return RecipeHref(v.Slug) + "#ingredients"
 	}
-	return RecipeHref(v.ID) + "?servings=" + strconv.Itoa(n) + "#ingredients"
+	return RecipeHref(v.Slug) + "?servings=" + strconv.Itoa(n) + "#ingredients"
 }
 
 // IngredientView is one ingredient row with its +/✓ toggle.
@@ -236,7 +247,10 @@ type StepPart struct {
 
 // RecipeMenuView is the ⋯ menu of a recipe.
 type RecipeMenuView struct {
-	ID      string
+	ID string
+	// Slug is the recipe's address, for links to its pages (see
+	// recipes.Slugify); actions keep the ID.
+	Slug    string
 	Name    string
 	ByLabel string
 	// ShareURL is the recipe's address for signed-in members.
@@ -275,7 +289,10 @@ type SharedRecipeView struct {
 
 // DeleteRecipeView is the delete confirmation.
 type DeleteRecipeView struct {
-	ID   string
+	ID string
+	// Slug is the recipe's address, for links to its pages (see
+	// recipes.Slugify); actions keep the ID.
+	Slug string
 	Name string
 	// Body is the translated consequences.
 	Body string
@@ -285,8 +302,9 @@ type DeleteRecipeView struct {
 
 // RecipeEditView is the recipe editor.
 type RecipeEditView struct {
-	// ID is empty for a new recipe.
+	// ID and Slug are empty for a new recipe.
 	ID    string
+	Slug  string
 	Form  Form
 	Photo string
 	Rows  []IngredientRow
@@ -329,7 +347,7 @@ func (v RecipeEditView) Cancel() string {
 	if v.ID == "" {
 		return "/recipes"
 	}
-	return RecipeHref(v.ID)
+	return RecipeHref(v.Slug)
 }
 
 // IngredientRow is one ingredient row of the editor. Key identifies the

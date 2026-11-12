@@ -29,7 +29,7 @@ templ RecipePage(p Page, v RecipeView) {
 templ RecipeActions(v RecipeView) {
 	@AddToPlanButton(v.ID, "btn--small only-wide")
 	@RecipeFavourite(v)
-	<a class="btn btn--secondary btn--small only-wide" href={ templ.SafeURL("/recipes/" + v.ID + "/edit") }>
+	<a class="btn btn--secondary btn--small only-wide" href={ templ.SafeURL(RecipeEditHref(v.Slug)) }>
 		@iconEdit()
 		{ i18n.T(ctx, "recipes.edit") }
 	</a>
@@ -168,7 +168,7 @@ templ RecipeRegion(v RecipeView) {
 				<section class="recipe-section" aria-labelledby="notes-title">
 					<div class="recipe-section__head">
 						<h2 class="recipe-section__title" id="notes-title">{ i18n.T(ctx, "recipes.notes") }</h2>
-						<a class="section-action" href={ templ.SafeURL("/recipes/" + v.ID + "/edit#notes") }>{ i18n.T(ctx, "recipes.notes.edit") }</a>
+						<a class="section-action" href={ templ.SafeURL(RecipeEditHref(v.Slug) + "#notes") }>{ i18n.T(ctx, "recipes.notes.edit") }</a>
 					</div>
 					if v.Notes != "" {
 						<div class="notes">
@@ -202,7 +202,7 @@ templ pairings(links []LinkView) {
 		<span class="pairs__label">{ i18n.T(ctx, "recipes.links") }</span>
 		for i, l := range links {
 			if i < pairingsInline {
-				<a class="pairs__chip" href={ templ.SafeURL(RecipeHref(l.ID)) }>
+				<a class="pairs__chip" href={ templ.SafeURL(RecipeHref(l.Slug)) }>
 					@pairThumb(l)
 					<span class="pairs__name">{ l.Name }</span>
 				</a>
@@ -217,7 +217,7 @@ templ pairings(links []LinkView) {
 			<ul class="pairs__list" id="pairs-list" role="list">
 				for _, l := range links {
 					<li>
-						<a class="pairs__row" href={ templ.SafeURL(RecipeHref(l.ID)) }>
+						<a class="pairs__row" href={ templ.SafeURL(RecipeHref(l.Slug)) }>
 							@pairThumb(l)
 							<span class="pairs__name">{ l.Name }</span>
 							if l.Meta != "" {
@@ -374,7 +374,7 @@ templ recipeMenu(v RecipeMenuView, modal bool) {
 	</div>
 	<ul class="menu" role="list">
 		<li>
-			<a class="menu__item" href={ templ.SafeURL("/recipes/" + v.ID + "/edit") }>
+			<a class="menu__item" href={ templ.SafeURL(RecipeEditHref(v.Slug)) }>
 				<span class="menu__icon">
 					@iconEdit()
 				</span>
@@ -428,7 +428,7 @@ templ recipeMenu(v RecipeMenuView, modal bool) {
 		{ i18n.T(ctx, "recipes.menu.delete") }
 	</a>
 	if !modal {
-		<a class="btn btn--secondary btn--block" href={ templ.SafeURL(RecipeHref(v.ID)) }>{ i18n.T(ctx, "recipes.menu.cancel") }</a>
+		<a class="btn btn--secondary btn--block" href={ templ.SafeURL(RecipeHref(v.Slug)) }>{ i18n.T(ctx, "recipes.menu.cancel") }</a>
 	}
 }
 
@@ -463,7 +463,7 @@ templ deleteRecipeBody(v DeleteRecipeView, modal bool) {
 		if modal {
 			<button type="button" class="btn btn--secondary btn--block btn--tall" data-on:click="el.closest('dialog').close()">{ i18n.T(ctx, "recipes.delete.keep") }</button>
 		} else {
-			<a class="btn btn--secondary btn--block btn--tall" href={ templ.SafeURL(RecipeHref(v.ID)) }>{ i18n.T(ctx, "recipes.delete.keep") }</a>
+			<a class="btn btn--secondary btn--block btn--tall" href={ templ.SafeURL(RecipeHref(v.Slug)) }>{ i18n.T(ctx, "recipes.delete.keep") }</a>
 		}
 	</div>
 }

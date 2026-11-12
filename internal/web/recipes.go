@@ -18,6 +18,7 @@ import (
 	"github.com/raphi011/mise/internal/groceries"
 	"github.com/raphi011/mise/internal/i18n"
 	"github.com/raphi011/mise/internal/images"
+	"github.com/raphi011/mise/internal/jobs"
 	"github.com/raphi011/mise/internal/live"
 	"github.com/raphi011/mise/internal/recipes"
 	"github.com/raphi011/mise/internal/store"
@@ -166,7 +167,7 @@ func personLabel(ctx context.Context, p recipes.Person, viewer uuid.UUID) string
 
 func (s *Server) cardOf(ctx context.Context, c recipes.Card, viewer uuid.UUID) ui.RecipeCard {
 	return ui.RecipeCard{
-		ID: c.ID.String(), Name: c.Name, Photo: c.Photo, Meta: cardMeta(ctx, c), Favourite: c.Favourite,
+		ID: c.ID.String(), Slug: c.Slug, Name: c.Name, Photo: c.Photo, Meta: cardMeta(ctx, c), Favourite: c.Favourite,
 		By: ui.Viewer{Name: c.CreatedBy.Name, Color: c.CreatedBy.Color}, ByLabel: personLabel(ctx, c.CreatedBy, viewer),
 	}
 }
@@ -384,12 +385,12 @@ func (s *Server) searchView(ctx context.Context, sc store.Scoped, id *auth.Ident
 	}
 	lang, sys := i18n.Locale(ctx), unitSystem(id)
 	for _, m := range res.Names {
-		h := ui.SearchHit{ID: m.ID.String(), Name: m.Name, Photo: m.Photo, Meta: cardMeta(ctx, m.Card)}
+		h := ui.SearchHit{ID: m.ID.String(), Slug: m.Slug, Name: m.Name, Photo: m.Photo, Meta: cardMeta(ctx, m.Card)}
 		h.Pre, h.Hit, h.Post = split(m.Name, m.Span)
 		v.Names = append(v.Names, h)
 	}
 	for _, m := range res.Ingredients {
-		h := ui.SearchHit{ID: m.ID.String(), Name: m.Name, Photo: m.Photo, Amount: recipes.DisplayAmount(groceries.Convert(m.Amount, sys, lang), lang)}
+		h := ui.SearchHit{ID: m.ID.String(), Slug: m.Slug, Name: m.Name, Photo: m.Photo, Amount: recipes.DisplayAmount(groceries.Convert(m.Amount, sys, lang), lang)}
 		h.Pre, h.Hit, h.Post = split(m.ItemName, m.Span)
 		v.Ingredients = append(v.Ingredients, h)
 	}
@@ -496,4 +497,10 @@ func (s *Server) libraryLive(w http.ResponseWriter, r *http.Request, sc store.Sc
 			return e.Kind == live.RecipesChanged || e.Kind == live.PlanChanged || e.Kind == live.ImportChanged
 		},
 	})
+}
+
+// SlugRecipes gives recipes from before slugs their slug; it returns how
+// many it changed.
+func (s *Server) SlugRecipes(ctx context.Context) (int, error) {
+	return jobs.SlugRecipes(ctx, s.db, s.recipes)
 }

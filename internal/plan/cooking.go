@@ -31,6 +31,7 @@ type Suggestion struct {
 func (s *Service) Suggestions(ctx context.Context, sc store.Scoped, from, to store.Date, limit int) ([]Suggestion, error) {
 	var rows []struct {
 		ID           uuid.UUID
+		Slug         string
 		Name         string
 		Photo        *string
 		PrepMin      *int
@@ -39,7 +40,7 @@ func (s *Service) Suggestions(ctx context.Context, sc store.Scoped, from, to sto
 		CreatedAt    store.Time
 		LastCookedAt *store.Time
 	}
-	err := sc.Read().Select(ctx, &rows, `SELECT r.id, r.name, r.photo, r.prep_min, r.cook_min, r.servings, r.created_at,
+	err := sc.Read().Select(ctx, &rows, `SELECT r.id, r.slug, r.name, r.photo, r.prep_min, r.cook_min, r.servings, r.created_at,
 			(SELECT max(ce.cooked_at) FROM cook_events ce WHERE ce.household_id = r.household_id AND ce.recipe_id = r.id) AS last_cooked_at
 		FROM recipes r
 		WHERE r.household_id = ? AND r.deleted_at IS NULL AND r.draft = ?
@@ -54,7 +55,7 @@ func (s *Service) Suggestions(ctx context.Context, sc store.Scoped, from, to sto
 	out := make([]Suggestion, len(rows))
 	for i, r := range rows {
 		out[i] = Suggestion{
-			Recipe:    Recipe{ID: r.ID, Name: r.Name, TotalMin: totalMin(r.PrepMin, r.CookMin), Servings: r.Servings},
+			Recipe:    Recipe{ID: r.ID, Slug: r.Slug, Name: r.Name, TotalMin: totalMin(r.PrepMin, r.CookMin), Servings: r.Servings},
 			createdAt: r.CreatedAt.Time,
 		}
 		if r.Photo != nil {

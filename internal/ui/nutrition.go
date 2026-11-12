@@ -36,7 +36,10 @@ type NutritionView struct {
 // NutritionSheetView is the nutrition popup of a recipe.
 type NutritionSheetView struct {
 	// ID is the recipe's.
-	ID        string
+	ID string
+	// Slug is the recipe's address, for links to its pages (see
+	// recipes.Slugify); actions keep the ID.
+	Slug      string
 	Nutrition NutritionView
 }
 

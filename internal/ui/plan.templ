@@ -696,7 +696,7 @@ templ backField(back string) {
 templ mealMenu(v MealMenuView, modal bool) {
 	<ul class="menu" role="list">
 		<li>
-			<a class="menu__item" href={ templ.SafeURL(RecipeHref(v.RecipeID)) }>
+			<a class="menu__item" href={ templ.SafeURL(RecipeHref(v.RecipeSlug)) }>
 				<span class="menu__icon">
 					@iconRecipes()
 				</span>
@@ -906,7 +906,7 @@ templ AddToPlanButton(recipeID, class string) {
 
 // tonightCard is the library's "Suggested for tonight".
 templ tonightCard(t TonightCard) {
-	<a class="tonight" href={ templ.SafeURL(RecipeHref(t.RecipeID)) }>
+	<a class="tonight" href={ templ.SafeURL(RecipeHref(t.RecipeSlug)) }>
 		<span class="tonight__label">{ i18n.T(ctx, "plan.tonight") }</span>
 		<span class="tonight__body">
 			<span class={ "tonight__media avatar--" + Tint(t.RecipeID) }>

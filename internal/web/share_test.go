@@ -69,7 +69,7 @@ func TestPublicLink(t *testing.T) {
 		visitor := newBrowser(t, srv.URL)
 
 		res := anna.postMultipart("/recipes", stickyTofu(), "tofu.png", pngBytes(t)).expect(t, "create", http.StatusSeeOther)
-		id := recipeHrefRe.FindStringSubmatch(res.location)[1]
+		id := recipeIDAt(t, anna, res)
 		photo := photoRe.FindStringSubmatch(anna.get("/recipes").body)[1]
 
 		menu := anna.get("/recipes/"+id+"/menu").expect(t, "menu", http.StatusOK)

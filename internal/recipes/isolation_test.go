@@ -2,6 +2,7 @@ package recipes
 
 import (
 	"errors"
+	"slices"
 	"testing"
 
 	"github.com/google/uuid"
@@ -20,6 +21,7 @@ func TestHouseholdIsolation(t *testing.T) {
 		type fixture struct {
 			env
 			recipe, binned Recipe
+			renamed        Recipe
 			tag, spare     Tag
 			share          Share
 		}
@@ -28,6 +30,10 @@ func TestHouseholdIsolation(t *testing.T) {
 			f := fixture{env: e}
 			f.recipe = e.create(t, Input{Name: "Dal", Tags: []string{"Vegan"}, Ingredients: ings("250 g red lentils")})
 			f.binned = e.create(t, Input{Name: "Soup"})
+			f.renamed = e.create(t, Input{Name: "Chili"})
+			if err := e.s.Update(ctx, e.sc, f.renamed.ID, e.hh.Admin, Input{Name: "Chili con carne", Servings: 2}); err != nil {
+				t.Fatal(err)
+			}
 			if err := e.s.Delete(ctx, e.sc, f.binned.ID); err != nil {
 				t.Fatal(err)
 			}
@@ -58,7 +64,9 @@ func TestHouseholdIsolation(t *testing.T) {
 			s, sc, me := own.s, own.sc, own.hh.Admin
 
 			// Reads return only own rows.
-			if cards, err := s.Library(ctx, sc, me, Filter{}); err != nil || len(cards) != 1 || cards[0].ID != own.recipe.ID {
+			if cards, err := s.Library(ctx, sc, me, Filter{}); err != nil || len(cards) != 2 ||
+				!slices.ContainsFunc(cards, func(c Card) bool { return c.ID == own.recipe.ID }) ||
+				!slices.ContainsFunc(cards, func(c Card) bool { return c.ID == own.renamed.ID }) {
 				t.Errorf("library: %v, %v", names(cards), err)
 			}
 			if cards, _ := s.Library(ctx, sc, me, Filter{Tags: []uuid.UUID{other.tag.ID}}); len(cards) != 0 {
@@ -67,7 +75,7 @@ func TestHouseholdIsolation(t *testing.T) {
 			if cards, _ := s.Library(ctx, sc, me, Filter{AddedBy: []uuid.UUID{other.hh.Admin}}); len(cards) != 0 {
 				t.Errorf("filter by other's member: %v", names(cards))
 			}
-			if n, err := s.Count(ctx, sc); err != nil || n != 1 {
+			if n, err := s.Count(ctx, sc); err != nil || n != 2 {
 				t.Errorf("count %d, %v", n, err)
 			}
 			if res, err := s.Search(ctx, sc, me, "lentil"); err != nil || len(res.Ingredients) != 1 || res.Ingredients[0].ID != own.recipe.ID {
@@ -81,6 +89,19 @@ func TestHouseholdIsolation(t *testing.T) {
 			}
 			_, err := s.Get(ctx, sc, other.recipe.ID, me)
 			notFound("get other's recipe", err)
+			// Both households have a "dal" and an old "chili"; each resolves
+			// to its own, and the other's ID to nothing.
+			if id, slug, err := s.Resolve(ctx, sc, "dal"); err != nil || id != own.recipe.ID || slug != "dal" {
+				t.Errorf("resolve dal: %v %q %v", id, slug, err)
+			}
+			if id, slug, err := s.Resolve(ctx, sc, "chili"); err != nil || id != own.renamed.ID || slug != "chili-con-carne" {
+				t.Errorf("resolve old slug: %v %q %v", id, slug, err)
+			}
+			_, _, err = s.Resolve(ctx, sc, other.recipe.ID.String())
+			notFound("resolve other's recipe ID", err)
+			if n, err := s.SlugMissing(ctx, sc); err != nil || n != 0 {
+				t.Errorf("slug missing: %d, %v", n, err)
+			}
 			_, err = s.DeleteInfo(ctx, sc, other.recipe.ID, me)
 			notFound("delete info of other's recipe", err)
 			if info, _ := s.DeleteInfo(ctx, sc, own.recipe.ID, me); len(info.Others) != 1 || info.Others[0].ID != own.hh.Member {

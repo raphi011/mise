@@ -184,7 +184,7 @@ templ filterChip(c FilterChip) {
 }
 
 templ recipeCard(c RecipeCard) {
-	<a class="recipe-card" href={ templ.SafeURL(RecipeHref(c.ID)) }>
+	<a class="recipe-card" href={ templ.SafeURL(RecipeHref(c.Slug)) }>
 		<span class={ "recipe-card__media avatar--" + Tint(c.ID) }>
 			if c.Photo != "" {
 				<img src={ ImageURL(c.Photo, "thumb") } alt="" loading="lazy"/>
@@ -400,7 +400,7 @@ templ hitSection(id, title string, hits []SearchHit, ingredient bool) {
 		<ul class="list" role="list">
 			for _, h := range hits {
 				<li>
-					<a class="list__link hit" href={ templ.SafeURL(RecipeHref(h.ID)) }>
+					<a class="list__link hit" href={ templ.SafeURL(RecipeHref(h.Slug)) }>
 						if h.Photo != "" {
 							<img class="tile" src={ ImageURL(h.Photo, "thumb") } alt="" loading="lazy"/>
 						} else {

@@ -14,6 +14,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
+
 	"github.com/raphi011/mise/internal/config"
 	"github.com/raphi011/mise/internal/store"
 	"github.com/raphi011/mise/internal/store/storetest"
@@ -21,9 +23,12 @@ import (
 )
 
 var (
-	recipeHrefRe = regexp.MustCompile(`^/recipes/([0-9a-f-]{36})$`)
-	toggleRe     = regexp.MustCompile(`/recipes/[0-9a-f-]{36}/ingredients/([0-9a-f-]{36})/toggle`)
-	photoRe      = regexp.MustCompile(`/images/([0-9a-f]{64})/thumb`)
+	// recipeHrefRe matches a recipe's detail page, addressed by slug.
+	recipeHrefRe = regexp.MustCompile(`^/recipes/([a-z0-9]+(?:-[a-z0-9]+)*)$`)
+	// recipeIDRe finds a recipe's ID in its page's actions.
+	recipeIDRe = regexp.MustCompile(`/recipes/([0-9a-f-]{36})/favourite`)
+	toggleRe   = regexp.MustCompile(`/recipes/[0-9a-f-]{36}/ingredients/([0-9a-f-]{36})/toggle`)
+	photoRe    = regexp.MustCompile(`/images/([0-9a-f]{64})/thumb`)
 )
 
 // stickyTofu is an editor submission without JavaScript.
@@ -47,10 +52,19 @@ func stickyTofu() url.Values {
 // createRecipe posts the editor and returns the new recipe's ID.
 func createRecipe(t *testing.T, b *browser, form url.Values) string {
 	t.Helper()
-	res := b.post("/recipes", form).expect(t, "create recipe", http.StatusSeeOther)
-	m := recipeHrefRe.FindStringSubmatch(res.location)
+	return recipeIDAt(t, b, b.post("/recipes", form).expect(t, "create recipe", http.StatusSeeOther))
+}
+
+// recipeIDAt follows a redirect to a recipe page and returns the recipe's
+// ID, which its actions use.
+func recipeIDAt(t *testing.T, b *browser, res page) string {
+	t.Helper()
+	if recipeHrefRe.FindStringSubmatch(res.location) == nil {
+		t.Fatalf("redirected to %q, want a recipe page", res.location)
+	}
+	m := recipeIDRe.FindStringSubmatch(b.get(res.location).expect(t, "recipe page", http.StatusOK).body)
 	if m == nil {
-		t.Fatalf("create redirected to %q", res.location)
+		t.Fatalf("no recipe ID on %s", res.location)
 	}
 	return m[1]
 }
@@ -86,7 +100,7 @@ func TestRecipeToList(t *testing.T) {
 		list := firstList(t, anna)
 		id := createRecipe(t, anna, stickyTofu())
 
-		page := anna.get("/recipes/"+id).expect(t, "recipe", http.StatusOK)
+		page := anna.open("/recipes/"+id).expect(t, "recipe", http.StatusOK)
 		for _, want := range []string{"Sticky tofu", "0 of 2 on Shopping list", "Firm tofu", "400 g", `class="mention"`, "Double the glaze", "Vegan"} {
 			if !strings.Contains(page.body, want) {
 				t.Errorf("recipe page has no %q", want)
@@ -109,7 +123,7 @@ func TestRecipeToList(t *testing.T) {
 		annaRecipe.next("anna's page follows", liveDeadline, "1 of 2 on Shopping list")
 
 		// Ben takes it off without JavaScript; Anna's page follows.
-		ben.post(soy, url.Values{"on": {"false"}, "servings": {"2"}}).expect(t, "toggle off", http.StatusSeeOther, "/recipes/"+id+"#ingredients")
+		ben.post(soy, url.Values{"on": {"false"}, "servings": {"2"}}).expect(t, "toggle off", http.StatusSeeOther, "/recipes/sticky-tofu#ingredients")
 		annaRecipe.next("anna sees it off", liveDeadline, "0 of 2 on Shopping list")
 
 		// Taking off offers Undo, which puts the entry back.
@@ -129,7 +143,8 @@ func TestRecipeToList(t *testing.T) {
 		// An edit reaches the open page.
 		form := stickyTofu()
 		form.Set("name", "Sticky glazed tofu")
-		anna.post("/recipes/"+id+"/edit", form).expect(t, "edit", http.StatusSeeOther, "/recipes/"+id)
+		// A rename moves the recipe to a new slug.
+		anna.post("/recipes/"+id+"/edit", form).expect(t, "edit", http.StatusSeeOther, "/recipes/sticky-glazed-tofu")
 		annaRecipe.next("anna sees the edit", liveDeadline, "Sticky glazed tofu")
 		benList.next("ben's list names the renamed recipe", liveDeadline, `class="entry__recipe">Sticky glazed tofu`)
 
@@ -224,13 +239,13 @@ func TestRecipePagesWithoutJavaScript(t *testing.T) {
 	form = stickyTofu()
 	form.Set("ing_new", "1 thumb ginger")
 	id := createRecipe(t, anna, form)
-	page := anna.get("/recipes/"+id).expect(t, "recipe", http.StatusOK)
+	page := anna.open("/recipes/"+id).expect(t, "recipe", http.StatusOK)
 	if !strings.Contains(page.body, "0 of 3 on") {
 		t.Errorf("typed line not saved:\n%.3000s", page.body)
 	}
 
 	// Servings scale without JavaScript.
-	page = anna.get("/recipes/"+id+"?servings=4").expect(t, "scaled", http.StatusOK)
+	page = anna.open("/recipes/"+id+"?servings=4").expect(t, "scaled", http.StatusOK)
 	if !strings.Contains(page.body, "800 g") || !strings.Contains(page.body, `name="servings" value="4"`) {
 		t.Errorf("not scaled:\n%.3000s", page.body)
 	}
@@ -286,17 +301,17 @@ func TestRecipePagesWithoutJavaScript(t *testing.T) {
 	if !strings.Contains(confirm.body, "Ben will lose it too.") {
 		t.Errorf("delete confirmation:\n%.3000s", confirm.body)
 	}
-	anna.get("/recipes/"+id).expect(t, "still there after GET", http.StatusOK)
+	anna.open("/recipes/"+id).expect(t, "still there after GET", http.StatusOK)
 	anna.post("/recipes/"+id+"/delete", nil).expect(t, "delete", http.StatusSeeOther, "/recipes?deleted="+id)
-	anna.get("/recipes/"+id).expect(t, "deleted", http.StatusNotFound)
+	anna.open("/recipes/"+id).expect(t, "deleted", http.StatusNotFound)
 	if undo := anna.get("/recipes?deleted=" + id).body; !strings.Contains(undo, "/recipes/"+id+"/restore") {
 		t.Errorf("no Undo after delete:\n%.3000s", undo)
 	}
-	anna.post("/recipes/"+id+"/restore", nil).expect(t, "restore", http.StatusSeeOther, "/recipes/"+id)
-	anna.get("/recipes/"+id).expect(t, "restored", http.StatusOK)
+	anna.post("/recipes/"+id+"/restore", nil).expect(t, "restore", http.StatusSeeOther, "/recipes/sticky-tofu")
+	anna.open("/recipes/"+id).expect(t, "restored", http.StatusOK)
 
 	// The list row names the recipe.
-	toggle := toggleFor(t, anna.get("/recipes/"+id).body, "Firm tofu")
+	toggle := toggleFor(t, anna.open("/recipes/"+id).body, "Firm tofu")
 	anna.post(toggle, url.Values{"on": {"true"}}).expect(t, "toggle", http.StatusSeeOther)
 	if groc := anna.get("/groceries").body; !strings.Contains(groc, `class="entry__recipe">Sticky tofu`) {
 		t.Errorf("list row has no recipe tag:\n%.3000s", groc)
@@ -310,9 +325,9 @@ func TestEditKeepsIngredientIDs(t *testing.T) {
 	_, srv := startServer(t, storetest.SQLite(t))
 	anna, _ := household(t, srv)
 	id := createRecipe(t, anna, stickyTofu())
-	soy := toggleFor(t, anna.get("/recipes/"+id).body, "Soy sauce")
+	soy := toggleFor(t, anna.open("/recipes/"+id).body, "Soy sauce")
 
-	edit := anna.get("/recipes/"+id+"/edit").expect(t, "editor", http.StatusOK)
+	edit := anna.open("/recipes/"+id+"/edit").expect(t, "editor", http.StatusOK)
 	var keys []string
 	for _, m := range regexp.MustCompile(`name="ing_key" value="([^"]+)"`).FindAllStringSubmatch(edit.body, -1) {
 		keys = append(keys, m[1])
@@ -324,12 +339,52 @@ func TestEditKeepsIngredientIDs(t *testing.T) {
 	form["ing_key"] = []string{keys[1], keys[0], "nnew"}
 	form["ing_amount"] = []string{"4 tbsp", "400 g", "1 thumb"}
 	form["ing_name"] = []string{"Soy sauce", "Firm tofu", "Ginger"}
-	anna.post("/recipes/"+id+"/edit", form).expect(t, "edit", http.StatusSeeOther, "/recipes/"+id)
+	anna.post("/recipes/"+id+"/edit", form).expect(t, "edit", http.StatusSeeOther, "/recipes/sticky-tofu")
 
-	anna.post(soy, url.Values{"on": {"true"}}).expect(t, "stale toggle", http.StatusSeeOther, "/recipes/"+id+"#ingredients")
-	if page := anna.get("/recipes/" + id).body; toggleFor(t, page, "Soy sauce") != soy || !strings.Contains(page, "1 of 3 on") {
+	anna.post(soy, url.Values{"on": {"true"}}).expect(t, "stale toggle", http.StatusSeeOther, "/recipes/sticky-tofu#ingredients")
+	if page := anna.open("/recipes/" + id).body; toggleFor(t, page, "Soy sauce") != soy || !strings.Contains(page, "1 of 3 on") {
 		t.Errorf("after edit:\n%.3000s", page)
 	}
+}
+
+// TestRecipeAddresses covers readable recipe URLs: pages live at the slug,
+// and the ID or a slug from before a rename redirect there, keeping the
+// rest of the path and the query. Links point at the slug, actions at the ID.
+func TestRecipeAddresses(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		_, srv := startServer(t, db)
+		anna, _ := household(t, srv)
+		id := createRecipe(t, anna, stickyTofu())
+
+		page := anna.get("/recipes/sticky-tofu").expect(t, "page at slug", http.StatusOK)
+		contains(t, "page links", page.body, `href="/recipes/sticky-tofu/edit"`, `action="/recipes/`+id+`/favourite"`)
+		contains(t, "library card", anna.get("/recipes").body, `href="/recipes/sticky-tofu"`)
+		anna.get("/recipes/"+id).expect(t, "by ID", http.StatusFound, "/recipes/sticky-tofu")
+		anna.get("/recipes/"+id+"/cook?servings=4&step=2").
+			expect(t, "cook by ID", http.StatusFound, "/recipes/sticky-tofu/cook?servings=4&step=2")
+		anna.get("/recipes/Sticky-Tofu").expect(t, "other case", http.StatusFound, "/recipes/sticky-tofu")
+
+		form := stickyTofu()
+		form.Set("name", "Sticky sesame tofu")
+		anna.post("/recipes/"+id+"/edit", form).expect(t, "rename", http.StatusSeeOther, "/recipes/sticky-sesame-tofu")
+		anna.get("/recipes/sticky-tofu/edit").expect(t, "old slug", http.StatusFound, "/recipes/sticky-sesame-tofu/edit")
+		anna.get("/recipes/sticky-sesame-tofu/edit").expect(t, "editor at new slug", http.StatusOK)
+
+		// A new recipe takes the old slug over.
+		createRecipe(t, anna, stickyTofu())
+		contains(t, "new owner of the old slug", anna.get("/recipes/sticky-tofu").expect(t, "old slug", http.StatusOK).body,
+			"<h1", "Sticky tofu")
+
+		// Without JavaScript, "I made this" from the old address still lands
+		// on the page with its Undo toast.
+		anna.post("/recipes/"+id+"/cooked", url.Values{"back": {"/recipes/" + id}}).
+			expect(t, "cooked", http.StatusSeeOther, "/recipes/"+id)
+		contains(t, "undo toast", anna.open("/recipes/"+id).body, "Marked as cooked today")
+
+		for _, path := range []string{"/recipes/no-such-recipe", "/recipes/" + uuid.NewString(), "/recipes/no-such-recipe/cook"} {
+			anna.get(path).expect(t, path, http.StatusNotFound)
+		}
+	})
 }
 
 // TestRecipeWritesNotOnGET checks that GET never changes a recipe.
@@ -337,7 +392,7 @@ func TestRecipeWritesNotOnGET(t *testing.T) {
 	_, srv := startServer(t, storetest.SQLite(t))
 	anna, _ := household(t, srv)
 	id := createRecipe(t, anna, stickyTofu())
-	toggle := toggleFor(t, anna.get("/recipes/"+id).body, "Soy sauce")
+	toggle := toggleFor(t, anna.open("/recipes/"+id).body, "Soy sauce")
 	for _, path := range []string{
 		"/recipes/" + id + "/favourite?on=true",
 		toggle + "?on=true",
@@ -350,7 +405,7 @@ func TestRecipeWritesNotOnGET(t *testing.T) {
 		}
 	}
 	anna.get("/recipes/"+id+"/delete").expect(t, "confirm page", http.StatusOK)
-	page := anna.get("/recipes/"+id).expect(t, "recipe", http.StatusOK)
+	page := anna.open("/recipes/"+id).expect(t, "recipe", http.StatusOK)
 	if !strings.Contains(page.body, "0 of 2 on") || strings.Contains(page.body, `aria-pressed="true"`) {
 		t.Errorf("a GET changed the recipe:\n%.3000s", page.body)
 	}
@@ -427,7 +482,7 @@ func TestRecipePhoto(t *testing.T) {
 	anna.postPhotos("/recipes", stickyTofu(), 2, "tofu.png", pngBytes(t)).expect(t, "two photos", http.StatusBadRequest)
 
 	res = anna.postMultipart("/recipes", stickyTofu(), "tofu.png", pngBytes(t)).expect(t, "with photo", http.StatusSeeOther)
-	id := recipeHrefRe.FindStringSubmatch(res.location)[1]
+	id := recipeIDAt(t, anna, res)
 	lib := ben.get("/recipes").body
 	m := photoRe.FindStringSubmatch(lib)
 	if m == nil {
@@ -454,12 +509,12 @@ func TestRecipePhoto(t *testing.T) {
 	edit := stickyTofu()
 	edit.Set("photo", m[1])
 	anna.post("/recipes/"+id+"/edit", edit).expect(t, "edit", http.StatusSeeOther)
-	if !strings.Contains(anna.get("/recipes/"+id).body, "/images/"+m[1]+"/full") {
+	if !strings.Contains(anna.open("/recipes/"+id).body, "/images/"+m[1]+"/full") {
 		t.Error("photo lost on edit")
 	}
 	edit.Set("remove_photo", "1")
 	anna.post("/recipes/"+id+"/edit", edit).expect(t, "remove photo", http.StatusSeeOther)
-	if strings.Contains(anna.get("/recipes/"+id).body, "/images/") {
+	if strings.Contains(anna.open("/recipes/"+id).body, "/images/") {
 		t.Error("photo not removed")
 	}
 }
@@ -576,7 +631,7 @@ func TestUnitsPerUser(t *testing.T) {
 			t.Error("settings do not show the saved units")
 		}
 
-		page := ben.get("/recipes/"+id).expect(t, "ben's recipe", http.StatusOK).body
+		page := ben.open("/recipes/"+id).expect(t, "ben's recipe", http.StatusOK).body
 		for _, want := range []string{"14 oz", "3 tbsp", "1 cup", "Bake at 355°F until crisp."} {
 			if !strings.Contains(page, want) {
 				t.Errorf("US recipe page has no %q", want)
@@ -585,16 +640,16 @@ func TestUnitsPerUser(t *testing.T) {
 		if strings.Contains(page, "400 g") || strings.Contains(page, "180°C") {
 			t.Error("US recipe page still shows metric")
 		}
-		page = ben.get("/recipes/"+id+"?servings=4").expect(t, "ben's recipe for 4", http.StatusOK).body
+		page = ben.open("/recipes/"+id+"?servings=4").expect(t, "ben's recipe for 4", http.StatusOK).body
 		if !strings.Contains(page, "1.75 lb") || !strings.Contains(page, "2 cups") {
 			t.Error("scaled US amounts are not 1.75 lb tofu and 2 cups oat milk")
 		}
-		cook := ben.get("/recipes/"+id+"/cook").expect(t, "ben's cook mode", http.StatusOK).body
+		cook := ben.open("/recipes/"+id+"/cook").expect(t, "ben's cook mode", http.StatusOK).body
 		if !strings.Contains(cook, "14 oz") || !strings.Contains(cook, "355°F") {
 			t.Error("US cook mode shows metric")
 		}
 
-		page = anna.get("/recipes/"+id).expect(t, "anna's recipe", http.StatusOK).body
+		page = anna.open("/recipes/"+id).expect(t, "anna's recipe", http.StatusOK).body
 		for _, want := range []string{"400 g", "250 ml", "Bake at 180°C until crisp."} {
 			if !strings.Contains(page, want) {
 				t.Errorf("metric recipe page has no %q", want)
@@ -624,7 +679,7 @@ func TestStepMentionIcon(t *testing.T) {
 		form["step"] = []string{"Whisk the soy sauce.", "Press the firm tofu."}
 		id := createRecipe(t, anna, form)
 
-		page := anna.get("/recipes/"+id).expect(t, "recipe", http.StatusOK)
+		page := anna.open("/recipes/"+id).expect(t, "recipe", http.StatusOK)
 		if !strings.Contains(page.body, `class="mention"><i class="mention__icon"`) {
 			t.Errorf("no icon in the soy sauce mention:\n%.3000s", page.body)
 		}

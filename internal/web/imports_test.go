@@ -445,7 +445,7 @@ func TestImportEntriesAndLibrary(t *testing.T) {
 		t.Errorf("new recipe with AI off lacks the import card:\n%.4000s", editor)
 	}
 	recipeID := createRecipe(t, anna, stickyTofu())
-	if body := anna.get("/recipes/" + recipeID + "/edit").body; strings.Contains(body, "import-card") {
+	if body := anna.open("/recipes/" + recipeID + "/edit").body; strings.Contains(body, "import-card") {
 		t.Error("editing a recipe offers import")
 	}
 	library := anna.get("/recipes").body

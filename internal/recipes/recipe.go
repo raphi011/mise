@@ -21,7 +21,9 @@ import (
 
 // Recipe is a recipe with everything its detail page shows.
 type Recipe struct {
-	ID          uuid.UUID
+	ID uuid.UUID
+	// Slug is the recipe's address in member URLs, see Slugify.
+	Slug        string
 	Name        string
 	Description string
 	// Photo is the image's content hash (see internal/images), or empty.
@@ -296,31 +298,12 @@ func (s *Service) CreateWith(ctx context.Context, sc store.Scoped, by uuid.UUID,
 	id := store.NewID()
 	var newItems bool
 	var linked []uuid.UUID
-	err := sc.Tx(ctx, func(ctx context.Context, q store.Querier) error {
-		now := s.clock()
-		var notesBy *uuid.UUID
-		var notesAt *store.Time
-		if in.Notes != "" {
-			notesBy, notesAt = &by, &now
-		}
-		if _, err := q.Exec(ctx, `INSERT INTO recipes (id, household_id, name, name_key, description, photo, prep_min, cook_min,
-				servings, source_url, notes, notes_by, notes_at, created_by, updated_by, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			id, sc.HouseholdID(), in.Name, groceries.NameKey(in.Name), in.Description, nullable(in.Photo), in.PrepMin, in.CookMin,
-			in.Servings, nullable(in.SourceURL), in.Notes, notesBy, notesAt, by, by, now, now); err != nil {
+	err := retryUnique(func() error {
+		return sc.Tx(ctx, func(ctx context.Context, q store.Querier) error {
+			var err error
+			newItems, linked, err = s.insert(ctx, q, sc, id, by, in, also)
 			return err
-		}
-		var err error
-		if newItems, err = s.writeChildren(ctx, q, sc, id, in, now, false); err != nil {
-			return err
-		}
-		if linked, err = writeLinks(ctx, q, sc, id, in.Links, now); err != nil {
-			return err
-		}
-		if also != nil {
-			return also(ctx, q)
-		}
-		return nil
+		})
 	})
 	if err != nil {
 		return uuid.Nil, err
@@ -333,6 +316,38 @@ func (s *Service) CreateWith(ctx context.Context, sc store.Scoped, by uuid.UUID,
 	return id, nil
 }
 
+// insert writes a new recipe and its children inside Create's transaction.
+func (s *Service) insert(ctx context.Context, q store.Querier, sc store.Scoped, id, by uuid.UUID, in Input,
+	also func(context.Context, store.Querier) error) (newItems bool, linked []uuid.UUID, err error) {
+	now := s.clock()
+	var notesBy *uuid.UUID
+	var notesAt *store.Time
+	if in.Notes != "" {
+		notesBy, notesAt = &by, &now
+	}
+	slug, err := assignSlug(ctx, q, sc, id, in.Name)
+	if err != nil {
+		return false, nil, err
+	}
+	if _, err := q.Exec(ctx, `INSERT INTO recipes (id, household_id, name, name_key, slug, description, photo, prep_min, cook_min,
+			servings, source_url, notes, notes_by, notes_at, created_by, updated_by, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		id, sc.HouseholdID(), in.Name, groceries.NameKey(in.Name), slug, in.Description, nullable(in.Photo), in.PrepMin, in.CookMin,
+		in.Servings, nullable(in.SourceURL), in.Notes, notesBy, notesAt, by, by, now, now); err != nil {
+		return false, nil, err
+	}
+	if newItems, err = s.writeChildren(ctx, q, sc, id, in, now, false); err != nil {
+		return false, nil, err
+	}
+	if linked, err = writeLinks(ctx, q, sc, id, in.Links, now); err != nil {
+		return false, nil, err
+	}
+	if also != nil {
+		err = also(ctx, q)
+	}
+	return newItems, linked, err
+}
+
 // Update replaces a recipe's fields, ingredients, steps and tags. The notes
 // keep their author unless their text changed.
 func (s *Service) Update(ctx context.Context, sc store.Scoped, id, by uuid.UUID, in Input) error {
@@ -341,39 +356,12 @@ func (s *Service) Update(ctx context.Context, sc store.Scoped, id, by uuid.UUID,
 	}
 	var newItems bool
 	var linked []uuid.UUID
-	err := sc.Tx(ctx, func(ctx context.Context, q store.Querier) error {
-		if err := lockRecipe(ctx, q, sc, id); err != nil {
+	err := retryUnique(func() error {
+		return sc.Tx(ctx, func(ctx context.Context, q store.Querier) error {
+			var err error
+			newItems, linked, err = s.update(ctx, q, sc, id, by, in)
 			return err
-		}
-		hh := sc.HouseholdID()
-		now := s.clock()
-		// Changed notes record who wrote them; cleared notes have no author.
-		var notesBy *uuid.UUID
-		var notesAt *store.Time
-		if in.Notes != "" {
-			notesBy, notesAt = &by, &now
-		}
-		if _, err := q.Exec(ctx, `UPDATE recipes SET name = ?, name_key = ?, description = ?, photo = ?, prep_min = ?,
-				cook_min = ?, servings = ?, source_url = ?,
-				notes_by = CASE WHEN notes = ? THEN notes_by ELSE ? END,
-				notes_at = CASE WHEN notes = ? THEN notes_at ELSE ? END,
-				notes = ?, updated_by = ?, updated_at = ?
-			WHERE household_id = ? AND id = ?`,
-			in.Name, groceries.NameKey(in.Name), in.Description, nullable(in.Photo), in.PrepMin,
-			in.CookMin, in.Servings, nullable(in.SourceURL),
-			in.Notes, notesBy, in.Notes, notesAt,
-			in.Notes, by, now, hh, id); err != nil {
-			return err
-		}
-		if _, err := q.Exec(ctx, `DELETE FROM recipe_tags WHERE household_id = ? AND recipe_id = ?`, hh, id); err != nil {
-			return err
-		}
-		var err error
-		if newItems, err = s.writeChildren(ctx, q, sc, id, in, now, true); err != nil {
-			return err
-		}
-		linked, err = writeLinks(ctx, q, sc, id, cleanLinks(in.Links, id), now)
-		return err
+		})
 	})
 	if err != nil {
 		return err
@@ -384,6 +372,55 @@ func (s *Service) Update(ctx context.Context, sc store.Scoped, id, by uuid.UUID,
 	}
 	s.publish(sc, events...)
 	return nil
+}
+
+// update writes Update's changes inside its transaction. A changed name
+// gives the recipe a new slug and keeps the old one in its history.
+func (s *Service) update(ctx context.Context, q store.Querier, sc store.Scoped, id, by uuid.UUID, in Input) (newItems bool, linked []uuid.UUID, err error) {
+	if err := lockRecipe(ctx, q, sc, id); err != nil {
+		return false, nil, err
+	}
+	hh := sc.HouseholdID()
+	now := s.clock()
+	var old struct {
+		Name string
+		Slug string
+	}
+	if err := q.Get(ctx, &old, `SELECT name, slug FROM recipes WHERE household_id = ? AND id = ?`, hh, id); err != nil {
+		return false, nil, err
+	}
+	slug := old.Slug
+	if in.Name != old.Name {
+		if slug, err = renameSlug(ctx, q, sc, id, old.Slug, in.Name, now); err != nil {
+			return false, nil, err
+		}
+	}
+	// Changed notes record who wrote them; cleared notes have no author.
+	var notesBy *uuid.UUID
+	var notesAt *store.Time
+	if in.Notes != "" {
+		notesBy, notesAt = &by, &now
+	}
+	if _, err := q.Exec(ctx, `UPDATE recipes SET name = ?, name_key = ?, slug = ?, description = ?, photo = ?, prep_min = ?,
+			cook_min = ?, servings = ?, source_url = ?,
+			notes_by = CASE WHEN notes = ? THEN notes_by ELSE ? END,
+			notes_at = CASE WHEN notes = ? THEN notes_at ELSE ? END,
+			notes = ?, updated_by = ?, updated_at = ?
+		WHERE household_id = ? AND id = ?`,
+		in.Name, groceries.NameKey(in.Name), slug, in.Description, nullable(in.Photo), in.PrepMin,
+		in.CookMin, in.Servings, nullable(in.SourceURL),
+		in.Notes, notesBy, in.Notes, notesAt,
+		in.Notes, by, now, hh, id); err != nil {
+		return false, nil, err
+	}
+	if _, err := q.Exec(ctx, `DELETE FROM recipe_tags WHERE household_id = ? AND recipe_id = ?`, hh, id); err != nil {
+		return false, nil, err
+	}
+	if newItems, err = s.writeChildren(ctx, q, sc, id, in, now, true); err != nil {
+		return false, nil, err
+	}
+	linked, err = writeLinks(ctx, q, sc, id, cleanLinks(in.Links, id), now)
+	return newItems, linked, err
 }
 
 // writeChildren writes the ingredients, steps and tags of a recipe. With
@@ -541,6 +578,7 @@ func equalInt(a, b *int) bool {
 
 type recipeRow struct {
 	ID           uuid.UUID
+	Slug         string
 	Name         string
 	Description  string
 	Photo        *string
@@ -572,7 +610,7 @@ func (s *Service) Get(ctx context.Context, sc store.Scoped, id, viewer uuid.UUID
 	q := sc.Read()
 	hh := sc.HouseholdID()
 	var r recipeRow
-	err := q.Get(ctx, &r, `SELECT r.id, r.name, r.description, r.photo, r.prep_min, r.cook_min, r.servings, r.source_url,
+	err := q.Get(ctx, &r, `SELECT r.id, r.slug, r.name, r.description, r.photo, r.prep_min, r.cook_min, r.servings, r.source_url,
 			r.notes, r.notes_by, nu.name AS notes_by_name, nu.avatar_color AS notes_by_color, r.notes_at,
 			r.created_by, cu.name AS created_name, cu.avatar_color AS created_color,
 			r.updated_by, uu.name AS updated_name, uu.avatar_color AS updated_color,
@@ -590,7 +628,7 @@ func (s *Service) Get(ctx context.Context, sc store.Scoped, id, viewer uuid.UUID
 		return Recipe{}, notFound(err)
 	}
 	out := Recipe{
-		ID: r.ID, Name: r.Name, Description: r.Description, Photo: deref(r.Photo),
+		ID: r.ID, Slug: r.Slug, Name: r.Name, Description: r.Description, Photo: deref(r.Photo),
 		PrepMin: r.PrepMin, CookMin: r.CookMin, Servings: r.Servings, SourceURL: deref(r.SourceURL),
 		Notes: r.Notes, NotesAt: timePtr(r.NotesAt),
 		CreatedBy: Person{ID: r.CreatedBy, Name: r.CreatedName, Color: r.CreatedColor},
