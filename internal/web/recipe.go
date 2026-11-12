@@ -413,6 +413,58 @@ func (s *Server) recipeMenu(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, http.StatusOK, ui.RecipeMenuPage(p, v))
 }
 
+// nutritionSheetView loads a recipe's nutrition popup, or nil when the
+// recipe has none to show (no ingredients with an amount).
+func (s *Server) nutritionSheetView(ctx context.Context, sc store.Scoped, id *auth.Identity, recipeID uuid.UUID) (*ui.NutritionSheetView, error) {
+	rec, err := s.recipes.Get(ctx, sc, recipeID, id.UserID)
+	if err != nil {
+		return nil, err
+	}
+	est, err := s.nutritionOf(ctx, sc, rec)
+	if err != nil {
+		return nil, err
+	}
+	n := nutritionBlock(ctx, rec.ID, est, scaledAmounts(ctx, rec, rec.Servings, unitSystem(id)), false)
+	if n == nil {
+		return nil, nil
+	}
+	return &ui.NutritionSheetView{ID: rec.ID.String(), Nutrition: *n}, nil
+}
+
+// recipeNutrition is the nutrition popup: a dialog for Datastar, a page
+// without JavaScript.
+func (s *Server) recipeNutrition(w http.ResponseWriter, r *http.Request) {
+	recipeID, sc, ok := s.recipeTarget(w, r)
+	if !ok {
+		return
+	}
+	ctx := r.Context()
+	v, err := s.nutritionSheetView(ctx, sc, identity(r), recipeID)
+	if errors.Is(err, recipes.ErrNotFound) {
+		s.recipeGone(w, r)
+		return
+	}
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	if v == nil {
+		if isDatastar(r) {
+			s.sendPatches(w, r, patchTempl(ui.EmptySheet()))
+			return
+		}
+		seeOther(w, r, ui.RecipeHref(recipeID.String()))
+		return
+	}
+	if isDatastar(r) {
+		s.sendPatches(w, r, patchTempl(ui.NutritionSheet(*v)))
+		return
+	}
+	p := s.page(r, i18n.T(ctx, "nutrition.title"), ui.NavRecipes)
+	p.BackHref, p.BackLabel = ui.RecipeHref(v.ID), i18n.T(ctx, "recipes.backToRecipe")
+	s.render(w, r, http.StatusOK, ui.NutritionPage(p, *v))
+}
+
 func (s *Server) deleteRecipePage(w http.ResponseWriter, r *http.Request) {
 	recipeID, sc, ok := s.recipeTarget(w, r)
 	if !ok {
@@ -524,6 +576,23 @@ func (s *Server) restoreRecipe(w http.ResponseWriter, r *http.Request) {
 	s.redirect(w, r, ui.RecipeHref(recipeID.String()))
 }
 
+// nutritionPatch keeps an open nutrition popup current: its body is
+// re-rendered, or the popup closed when the recipe no longer has numbers to
+// show.
+func nutritionPatch(sse *datastar.ServerSentEventGenerator, v ui.RecipeView, open bool) error {
+	if !open {
+		return nil
+	}
+	if v.Gone || v.Nutrition == nil {
+		// Morphing the dialog away fires no close event, so reset the signal here.
+		if err := sse.MarshalAndPatchSignals(map[string]any{"nutOpen": false}); err != nil {
+			return err
+		}
+		return sse.PatchElementTempl(ui.EmptySheet())
+	}
+	return sse.PatchElementTempl(ui.NutritionSheetBody(ui.NutritionSheetView{ID: v.ID, Nutrition: *v.Nutrition}, true))
+}
+
 // recipeLive re-renders a recipe page at the viewer's servings (a signal
 // sent when the stream opens) when the recipe, the default list or the
 // catalogue change.
@@ -534,7 +603,8 @@ func (s *Server) recipeLive(w http.ResponseWriter, r *http.Request, sc store.Sco
 		return
 	}
 	var sig struct {
-		Servings int `json:"servings"`
+		Servings int  `json:"servings"`
+		NutOpen  bool `json:"nutOpen"`
 	}
 	if isDatastar(r) {
 		if err := datastar.ReadSignals(r, &sig); err != nil {
@@ -561,7 +631,10 @@ func (s *Server) recipeLive(w http.ResponseWriter, r *http.Request, sc store.Sco
 			if err := sse.PatchElementTempl(ui.PageTitle(v.Name)); err != nil {
 				return err
 			}
-			return sse.PatchElementTempl(ui.RecipeFavourite(v))
+			if err := sse.PatchElementTempl(ui.RecipeFavourite(v)); err != nil {
+				return err
+			}
+			return nutritionPatch(sse, v, sig.NutOpen)
 		},
 		Relevant: func(e live.Event) bool {
 			switch e.Kind {

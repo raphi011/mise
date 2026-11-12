@@ -15,6 +15,9 @@ type NutritionView struct {
 	More []NutrientRow
 	// PerServing is "per serving · 2 servings".
 	PerServing string
+	// Subtitle is "Per serving · 2 servings", the popup's subtitle; unlike
+	// PerServing it is set whether or not numbers are shown.
+	Subtitle string
 	// Coverage is "Based on 7 of 8 ingredients"; Counted and Of drive the
 	// dots. It is empty when every ingredient is counted.
 	Coverage    string
@@ -24,11 +27,15 @@ type NutritionView struct {
 	// LeftOut names the optional ingredients left out, or "".
 	LeftOut string
 	Missing []NutritionMissing
-	// Public is the block as the public page shows it, without the list of
-	// what is missing.
-	Public bool
 	// Credit is the footnote on what the estimate rests on.
 	Credit string
+}
+
+// NutritionSheetView is the nutrition popup of a recipe.
+type NutritionSheetView struct {
+	// ID is the recipe's.
+	ID        string
+	Nutrition NutritionView
 }
 
 // NutrientRow is one label and value.
