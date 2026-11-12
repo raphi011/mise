@@ -2,8 +2,8 @@ package ui
 
 import "github.com/raphi011/mise/internal/i18n"
 
-// nutritionSection is the estimate per serving under the ingredients, on
-// the recipe page and the public page.
+// nutritionSection is the estimate per serving as a block of the public
+// page. The recipe page shows a tile that opens the popup instead.
 templ nutritionSection(n NutritionView) {
 	<section class="recipe-section nutrition" id="nutrition" aria-labelledby="nutrition-title">
 		<div class="recipe-section__head">
@@ -64,25 +64,159 @@ templ nutritionSection(n NutritionView) {
 			if n.LeftOut != "" {
 				<p class="muted nutrition__note">{ n.LeftOut }</p>
 			}
-			if len(n.Missing) > 0 && !n.Public {
-				<details class="nutrition__missing" open?={ !n.Show }>
-					<summary>{ i18n.T(ctx, "nutrition.missing", len(n.Missing)) }</summary>
-					<ul class="nutrition__list" role="list">
-						for _, m := range n.Missing {
-							<li>
-								<span class="nutrition__what">
-									<span class="nutrition__name">{ m.Name }<span class="muted"> { m.Amount }</span></span>
-									<span class="muted">{ m.Why }</span>
-								</span>
-								<a class="section-action" href={ templ.SafeURL(m.Href) }>{ m.Action }</a>
-							</li>
-						}
-					</ul>
-				</details>
-			}
 			<p class="muted nutrition__credit">{ n.Credit }</p>
 		</div>
 	</section>
+}
+
+// nutritionTile is the recipe header's tile: the energy per serving and a
+// bar of the macros, opening the popup. It is a form so that the button
+// loads the popup as a page without JavaScript.
+templ nutritionTile(id string, n NutritionView) {
+	<form class="nutri-tile" method="get" action={ templ.SafeURL("/recipes/" + id + "/nutrition") } data-on:submit={ getAction("/recipes/" + id + "/nutrition") }>
+		<button type="submit" class="nutri-tile__btn" aria-haspopup="dialog">
+			<span class="nutri-tile__text">
+				<span class="nutri-tile__label">{ i18n.T(ctx, "nutrition.tile.label") }</span>
+				if n.Show {
+					<span class="nutri-tile__kcal">{ n.Kcal } <small>{ i18n.T(ctx, "nutrition.kcal") }</small></span>
+				} else {
+					<span class="nutri-tile__none">{ i18n.T(ctx, "nutrition.tile.notEnough") }</span>
+				}
+			</span>
+			if n.Show && n.Split != [3]int{} {
+				@nutritionBar(n, "nutri-tile__bar")
+			}
+			<span class="nutri-tile__more">
+				{ i18n.T(ctx, "nutrition.tile.details") }
+				@chevron()
+			</span>
+		</button>
+	</form>
+}
+
+templ nutritionBar(n NutritionView, class string) {
+	<span class={ "nutrition__split", class } aria-hidden="true">
+		<span class="nutrition__seg nutrition__seg--protein" style={ "flex: " + itoa(n.Split[0]) }></span>
+		<span class="nutrition__seg nutrition__seg--fat" style={ "flex: " + itoa(n.Split[1]) }></span>
+		<span class="nutrition__seg nutrition__seg--carbs" style={ "flex: " + itoa(n.Split[2]) }></span>
+	</span>
+}
+
+// NutritionSheet is the nutrition popup as a bottom sheet / dialog. Its
+// body is patched by the recipe's live stream while it is open.
+templ NutritionSheet(v NutritionSheetView) {
+	<div id="sheet">
+		<dialog
+			id="nutrition-dialog"
+			class="sheet-dialog sheet-dialog--nutrition"
+			aria-labelledby="nutrition-sheet-title"
+			data-init="$nutOpen = true; el.open || el.showModal()"
+			data-on:close="$nutOpen = false; el.remove()"
+		>
+			@NutritionSheetBody(v, true)
+		</dialog>
+	</div>
+}
+
+// NutritionPage is the nutrition popup as a page, without JavaScript.
+templ NutritionPage(p Page, v NutritionSheetView) {
+	@Layout(p) {
+		<div class="narrow sheet">
+			@NutritionSheetBody(v, false)
+		</div>
+	}
+}
+
+// NutritionSheetBody is what the popup shows; modal is false on the page.
+templ NutritionSheetBody(v NutritionSheetView, modal bool) {
+	<div id="nutrition-body" class="nutri-sheet">
+		<div class="sheet__head">
+			<span class="list__text">
+				<h2 class="sheet__title" id="nutrition-sheet-title">{ i18n.T(ctx, "nutrition.title") }</h2>
+				<span class="muted">{ v.Nutrition.Subtitle }</span>
+			</span>
+			if modal {
+				<button type="button" class="icon-btn" aria-label={ i18n.T(ctx, "groceries.edit.close") } data-on:click="el.closest('dialog').close()">
+					@iconClose()
+				</button>
+			}
+		</div>
+		@nutritionDetail(v.Nutrition)
+		if modal {
+			<button type="button" class="btn btn--primary btn--block btn--tall" data-on:click="el.closest('dialog').close()">{ i18n.T(ctx, "nutrition.sheet.done") }</button>
+		} else {
+			<a class="btn btn--primary btn--block btn--tall" href={ templ.SafeURL(RecipeHref(v.ID)) }>{ i18n.T(ctx, "nutrition.sheet.done") }</a>
+		}
+	</div>
+}
+
+// nutritionDetail is the estimate in full: numbers or the reason there are
+// none, coverage, and what is missing with links to fix it.
+templ nutritionDetail(n NutritionView) {
+	<div class="nutri-sheet__body">
+		if n.Show {
+			<p class="nutrition__energy">
+				<span class="nutrition__kcal">{ n.Kcal }</span>
+				<span class="nutrition__unit">{ i18n.T(ctx, "nutrition.kcal") }</span>
+			</p>
+			if n.Split != [3]int{} {
+				@nutritionBar(n, "")
+			}
+			<dl class="nutrition__macros">
+				if n.Protein != "" {
+					<div><dt><span class="nutrition__key nutrition__key--protein" aria-hidden="true"></span>{ i18n.T(ctx, "nutrition.protein") }</dt><dd>{ n.Protein }</dd></div>
+				}
+				if n.Fat != "" {
+					<div><dt><span class="nutrition__key nutrition__key--fat" aria-hidden="true"></span>{ i18n.T(ctx, "nutrition.fat") }</dt><dd>{ n.Fat }</dd></div>
+				}
+				if n.Carbs != "" {
+					<div><dt><span class="nutrition__key nutrition__key--carbs" aria-hidden="true"></span>{ i18n.T(ctx, "nutrition.carbs") }</dt><dd>{ n.Carbs }</dd></div>
+				}
+			</dl>
+			if len(n.More) > 0 {
+				<dl class="nutrition__rows">
+					for _, r := range n.More {
+						<div><dt>{ r.Label }</dt><dd>{ r.Value }</dd></div>
+					}
+				</dl>
+			}
+		} else {
+			<div class="nutrition__empty">
+				<strong>{ i18n.T(ctx, "nutrition.notEnough") }</strong>
+				<span>{ n.NotEnough }</span>
+			</div>
+		}
+		if n.Coverage != "" {
+			<p class="nutrition__coverage" role="status">
+				<span class="nutrition__dots" aria-hidden="true">
+					for i := range n.Of {
+						<span class={ "nutrition__dot", templ.KV("nutrition__dot--on", i < n.Counted) }></span>
+					}
+				</span>
+				{ n.Coverage }
+			</p>
+		}
+		if n.LeftOut != "" {
+			<p class="muted nutrition__note">{ n.LeftOut }</p>
+		}
+		if len(n.Missing) > 0 {
+			<section class="nutrition__missing" aria-labelledby="nutrition-missing-title">
+				<h3 class="nutrition__missing-title" id="nutrition-missing-title">{ i18n.T(ctx, "nutrition.missing", len(n.Missing)) }</h3>
+				<ul class="nutrition__list" role="list">
+					for _, m := range n.Missing {
+						<li>
+							<span class="nutrition__what">
+								<span class="nutrition__name">{ m.Name }<span class="muted"> { m.Amount }</span></span>
+								<span class="muted">{ m.Why }</span>
+							</span>
+							<a class="section-action" href={ templ.SafeURL(m.Href) }>{ m.Action }</a>
+						</li>
+					}
+				</ul>
+			</section>
+		}
+		<p class="muted nutrition__credit">{ n.Credit }</p>
+	</div>
 }
 
 // NutritionEditPage edits an item's nutrition values and weights.

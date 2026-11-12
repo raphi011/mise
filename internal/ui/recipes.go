@@ -396,10 +396,11 @@ func libraryMoreHref(v LibraryView) string {
 // recipeLive opens a recipe page's live stream with the viewer's servings.
 // It reads $servings, so Datastar reopens the stream (cancelling the old
 // request) when the stepper changes it, and the first render is at the new
-// servings.
+// servings. It reads $nutOpen for the same reason: opening or closing the
+// nutrition popup reopens the stream, which keeps an open popup current.
 func recipeLive(id string) string {
-	return "$servings && @get('/live?page=recipe&id=" + id +
-		"', {filterSignals: {include: /^servings$/}, retryMaxCount: 1000})"
+	return "$servings, $nutOpen, @get('/live?page=recipe&id=" + id +
+		"', {filterSignals: {include: /^(servings|nutOpen)$/}, retryMaxCount: 1000})"
 }
 
 // jsString quotes s as a JavaScript string literal for a Datastar

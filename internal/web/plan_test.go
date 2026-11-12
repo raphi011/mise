@@ -490,3 +490,48 @@ func TestPlanPickerPaging(t *testing.T) {
 		}
 	})
 }
+
+// TestRecipePairings: "Goes well with" sits in the header as at most two
+// chips; more links add a "+N more" toggle with the full list.
+func TestRecipePairings(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		s, srv := startTimedServer(t, db)
+		s.clock = func() time.Time { return planClock }
+		anna, _ := household(t, srv)
+
+		var ids []string
+		for _, name := range []string{"Flatbread", "Cucumber raita", "Herb salad", "Lemon rice", "Roasted carrots"} {
+			f := stickyTofu()
+			f.Set("name", name)
+			ids = append(ids, createRecipe(t, anna, f))
+		}
+		main := stickyTofu()
+		main.Set("name", "Braised lamb")
+		page := func(n int) string {
+			main["link"] = ids[:n]
+			id := createRecipe(t, anna, main)
+			return anna.get("/recipes/"+id).expect(t, "recipe", http.StatusOK).body
+		}
+
+		if body := page(0); strings.Contains(body, "pairs__label") {
+			t.Error("pairings shown without links")
+		}
+		for _, n := range []int{1, 2} {
+			body := page(n)
+			if got := strings.Count(body, `class="pairs__chip"`); got != n {
+				t.Errorf("%d links show %d chips", n, got)
+			}
+			if strings.Contains(body, "pairs__chip--more") || strings.Contains(body, "pairs__list") {
+				t.Errorf("%d links show a +N chip", n)
+			}
+		}
+		body := page(5)
+		if got := strings.Count(body, `class="pairs__chip"`); got != 2 {
+			t.Errorf("5 links show %d inline chips, want 2", got)
+		}
+		contains(t, "5 links", body, "+3 more", "Show less", "pairs__list", "Roasted carrots", `type="checkbox" id="pairs-toggle"`)
+		if got := strings.Count(body, `class="pairs__row"`); got != 5 {
+			t.Errorf("expanded list has %d rows, want 5", got)
+		}
+	})
+}

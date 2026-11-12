@@ -55,6 +55,7 @@ func nutritionBlock(ctx context.Context, recipeID uuid.UUID, res nutrition.Resul
 	if catalog.NutritionCount() > 0 {
 		n.Credit = i18n.T(ctx, "nutrition.creditCatalogue")
 	}
+	n.Subtitle = pluralKey(ctx, res.Servings, "nutrition.sheet.perServingOne", "nutrition.sheet.perServing")
 	if res.Partial() {
 		n.Coverage = i18n.T(ctx, "nutrition.coverage", res.Counted, res.Of)
 		if public {

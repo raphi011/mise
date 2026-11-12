@@ -3190,3 +3190,99 @@ details.import-activity:not([open]) { gap: 0; }
 @media print {
   .nutrition__missing, .nutrition__more > summary { display: none; }
 }
+
+/* ---- Recipe header: nutrition tile and pairings ---- */
+
+.meta-grid { display: flex; flex-direction: column; gap: 8px; }
+.nutri-tile { margin: 0; }
+.nutri-tile__btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 60px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.nutri-tile__btn:hover { border-color: var(--herb); }
+.nutri-tile__btn:focus-visible { outline: 2px solid var(--herb); outline-offset: 2px; }
+.nutri-tile__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.nutri-tile__label { font-size: 12px; color: var(--muted); }
+.nutri-tile__kcal { font-family: var(--font-display); font-size: 22px; font-weight: 700; line-height: 1.1; }
+.nutri-tile__kcal small { margin-left: 2px; font-family: var(--font-body); font-size: 12px; font-weight: 500; color: var(--muted); }
+.nutri-tile__none { font-size: 16px; font-weight: 600; }
+.nutri-tile__bar { flex: none; width: 56px; height: 6px; border-radius: 3px; }
+.nutri-tile__more { flex: none; display: flex; align-items: center; gap: 2px; color: var(--herb); font-size: 13px; font-weight: 600; }
+
+.pairs { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.pairs__label { margin-right: 2px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.pairs__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  min-height: var(--target);
+  padding: 0 14px 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+.pairs__chip:hover { border-color: var(--herb); }
+.pairs__thumb {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 16px;
+  object-fit: cover;
+  display: grid;
+  place-items: center;
+  background: var(--av-bg, var(--surface-2));
+  color: var(--av-fg, var(--ink-2));
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+}
+.pairs__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pairs__chip--more { padding: 0 14px; border-color: var(--herb-soft); background: var(--herb-soft); color: var(--herb-strong); }
+.pairs__more-off { display: none; }
+.pairs:has(.pairs__toggle:checked) .pairs__more-on { display: none; }
+.pairs:has(.pairs__toggle:checked) .pairs__more-off { display: inline; }
+.pairs:has(.pairs__toggle:focus-visible) .pairs__chip--more { outline: 2px solid var(--herb); outline-offset: 2px; }
+.pairs__list {
+  display: none;
+  flex-basis: 100%;
+  margin: 2px 0 0;
+  padding: 0 14px;
+  list-style: none;
+  border: 1px solid var(--line-soft);
+  border-radius: 16px;
+  background: var(--surface);
+}
+.pairs:has(.pairs__toggle:checked) .pairs__list { display: block; }
+.pairs__list li + li { border-top: 1px solid var(--line-soft); }
+.pairs__row { display: flex; align-items: center; gap: 12px; min-height: 52px; color: var(--ink); font-weight: 600; text-decoration: none; }
+.pairs__row .muted { margin-left: auto; flex: none; font-size: 13px; font-weight: 500; }
+
+/* ---- Nutrition popup ---- */
+
+.sheet-dialog--nutrition[open], .nutri-sheet { display: flex; flex-direction: column; gap: 14px; }
+.sheet-dialog--nutrition { overscroll-behavior: contain; }
+.nutri-sheet__body { display: flex; flex-direction: column; gap: 14px; }
+.nutrition__missing-title { margin: 0 0 2px; font-size: 14px; font-weight: 600; color: var(--herb); }
+.nutri-sheet__body .nutrition__rows { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; border-bottom: 1px solid var(--line-soft); }
+.nutri-sheet__body .nutrition__rows div:nth-child(-n+2) { border-top: 1px solid var(--line-soft); }
+@media (min-width: 768px) {
+  .sheet-dialog--nutrition { max-width: 480px; }
+}
+.nutrition__name .muted { margin-left: 6px; font-weight: 400; }

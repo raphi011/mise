@@ -40,15 +40,38 @@ func TestNutrition(t *testing.T) {
 		id := createRecipe(t, anna, stickyTofu())
 		page := "/recipes/" + id
 
-		// Nothing is known yet: no numbers, a way to add them.
+		// Nothing is known yet: the tile says so, the popup explains and
+		// offers a way to add values. Without JavaScript the popup is a page,
+		// with it a dialog.
 		body := anna.get(page).expect(t, "recipe", http.StatusOK).body
-		for _, want := range []string{"Not enough data yet", "None of the 2 ingredients has nutrition yet.", "Add nutrition"} {
+		for _, want := range []string{"nutri-tile__btn", "Nutrition per serving", "Not enough data", "Details"} {
 			if !strings.Contains(body, want) {
 				t.Errorf("recipe page has no %q", want)
 			}
 		}
-		if strings.Contains(body, "nutrition__kcal") {
-			t.Error("numbers shown without data")
+		for _, leak := range []string{"nutrition__kcal", "Add nutrition", "id=\"nutrition\""} {
+			if strings.Contains(body, leak) {
+				t.Errorf("recipe page shows %q", leak)
+			}
+		}
+		popup := page + "/nutrition"
+		body = anna.get(popup).expect(t, "popup page", http.StatusOK).body
+		for _, want := range []string{"Not enough data yet", "None of the 2 ingredients has nutrition yet.", "Add nutrition", "Per serving · 2 servings", "Done"} {
+			if !strings.Contains(body, want) {
+				t.Errorf("popup page has no %q", want)
+			}
+		}
+		if strings.Contains(body, "nutrition__kcal") || strings.Contains(body, "<dialog") {
+			t.Error("popup page shows numbers without data, or a dialog")
+		}
+		dlg := anna.datastarGet(popup).expect(t, "popup dialog", http.StatusOK).body
+		for _, want := range []string{"<dialog", `id="nutrition-dialog"`, "Add nutrition", "Not enough data yet"} {
+			if !strings.Contains(dlg, want) {
+				t.Errorf("popup dialog has no %q", want)
+			}
+		}
+		if got := nutritionItems(dlg); len(got) != 2 {
+			t.Errorf("dialog missing list links %v", got)
 		}
 		items := nutritionItems(body)
 		if len(items) != 2 {
@@ -81,7 +104,8 @@ func TestNutrition(t *testing.T) {
 			expect(t, "macros over 100 g", http.StatusUnprocessableEntity)
 
 		// Ben has the recipe open; Anna saves without JavaScript.
-		live := ben.openLive("page=recipe&id=" + id + "&datastar=" + url.QueryEscape(`{"servings":2}`))
+		// Ben has the popup open too, so its body follows.
+		live := ben.openLive("page=recipe&id=" + id + "&datastar=" + url.QueryEscape(`{"servings":2,"nutOpen":true}`))
 		live.next("ben recipe initial", liveDeadline, "Not enough data yet")
 		anna.post(editor, url.Values{"next": {page}, "kcal": {"144"}, "protein": {"17,3"}, "fat": {"8.7"}, "saturated_fat": {"1.3"},
 			"carbs": {"2.8"}, "fibre": {"2.3"}, "salt": {"0.04"}}).expect(t, "save tofu", http.StatusSeeOther, page)
@@ -89,15 +113,22 @@ func TestNutrition(t *testing.T) {
 
 		// Half the ingredients are counted: numbers show, the rest is listed.
 		body = anna.get(page).expect(t, "recipe", http.StatusOK).body
-		for _, want := range []string{"nutrition__kcal", "Based on 1 of 2 ingredients", "What’s missing (1)", "Soy sauce", "No nutrition values for this item.",
-			"Saturated fat", "ingredient__uncounted", "per serving · 2 servings"} {
+		for _, want := range []string{`nutri-tile__kcal">290 `, "ingredient__uncounted"} {
 			if !strings.Contains(body, want) {
-				t.Errorf("estimate has no %q", want)
+				t.Errorf("recipe page has no %q:\n%.300s", want, between(body, "nutri-tile"))
 			}
 		}
 		// 400 g tofu at 144 kcal per 100 g for 2 servings.
-		if !strings.Contains(body, `nutrition__kcal">290<`) {
-			t.Errorf("energy is not 290 kcal:\n%.200s", between(body, "nutrition__kcal"))
+		for how, body := range map[string]string{
+			"page":   anna.get(popup).expect(t, "popup", http.StatusOK).body,
+			"dialog": anna.datastarGet(popup).expect(t, "popup dialog", http.StatusOK).body,
+		} {
+			for _, want := range []string{`nutrition__kcal">290<`, "Based on 1 of 2 ingredients", "What’s missing (1)", "Soy sauce", "No nutrition values for this item.",
+				"Saturated fat", "Per serving · 2 servings"} {
+				if !strings.Contains(body, want) {
+					t.Errorf("popup %s has no %q:\n%.300s", how, want, between(body, "nutrition__energy"))
+				}
+			}
 		}
 
 		// The editor shows what was saved, in the viewer's decimal notation.
@@ -111,7 +142,7 @@ func TestNutrition(t *testing.T) {
 		// Weights turn "3 tbsp" into grams: soy sauce counts once it has a density.
 		anna.post("/items/"+soy+"/nutrition", url.Values{"next": {page}, "kcal": {"53"}, "protein": {"8,1"}, "per100ml": {"115"}}).
 			expect(t, "save soy sauce", http.StatusSeeOther, page)
-		body = anna.get(page).body
+		body = anna.get(popup).body
 		if strings.Contains(body, "Based on") || strings.Contains(body, "What’s missing") {
 			t.Errorf("all ingredients counted, but the page shows coverage or missing:\n%.300s", between(body, "nutrition__card"))
 		}
@@ -133,9 +164,17 @@ func TestNutrition(t *testing.T) {
 
 		// Clearing removes the values again; the next goes only to local paths.
 		anna.post(editor+"/clear", url.Values{"next": {"https://example.com/"}}).expect(t, "clear", http.StatusSeeOther, "/recipes")
-		if body := anna.get(page).body; !strings.Contains(body, "Based on 1 of 2 ingredients") {
+		if body := anna.get(popup).body; !strings.Contains(body, "Based on 1 of 2 ingredients") {
 			t.Errorf("clearing tofu did not leave 1 of 2:\n%.300s", between(body, "nutrition__card"))
 		}
+
+		// A recipe without ingredients has no tile and no popup.
+		empty := createRecipe(t, anna, url.Values{"name": {"Water"}, "servings": {"1"}})
+		if body := anna.get("/recipes/" + empty).body; strings.Contains(body, "nutri-tile") {
+			t.Error("tile shown without ingredients")
+		}
+		anna.get("/recipes/"+empty+"/nutrition").expect(t, "empty popup", http.StatusSeeOther, "/recipes/"+empty)
+		anna.get("/recipes/"+uuid.NewString()+"/nutrition").expect(t, "unknown recipe popup", http.StatusNotFound)
 
 		// Unknown and malformed items are not found; the entry sheet links in.
 		anna.get("/items/"+uuid.NewString()+"/nutrition").expect(t, "unknown item", http.StatusNotFound)

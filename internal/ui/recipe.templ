@@ -7,7 +7,7 @@ import "github.com/raphi011/mise/internal/i18n"
 // the signal, which reopens the stream.
 templ RecipePage(p Page, v RecipeView) {
 	@Layout(p) {
-		<div class="recipe" data-signals={ "{servings: " + itoa(v.Servings) + "}" } data-effect={ recipeLive(v.ID) }>
+		<div class="recipe" data-signals={ "{servings: " + itoa(v.Servings) + ", nutOpen: false}" } data-effect={ recipeLive(v.ID) }>
 			@RecipeRegion(v)
 			<div class="recipe-cta only-phone">
 				@AddToPlanButton(v.ID, "btn--block")
@@ -88,16 +88,24 @@ templ RecipeRegion(v RecipeView) {
 						<span class={ avatarClass(v.By.Color, "xs") } aria-hidden="true">{ Initial(v.By.Name) }</span>
 						<span>{ v.Attribution }</span>
 					</p>
-					<dl class="meta-tiles">
-						if v.Prep != "" {
-							@metaTile(i18n.T(ctx, "recipes.prep"), v.Prep, "")
+						<div class="meta-grid">
+							<dl class="meta-tiles">
+								if v.Prep != "" {
+									@metaTile(i18n.T(ctx, "recipes.prep"), v.Prep, "")
+								}
+								if v.Cook != "" {
+									@metaTile(i18n.T(ctx, "recipes.cook"), v.Cook, "")
+								}
+								@metaTile(i18n.T(ctx, "recipes.yield"), plural(ctx, v.Base, "recipes.servingsOne", "recipes.servings"), "only-wide")
+								@metaTile(i18n.T(ctx, "recipes.cooked"), v.Cooked, "")
+							</dl>
+							if v.Nutrition != nil {
+								@nutritionTile(v.ID, *v.Nutrition)
+							}
+						</div>
+						if len(v.Links) > 0 {
+							@pairings(v.Links)
 						}
-						if v.Cook != "" {
-							@metaTile(i18n.T(ctx, "recipes.cook"), v.Cook, "")
-						}
-						@metaTile(i18n.T(ctx, "recipes.yield"), plural(ctx, v.Base, "recipes.servingsOne", "recipes.servings"), "only-wide")
-						@metaTile(i18n.T(ctx, "recipes.cooked"), v.Cooked, "")
-					</dl>
 					if v.SourceURL != "" {
 						<p class="recipe-source">
 							<a href={ templ.SafeURL(v.SourceURL) } rel="noopener noreferrer" target="_blank">{ i18n.T(ctx, "recipes.source", v.SourceHost) }</a>
@@ -135,9 +143,6 @@ templ RecipeRegion(v RecipeView) {
 						<p class="muted">{ i18n.T(ctx, "recipes.noIngredients") }</p>
 					}
 				</section>
-				if v.Nutrition != nil {
-					@nutritionSection(*v.Nutrition)
-				}
 				</div>
 				<div class="recipe-body__main">
 				<section class="recipe-section" aria-labelledby="method-title">
@@ -157,33 +162,6 @@ templ RecipeRegion(v RecipeView) {
 						<p class="muted">{ i18n.T(ctx, "recipes.noSteps") }</p>
 					}
 				</section>
-				if len(v.Links) > 0 {
-					<section class="recipe-section" id="links" aria-labelledby="links-title">
-						<div class="recipe-section__head">
-							<h2 class="recipe-section__title" id="links-title">{ i18n.T(ctx, "recipes.links") }</h2>
-						</div>
-						<ul class="list" role="list">
-							for _, l := range v.Links {
-								<li>
-									<a class="list__link hit" href={ templ.SafeURL(RecipeHref(l.ID)) }>
-										if l.Photo != "" {
-											<img class="tile" src={ ImageURL(l.Photo, "thumb") } alt="" loading="lazy"/>
-										} else {
-											<span class={ tileClass(Tint(l.ID), "") } aria-hidden="true">{ Initial(l.Name) }</span>
-										}
-										<span class="list__text">
-											<span class="hit__name">{ l.Name }</span>
-											if l.Meta != "" {
-												<span class="muted">{ l.Meta }</span>
-											}
-										</span>
-										@chevron()
-									</a>
-								</li>
-							}
-						</ul>
-					</section>
-				}
 				<section class="recipe-section" aria-labelledby="notes-title">
 					<div class="recipe-section__head">
 						<h2 class="recipe-section__title" id="notes-title">{ i18n.T(ctx, "recipes.notes") }</h2>
@@ -207,6 +185,55 @@ templ RecipeRegion(v RecipeView) {
 			</div>
 		}
 	</div>
+}
+
+// pairingsInline is how many linked recipes show as chips; the rest are
+// behind "+N more".
+const pairingsInline = 2
+
+// pairings is "Goes well with" in the header: up to two chips and, when
+// there are more, a "+N more" chip that expands the full list in place. The
+// chip is a checkbox label, so it works without JavaScript.
+templ pairings(links []LinkView) {
+	<div class="pairs" id="links">
+		<span class="pairs__label">{ i18n.T(ctx, "recipes.links") }</span>
+		for i, l := range links {
+			if i < pairingsInline {
+				<a class="pairs__chip" href={ templ.SafeURL(RecipeHref(l.ID)) }>
+					@pairThumb(l)
+					<span class="pairs__name">{ l.Name }</span>
+				</a>
+			}
+		}
+		if len(links) > pairingsInline {
+			<input class="pairs__toggle visually-hidden" type="checkbox" id="pairs-toggle" data-ignore-morph/>
+			<label class="pairs__chip pairs__chip--more" for="pairs-toggle">
+				<span class="pairs__more-on">{ i18n.T(ctx, "recipes.links.more", len(links)-pairingsInline) }</span>
+				<span class="pairs__more-off">{ i18n.T(ctx, "recipes.links.less") }</span>
+			</label>
+			<ul class="pairs__list" role="list">
+				for _, l := range links {
+					<li>
+						<a class="pairs__row" href={ templ.SafeURL(RecipeHref(l.ID)) }>
+							@pairThumb(l)
+							<span class="pairs__name">{ l.Name }</span>
+							if l.Meta != "" {
+								<span class="muted">{ l.Meta }</span>
+							}
+						</a>
+					</li>
+				}
+			</ul>
+		}
+	</div>
+}
+
+templ pairThumb(l LinkView) {
+	if l.Photo != "" {
+		<img class="pairs__thumb" src={ ImageURL(l.Photo, "thumb") } alt="" loading="lazy"/>
+	} else {
+		<span class={ "pairs__thumb", "avatar--" + Tint(l.ID) } aria-hidden="true">{ Initial(l.Name) }</span>
+	}
 }
 
 // stepList is the numbered method with ingredient mentions.
