@@ -121,7 +121,7 @@ func linkNew(ctx context.Context, q store.Querier, sc store.Scoped, name string,
 	if err != nil {
 		return nil, nil, err
 	}
-	e, ok := catalog.For(lang).Lookup(name)
+	e, ok := catalog.LookupAny(lang, name)
 	if !ok {
 		return nil, category, nil
 	}
@@ -201,7 +201,8 @@ func (s *Service) LookupCatalog(ctx context.Context, sc store.Scoped, name strin
 
 // LinkCatalog links a household created before the catalogue to it:
 // categories whose name is the translation of a seeded one (d lists them
-// with their keys), and items named like an entry. It never changes
+// with their keys), and items named like an entry in any catalogue language
+// (the oldest item wins a key). It never changes
 // names, categories or icons and skips keys that are taken. It is
 // idempotent; the server runs it at startup.
 func (s *Service) LinkCatalog(ctx context.Context, sc store.Scoped, d Defaults) error {
@@ -235,12 +236,11 @@ func (s *Service) LinkCatalog(ctx context.Context, sc store.Scoped, d Defaults) 
 			ID      uuid.UUID
 			NameKey string
 		}
-		if err := q.Select(ctx, &unlinked, `SELECT id, name_key FROM items WHERE household_id = ? AND catalog_key IS NULL`, hh); err != nil {
+		if err := q.Select(ctx, &unlinked, `SELECT id, name_key FROM items WHERE household_id = ? AND catalog_key IS NULL ORDER BY created_at, id`, hh); err != nil {
 			return err
 		}
-		c := catalog.For(lang)
 		for _, it := range unlinked {
-			e, ok := c.Lookup(it.NameKey)
+			e, ok := catalog.LookupAny(lang, it.NameKey)
 			if !ok {
 				continue
 			}
