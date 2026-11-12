@@ -11,62 +11,77 @@ templ nutritionSection(n NutritionView) {
 			<span class="nutrition__tag">{ i18n.T(ctx, "nutrition.estimate") }</span>
 		</div>
 		<div class="nutrition__card">
-			if n.Show {
-				<p class="nutrition__energy">
-					<span class="nutrition__kcal">{ n.Kcal }</span>
-					<span class="nutrition__unit">{ i18n.T(ctx, "nutrition.kcal") }</span>
-					<span class="muted">{ n.PerServing }</span>
-				</p>
-				if n.Split != [3]int{} {
-					<div class="nutrition__split" aria-hidden="true">
-						<span class="nutrition__seg nutrition__seg--protein" style={ "flex: " + itoa(n.Split[0]) }></span>
-						<span class="nutrition__seg nutrition__seg--fat" style={ "flex: " + itoa(n.Split[1]) }></span>
-						<span class="nutrition__seg nutrition__seg--carbs" style={ "flex: " + itoa(n.Split[2]) }></span>
-					</div>
-				}
-				<dl class="nutrition__macros">
-					if n.Protein != "" {
-						<div><dt><span class="nutrition__key nutrition__key--protein" aria-hidden="true"></span>{ i18n.T(ctx, "nutrition.protein") }</dt><dd>{ n.Protein }</dd></div>
-					}
-					if n.Fat != "" {
-						<div><dt><span class="nutrition__key nutrition__key--fat" aria-hidden="true"></span>{ i18n.T(ctx, "nutrition.fat") }</dt><dd>{ n.Fat }</dd></div>
-					}
-					if n.Carbs != "" {
-						<div><dt><span class="nutrition__key nutrition__key--carbs" aria-hidden="true"></span>{ i18n.T(ctx, "nutrition.carbs") }</dt><dd>{ n.Carbs }</dd></div>
-					}
-				</dl>
-				if len(n.More) > 0 {
-					<details class="nutrition__more">
-						<summary>{ i18n.T(ctx, "nutrition.more") }</summary>
-						<dl class="nutrition__rows">
-							for _, r := range n.More {
-								<div><dt>{ r.Label }</dt><dd>{ r.Value }</dd></div>
-							}
-						</dl>
-					</details>
-				}
-			} else {
-				<div class="nutrition__empty">
-					<strong>{ i18n.T(ctx, "nutrition.notEnough") }</strong>
-					<span>{ n.NotEnough }</span>
-				</div>
-			}
-			if n.Coverage != "" {
-				<p class="nutrition__coverage" role="status">
-					<span class="nutrition__dots" aria-hidden="true">
-						for i := range n.Of {
-							<span class={ "nutrition__dot", templ.KV("nutrition__dot--on", i < n.Counted) }></span>
-						}
-					</span>
-					{ n.Coverage }
-				</p>
-			}
-			if n.LeftOut != "" {
-				<p class="muted nutrition__note">{ n.LeftOut }</p>
-			}
+			@nutritionFigures(n, true)
 			<p class="muted nutrition__credit">{ n.Credit }</p>
 		</div>
 	</section>
+}
+
+// nutritionFigures is what the public block and the popup share: energy,
+// macros and secondary nutrients, or the reason there are none, then the
+// coverage line and the optional note. inline is the public block's form:
+// "per serving" next to the energy and the secondary nutrients in a
+// disclosure; the popup shows them as rows.
+templ nutritionFigures(n NutritionView, inline bool) {
+	if n.Show {
+		<p class="nutrition__energy">
+			<span class="nutrition__kcal">{ n.Kcal }</span>
+			<span class="nutrition__unit">{ i18n.T(ctx, "nutrition.kcal") }</span>
+			if inline {
+				<span class="muted">{ n.PerServing }</span>
+			}
+		</p>
+		if n.Split != [3]int{} {
+			@nutritionBar(n, "")
+		}
+		<dl class="nutrition__macros">
+			if n.Protein != "" {
+				<div><dt><span class="nutrition__key nutrition__key--protein" aria-hidden="true"></span>{ i18n.T(ctx, "nutrition.protein") }</dt><dd>{ n.Protein }</dd></div>
+			}
+			if n.Fat != "" {
+				<div><dt><span class="nutrition__key nutrition__key--fat" aria-hidden="true"></span>{ i18n.T(ctx, "nutrition.fat") }</dt><dd>{ n.Fat }</dd></div>
+			}
+			if n.Carbs != "" {
+				<div><dt><span class="nutrition__key nutrition__key--carbs" aria-hidden="true"></span>{ i18n.T(ctx, "nutrition.carbs") }</dt><dd>{ n.Carbs }</dd></div>
+			}
+		</dl>
+		if len(n.More) > 0 {
+			if inline {
+				<details class="nutrition__more">
+					<summary>{ i18n.T(ctx, "nutrition.more") }</summary>
+					@nutritionRows(n.More)
+				</details>
+			} else {
+				@nutritionRows(n.More)
+			}
+		}
+	} else {
+		<div class="nutrition__empty">
+			<strong>{ i18n.T(ctx, "nutrition.notEnough") }</strong>
+			<span>{ n.NotEnough }</span>
+		</div>
+	}
+	if n.Coverage != "" {
+		<p class="nutrition__coverage" role="status">
+			<span class="nutrition__dots" aria-hidden="true">
+				for i := range n.Of {
+					<span class={ "nutrition__dot", templ.KV("nutrition__dot--on", i < n.Counted) }></span>
+				}
+			</span>
+			{ n.Coverage }
+		</p>
+	}
+	if n.LeftOut != "" {
+		<p class="muted nutrition__note">{ n.LeftOut }</p>
+	}
+}
+
+templ nutritionRows(rows []NutrientRow) {
+	<dl class="nutrition__rows">
+		for _, r := range rows {
+			<div><dt>{ r.Label }</dt><dd>{ r.Value }</dd></div>
+		}
+	</dl>
 }
 
 // nutritionTile is the recipe header's tile: the energy per serving and a
@@ -154,51 +169,7 @@ templ NutritionSheetBody(v NutritionSheetView, modal bool) {
 // none, coverage, and what is missing with links to fix it.
 templ nutritionDetail(n NutritionView) {
 	<div class="nutri-sheet__body">
-		if n.Show {
-			<p class="nutrition__energy">
-				<span class="nutrition__kcal">{ n.Kcal }</span>
-				<span class="nutrition__unit">{ i18n.T(ctx, "nutrition.kcal") }</span>
-			</p>
-			if n.Split != [3]int{} {
-				@nutritionBar(n, "")
-			}
-			<dl class="nutrition__macros">
-				if n.Protein != "" {
-					<div><dt><span class="nutrition__key nutrition__key--protein" aria-hidden="true"></span>{ i18n.T(ctx, "nutrition.protein") }</dt><dd>{ n.Protein }</dd></div>
-				}
-				if n.Fat != "" {
-					<div><dt><span class="nutrition__key nutrition__key--fat" aria-hidden="true"></span>{ i18n.T(ctx, "nutrition.fat") }</dt><dd>{ n.Fat }</dd></div>
-				}
-				if n.Carbs != "" {
-					<div><dt><span class="nutrition__key nutrition__key--carbs" aria-hidden="true"></span>{ i18n.T(ctx, "nutrition.carbs") }</dt><dd>{ n.Carbs }</dd></div>
-				}
-			</dl>
-			if len(n.More) > 0 {
-				<dl class="nutrition__rows">
-					for _, r := range n.More {
-						<div><dt>{ r.Label }</dt><dd>{ r.Value }</dd></div>
-					}
-				</dl>
-			}
-		} else {
-			<div class="nutrition__empty">
-				<strong>{ i18n.T(ctx, "nutrition.notEnough") }</strong>
-				<span>{ n.NotEnough }</span>
-			</div>
-		}
-		if n.Coverage != "" {
-			<p class="nutrition__coverage" role="status">
-				<span class="nutrition__dots" aria-hidden="true">
-					for i := range n.Of {
-						<span class={ "nutrition__dot", templ.KV("nutrition__dot--on", i < n.Counted) }></span>
-					}
-				</span>
-				{ n.Coverage }
-			</p>
-		}
-		if n.LeftOut != "" {
-			<p class="muted nutrition__note">{ n.LeftOut }</p>
-		}
+		@nutritionFigures(n, false)
 		if len(n.Missing) > 0 {
 			<section class="nutrition__missing" aria-labelledby="nutrition-missing-title">
 				<h3 class="nutrition__missing-title" id="nutrition-missing-title">{ i18n.T(ctx, "nutrition.missing", len(n.Missing)) }</h3>

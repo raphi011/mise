@@ -626,7 +626,7 @@ func (s *Server) recipeLive(w http.ResponseWriter, r *http.Request, sc store.Sco
 				return err
 			}
 			if v.Gone {
-				return nil
+				return nutritionPatch(sse, v, sig.NutOpen)
 			}
 			if err := sse.PatchElementTempl(ui.PageTitle(v.Name)); err != nil {
 				return err

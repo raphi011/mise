@@ -173,6 +173,26 @@ func TestNutrition(t *testing.T) {
 			t.Errorf("clearing tofu did not leave 1 of 2:\n%.300s", between(body, "nutrition__card"))
 		}
 
+		// An open popup closes, and its signal resets, when the recipe loses
+		// its ingredients or is deleted.
+		mine := createRecipe(t, anna, stickyTofu())
+		liveOpen := func(id string) *stream {
+			return ben.openLive("page=recipe&id=" + id + "&datastar=" + url.QueryEscape(`{"servings":2,"nutOpen":true}`))
+		}
+		l1 := liveOpen(mine)
+		l1.next("popup open", liveDeadline, `id="nutrition-body"`)
+		bare := stickyTofu()
+		bare["ing_key"], bare["ing_amount"], bare["ing_name"] = nil, nil, nil
+		anna.post("/recipes/"+mine+"/edit", bare).expect(t, "remove ingredients", http.StatusSeeOther)
+		l1.next("signal reset without ingredients", liveDeadline, `"nutOpen":false`)
+		l1.next("popup removed without ingredients", liveDeadline, `<div id="sheet"></div>`)
+
+		l2 := liveOpen(id)
+		l2.next("popup open on the other recipe", liveDeadline, `id="nutrition-body"`)
+		anna.post(page+"/delete", nil).expect(t, "delete", http.StatusSeeOther)
+		l2.next("signal reset on delete", liveDeadline, `"nutOpen":false`)
+		l2.next("popup removed on delete", liveDeadline, `<div id="sheet"></div>`)
+
 		// A recipe without ingredients has no tile and no popup.
 		empty := createRecipe(t, anna, url.Values{"name": {"Water"}, "servings": {"1"}})
 		if body := anna.get("/recipes/" + empty).body; strings.Contains(body, "nutri-tile") {
