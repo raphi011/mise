@@ -291,7 +291,7 @@ func TestPageDraftNotesAndAlternatives(t *testing.T) {
 			{"Soy sauce", ai.MatchCheck},
 			{"Sea salt", ai.MatchExact}, // "to taste" is a note
 			{"Spring onions", ai.MatchExact},
-			{"Single cream", ai.MatchNew}, // "double" may be short for "double cream"
+			{"Cooking cream", ai.MatchCatalog}, // "double" may be short for "double cream"
 		}
 		if len(d.Ingredients) != len(want) {
 			t.Fatalf("ingredients %+v", d.Ingredients)

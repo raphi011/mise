@@ -1255,9 +1255,16 @@
   "name": "Greek yogurt"
  },
  "half_and_half": {
-  "name": "Light cream",
+  "name": "Half and half",
   "aliases": [
-   "half and half"
+   "half-and-half"
+  ]
+ },
+ "cooking_cream": {
+  "name": "Cooking cream",
+  "aliases": [
+   "light cream",
+   "single cream"
   ]
  },
  "soy_milk": {

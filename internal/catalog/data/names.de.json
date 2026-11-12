@@ -413,8 +413,7 @@
    "schlagsahne",
    "obers",
    "rahm",
-   "schlagobers",
-   "kochobers"
+   "schlagobers"
   ]
  },
  "sour_cream": {
@@ -1406,6 +1405,13 @@
   "aliases": [
    "kaffeeobers",
    "halbfetter obers"
+  ]
+ },
+ "cooking_cream": {
+  "name": "Kochsahne",
+  "aliases": [
+   "kochobers",
+   "kochrahm"
   ]
  },
  "soy_milk": {
