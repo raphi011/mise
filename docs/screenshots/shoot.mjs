@@ -48,15 +48,12 @@ await evaluate(`(() => {
 })()`);
 await sleep(1500);
 
-// The recipe with a public link is the one shown on the recipe pages.
-const recipes = await evaluate(`fetch('/recipes').then(r => r.text()).then(t => [...new Set([...t.matchAll(/href="(\\/recipes\\/[0-9a-f-]{36})"/g)].map(m => m[1]))])`);
-let recipe, share;
-for (const href of recipes) {
-  const menu = await evaluate(`fetch('${href}/menu').then(r => r.text())`);
-  const m = menu.match(/\/s\/[A-Za-z0-9_-]+/);
-  if (m) { recipe = href; share = m[0]; break; }
-}
-if (!recipe) throw new Error("no recipe with a public link; run seed.py first");
+// Shakshuka has the public link and is the recipe shown on the recipe pages.
+const recipe = "/recipes/shakshuka";
+const page = await evaluate(`fetch('${recipe}').then(r => r.text())`);
+const recipeId = page.match(/\/recipes\/([0-9a-f-]{36})\/menu/)?.[1];
+const share = recipeId && (await evaluate(`fetch('/recipes/${recipeId}/menu').then(r => r.text())`)).match(/\/s\/[A-Za-z0-9_-]+/)?.[0];
+if (!share) throw new Error("no public link on the Shakshuka recipe; run seed.py first");
 
 // seed.py plans next week, so no day is in the past.
 const d = new Date();
@@ -67,13 +64,14 @@ const nextMonday = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0
 // An optional last entry lists size-scheme pairs to skip.
 const shots = [
   ["recipes", "/recipes", ["phone", "desktop"], ["light", "dark"], ["desktop-dark"]],
-  ["recipe", recipe, ["phone", "desktop"], ["light"]],
+  ["recipe", recipe, ["phone", "desktop"], ["light", "dark"], ["phone-dark", "desktop-light"]],
   ["plan", `/plan?week=${nextMonday}`, ["phone", "desktop"], ["light"]],
   ["groceries", "/groceries", ["phone", "desktop"], ["light"]],
   ["cook", recipe + "/cook", ["phone"], ["light"]],
   ["settings", "/settings", ["phone", "desktop"], ["light"]],
   ["share", share, ["phone"], ["light"]],
 ];
+// One viewport and scale factor per device class keeps every image the same size.
 const sizes = {
   phone: { width: 375, height: 812, deviceScaleFactor: 2, mobile: true },
   desktop: { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false },
@@ -84,9 +82,6 @@ for (const scheme of ["light", "dark"]) {
     await send("Emulation.setDeviceMetricsOverride", { ...metrics, screenWidth: metrics.width, screenHeight: metrics.height });
     for (const [name, path, onSizes, onSchemes, skip = []] of shots) {
       if (!onSizes.includes(size) || !onSchemes.includes(scheme) || skip.includes(`${size}-${scheme}`)) continue;
-      // Two full rows of the library grid need a taller desktop window.
-      const height = name === "recipes" && size === "desktop" ? 960 : metrics.height;
-      await send("Emulation.setDeviceMetricsOverride", { ...metrics, height, screenWidth: metrics.width, screenHeight: height });
       await go(path);
       await sleep(500);
       const shot = await send("Page.captureScreenshot", { format: "png" });

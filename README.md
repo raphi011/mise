@@ -19,7 +19,7 @@ Self-hosted recipes, meal plan and shared shopping lists for your household. One
 
 <p>
   <img src="docs/screenshots/recipes-desktop-light.png" alt="The recipe library" width="49%">
-  <img src="docs/screenshots/recipe-desktop-light.png" alt="A recipe" width="49%">
+  <img src="docs/screenshots/recipe-desktop-dark.png" alt="A recipe" width="49%">
   <img src="docs/screenshots/groceries-desktop-light.png" alt="The shopping list" width="49%">
   <img src="docs/screenshots/settings-desktop-light.png" alt="Household settings" width="49%">
 </p>
@@ -28,7 +28,7 @@ Self-hosted recipes, meal plan and shared shopping lists for your household. One
   <img src="docs/screenshots/plan-phone-light.png" alt="The plan on a phone" width="13.5%">
   <img src="docs/screenshots/groceries-phone-light.png" alt="The shopping list on a phone" width="13.5%">
   <img src="docs/screenshots/cook-phone.png" alt="Cook mode on a phone" width="13.5%">
-  <img src="docs/screenshots/recipes-phone-dark.png" alt="The library on a phone in dark mode" width="13.5%">
+  <img src="docs/screenshots/recipes-phone-light.png" alt="The library on a phone" width="13.5%">
   <img src="docs/screenshots/settings-phone-light.png" alt="Settings on a phone" width="13.5%">
   <img src="docs/screenshots/share-phone.png" alt="A public recipe link opened on a phone" width="13.5%">
 </p>
