@@ -966,6 +966,8 @@
   "nutrition.missing": "Was fehlt (%d)",
   "nutrition.leftOutOne": "1 optionale Zutat ist nicht eingerechnet.",
   "nutrition.leftOut": "%d optionale Zutaten sind nicht eingerechnet.",
+  "nutrition.openAmountsOne": "1 Zutat ohne Mengenangabe („nach Geschmack“) ist nicht eingerechnet.",
+  "nutrition.openAmounts": "%d Zutaten ohne Mengenangabe („nach Geschmack“) sind nicht eingerechnet.",
   "nutrition.credit": "Eine Schätzung aus den für jede Zutat gespeicherten Werten, bezogen auf das Rohgewicht.",
   "nutrition.uncounted": "Nicht in den Nährwerten eingerechnet",
   "nutrition.why.noData": "Für diese Zutat sind keine Nährwerte gespeichert.",

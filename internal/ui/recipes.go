@@ -218,6 +218,7 @@ type IngredientView struct {
 	ID       string
 	Name     string
 	Amount   string
+	Note     string
 	Optional bool
 	On       bool
 	// Uncounted marks an ingredient that is not in the nutrition estimate.

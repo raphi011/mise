@@ -95,7 +95,7 @@ func recipeToJSON(r recipes.Recipe, lang language.Tag) recipeJSON {
 		v.Tags = append(v.Tags, t.Name)
 	}
 	for _, i := range r.Ingredients {
-		v.Ingredients = append(v.Ingredients, ingredientJSON{ID: i.ID.String(), Name: i.ItemName, Amount: amountText(i.Amount, lang), Optional: i.Optional})
+		v.Ingredients = append(v.Ingredients, ingredientJSON{ID: i.ID.String(), Name: i.ItemName, Amount: recipes.AmountField(i.Amount, i.Note, lang), Optional: i.Optional})
 	}
 	for _, s := range r.Steps {
 		v.Steps = append(v.Steps, stepJSON{ID: s.ID.String(), Text: s.Text, TimerSeconds: s.TimerSeconds})
@@ -169,7 +169,8 @@ func (in recipeIn) input(lang language.Tag) recipes.Input {
 		if i.line != "" {
 			row = recipes.ParseIngredient(i.line, lang)
 		} else {
-			row = recipes.IngredientInput{Name: i.Name, Amount: groceries.ParseAmount(i.Amount, lang)}
+			amount, note := groceries.ParseIngredientAmount(i.Amount, lang)
+			row = recipes.IngredientInput{Name: i.Name, Amount: amount, Note: note}
 		}
 		row.ID, row.Optional = i.ID, i.Optional
 		out.Ingredients = append(out.Ingredients, row)

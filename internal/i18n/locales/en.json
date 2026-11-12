@@ -966,6 +966,8 @@
   "nutrition.missing": "What’s missing (%d)",
   "nutrition.leftOutOne": "1 optional ingredient is not counted.",
   "nutrition.leftOut": "%d optional ingredients are not counted.",
+  "nutrition.openAmountsOne": "1 ingredient without an amount (\"to taste\") is not counted.",
+  "nutrition.openAmounts": "%d ingredients without an amount (\"to taste\") are not counted.",
   "nutrition.credit": "An estimate from the values saved for each ingredient, at raw weight.",
   "nutrition.uncounted": "Not counted in the nutrition",
   "nutrition.why.noData": "No nutrition values for this item.",

@@ -74,6 +74,9 @@ templ nutritionFigures(n NutritionView, inline bool) {
 	if n.LeftOut != "" {
 		<p class="muted nutrition__note">{ n.LeftOut }</p>
 	}
+	if n.OpenAmounts != "" {
+		<p class="muted nutrition__note">{ n.OpenAmounts }</p>
+	}
 }
 
 templ nutritionRows(rows []NutrientRow) {

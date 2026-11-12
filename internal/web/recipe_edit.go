@@ -293,8 +293,9 @@ func (st *editorState) input(ctx context.Context) (recipes.Input, []int, map[str
 			continue
 		}
 		rowOf = append(rowOf, i)
+		amount, note := groceries.ParseIngredientAmount(row.Amount, lang)
 		in.Ingredients = append(in.Ingredients, recipes.IngredientInput{
-			ID: rowID(row.Key), Name: row.Name, Amount: groceries.ParseAmount(row.Amount, lang), Optional: row.Optional,
+			ID: rowID(row.Key), Name: row.Name, Amount: amount, Note: note, Optional: row.Optional,
 		})
 	}
 	st.steps = nonBlank(st.steps)
@@ -456,11 +457,7 @@ func importEditorState(ctx context.Context, job ai.Job) editorState {
 	}
 	lang := i18n.Locale(ctx)
 	for _, ing := range d.Ingredients {
-		amount := ing.Amount.Text
-		if amount == "" {
-			amount = recipes.DisplayAmount(ing.Amount, lang)
-		}
-		st.rows = append(st.rows, ui.IngredientRow{Key: newRowKey(), Name: ing.ItemName, Amount: amount})
+		st.rows = append(st.rows, ui.IngredientRow{Key: newRowKey(), Name: ing.ItemName, Amount: recipes.AmountField(ing.Amount, "", lang)})
 	}
 	for _, step := range d.Steps {
 		row := ui.StepRow{Text: step.Text}
@@ -504,11 +501,7 @@ func (s *Server) editRecipePage(w http.ResponseWriter, r *http.Request) {
 		st.vals.Add("link", l.ID.String())
 	}
 	for _, ing := range rec.Ingredients {
-		amount := ing.Amount.Text
-		if amount == "" {
-			amount = recipes.DisplayAmount(ing.Amount, lang)
-		}
-		st.rows = append(st.rows, ui.IngredientRow{Key: savedRowKey(ing.ID), Name: ing.ItemName, Amount: amount, Optional: ing.Optional})
+		st.rows = append(st.rows, ui.IngredientRow{Key: savedRowKey(ing.ID), Name: ing.ItemName, Amount: recipes.AmountField(ing.Amount, ing.Note, lang), Optional: ing.Optional})
 	}
 	for _, step := range rec.Steps {
 		row := ui.StepRow{Text: step.Text}
