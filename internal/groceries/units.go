@@ -132,3 +132,42 @@ func usStep(q float64) float64 {
 func roundTo(q, step float64) float64 {
 	return math.Max(math.Round(q/step)*step, step)
 }
+
+// Kind says what a structured amount measures.
+type Kind int
+
+const (
+	// KindMass is an amount of weight, in grams.
+	KindMass Kind = iota + 1
+	// KindVolume is an amount of volume, in millilitres.
+	KindVolume
+	// KindCount is a number of things: pieces, cloves, cans, pinches or a
+	// bare number.
+	KindCount
+)
+
+// toBase maps every measuring unit to grams or millilitres. Unlike toMetric
+// and toUS it includes the units that never convert for display.
+var toBase = map[string]struct {
+	factor float64
+	kind   Kind
+}{
+	"g": {1, KindMass}, "kg": {1000, KindMass}, "mg": {0.001, KindMass},
+	"oz": {gramsPerOz, KindMass}, "lb": {gramsPerLb, KindMass},
+	"ml": {1, KindVolume}, "cl": {10, KindVolume}, "dl": {100, KindVolume}, "l": {1000, KindVolume},
+	"tsp": {mlPerTsp, KindVolume}, "tbsp": {mlPerTbsp, KindVolume},
+	"cup": {mlPerCup, KindVolume}, "floz": {mlPerFlOz, KindVolume},
+}
+
+// BaseAmount returns a in grams (KindMass), millilitres (KindVolume) or as a
+// plain count (KindCount, with the unit left in a.Unit for the caller). It
+// reports false for free text, which has no quantity.
+func BaseAmount(a Amount) (value float64, kind Kind, ok bool) {
+	if a.Quantity == nil {
+		return 0, 0, false
+	}
+	if b, found := toBase[a.Unit]; found {
+		return *a.Quantity * b.factor, b.kind, true
+	}
+	return *a.Quantity, KindCount, true
+}

@@ -145,7 +145,9 @@ type Toast struct {
 
 // EntryEditView is the item edit sheet.
 type EntryEditView struct {
-	ID         string
+	ID string
+	// ItemID is the item the entry is for, which the nutrition link edits.
+	ItemID     string
 	ItemName   string
 	Color      string
 	ListID     string

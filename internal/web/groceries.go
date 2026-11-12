@@ -519,7 +519,7 @@ func (s *Server) editView(ctx context.Context, sc store.Scoped, e groceries.Entr
 	if err != nil {
 		return ui.EntryEditView{}, err
 	}
-	v := ui.EntryEditView{ID: e.ID.String(), ItemName: e.ItemName, ListID: e.ListID.String(), Form: f}
+	v := ui.EntryEditView{ID: e.ID.String(), ItemID: e.ItemID.String(), ItemName: e.ItemName, ListID: e.ListID.String(), Form: f}
 	if e.Category != nil {
 		v.Color = e.Category.Color
 	}

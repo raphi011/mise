@@ -163,8 +163,10 @@ All tables also have `household_id` (except `households`, `users`) and `created_
 | api_tokens | id, household_id, user_id (composite FK to memberships), name, token_hash (SHA-256, unique), scope (`read`, `write`), expires_at, last_used_at, created_at, updated_at; global like sessions (looked up by hash) |
 | recipe_links | recipe_id, linked_id; one row per direction, written and deleted in pairs ("Goes well with", see Linked recipes) |
 | recipe_shares | recipe_id (one link per recipe), token (unique, stored as issued), created_by (see Public recipe links) |
+| item_nutrition | item_id (PK with household_id), kcal, protein_g, fat_g, saturated_fat_g, carbs_g, sugars_g, fibre_g, sodium_mg (all per 100 g, nullable except kcal), density_g_ml (nullable), updated_by (see Nutrition) |
+| item_unit_weights | item_id, unit (`piece`, `clove`, `slice`, `bunch`, `can`, `pack`), grams; PK (household_id, item_id, unit) (see Nutrition) |
 
-Derived, not stored: "on a list" per ingredient, times cooked (count of `cook_events`), "not cooked in a month", suggestion ranking.
+Derived, not stored: "on a list" per ingredient, times cooked (count of `cook_events`), "not cooked in a month", suggestion ranking, nutrition per serving (see Nutrition).
 
 ### Decisions on the feature doc's open questions
 
@@ -368,6 +370,111 @@ Each phase ends with something usable and is merged before the next starts.
 - **Photo:** `/s/{token}/photo/{full|thumb}` serves the shared recipe's current photo from the link's household. It takes no image hash, so a link cannot open any other image, and the members' `/images/` route stays authenticated. `Cache-Control: private, no-cache` with an ETag: browsers revalidate each time (a cheap 304), so a turned-off link stops serving the photo too.
 - **Headers** on every `/s/` response, 404s included: `X-Robots-Tag: noindex, nofollow, noarchive`, `Referrer-Policy: no-referrer` (the token is in the URL; the source link also has `rel="noreferrer"`), `Cache-Control: no-store` (the photo as above); the page repeats robots and referrer as `<meta>`. An unknown, revoked or binned link answers 404 "This link doesn't work" without the app shell and without saying which. Logs record the route pattern, never the token.
 - Routes: `POST /recipes/{id}/share` (create), `POST /recipes/{id}/share/revoke`; both answer Datastar with the menu's link entry and a toast, and a form post with a redirect to the menu page. Schema: `recipe_shares` (migration `00011_recipe_shares`): household_id, recipe_id (primary key with household_id; composite FK to recipes, cascade), token (unique), created_by (composite FK to memberships), created_at, updated_at.
+
+### Nutrition
+
+Per-serving nutrition on the recipe page, estimated from the ingredients. An estimate, labelled as one. Decisions D1–D8 at the end of this section are all decided as recommended (user, 2026-11-12).
+
+**Status.** Built: migration `00013_nutrition`, `internal/nutrition` (gram conversion, calculation, per-household values and weights, validation), the recipe block, the item editor at `/items/{id}/nutrition` (also linked from the grocery entry sheet), the public page block, `groceries.BaseAmount`, i18n and live updates. **Not built yet:** the embedded USDA data, its build step and the catalogue lookup (they need `internal/catalog` and `items.catalog_key`, in the ingredient catalogue work), and the parser change of D5. Until then every value comes from a household typing it in, the block's footnote does not name USDA, and `docs/credits.md` says so. The sections below describe the full design.
+
+#### Data source
+
+- **USDA FoodData Central, Foundation Foods and SR Legacy.** The API Guide (`fdc.nal.usda.gov/api-guide`, "Licensing") says the data are public domain, published under CC0 1.0, no permission needed; users are *asked* (not required) to list FoodData Central as the source. Suggested wording: "U.S. Department of Agriculture, Agricultural Research Service. FoodData Central, 2019. fdc.nal.usda.gov." No other page (FAQ, downloads, data documentation) restates the licence, and it makes no per-dataset exception. We credit it anyway: `docs/credits.md` holds the full citation (the repo's credit file), and a footnote under the nutrition block and on the public page names it.
+- **Sets.** Foundation Foods is current (October 2026 release, CSV 4.1 MB zipped) but has only a few hundred foods. SR Legacy is frozen (April 2018, final; CSV 6.7 MB zipped, about 7,800 foods) and covers everyday ingredients; its portion rows (`food_portion`, grams per cup, per piece) are the source for densities and piece weights. Both are used: Foundation row where one exists, else SR Legacy.
+- **Rejected.** Open Food Facts: ODbL, derivative databases must be shared alike, and attribution is required. German BLS 4.0: the BLS site says "ohne Lizenzbarrieren" and the FAQ says the data "kann frei genutzt werden", including for app development, but names no licence and gives no redistribution terms, so it stays out until the Max Rubner-Institut confirms in writing (D6). Swiss database: allows reuse with source credit on its home page, but its legal page requires written consent for reproducing any element; the two are not reconciled. Ciqual, Fineli and Frida could not be read (HTTP 503, 403, a script-only shell), so their licences are unverified.
+- **Embedded subset, not the runtime API.** The API needs a key, allows 1,000 requests per hour per IP (DEMO_KEY: 30 per hour), and would send household ingredient names to a US government service from a self-hosted app. A subset of about 500 ingredients is a JSON file of roughly 100 KB (about 15 KB gzipped): per catalogue key, FDC ID, 8 nutrients per 100 g, density, piece weights. It lives at `internal/catalog/data/nutrition.json`, keyed by catalogue key (ingredient catalogue decision D9), embedded with the catalogue and loaded into a map at start; no table, since it is global reference data and every table carries `household_id`.
+- **Build step, not runtime.** `go run ./internal/catalog/gen/nutrition <fdc-csv-dir>` reads downloaded FDC CSVs (not committed) and the hand-kept `nutrition_map.csv` (catalogue key → FDC ID, plus the portion description to take density or piece weight from) and writes `nutrition.json`. A reviewer diffs `nutrition.json`. Keys are append-only and immutable, so rows never move; a retired key keeps its row via `replaced_by`. Every row keeps its `fdc_id` as provenance. Only raw foods are mapped ("rice, white, raw", not cooked), because recipes list raw amounts.
+- **German.** Names come from the ingredient catalogue's localized names; keys are language-neutral, so no German dataset is needed. Values for German products differ slightly from USDA ones (flour types, cheeses), which the "estimate" label covers.
+
+#### Keys and lookup
+
+- Nutrition hangs off the catalogue key (`items.catalog_key`, from the ingredient catalogue work: a virtual catalogue, the key is set on first use, unique per household, immutable; existing items that match no entry stay unlinked and so have no nutrition until a member types values or the item is linked). Resolution order for an ingredient's item: household row in `item_nutrition` (custom or overriding) → embedded entry for `items.catalog_key` → none.
+- A household row replaces the catalogue's nutrient values as a whole. `item_unit_weights` rows merge per unit with the catalogue's; `density_g_ml` follows the same rule as the nutrient row.
+- Items without a catalogue key and without a household row simply have no data; the recipe page names them.
+
+#### From ingredient line to grams
+
+New package `internal/nutrition` (no SQL beyond `item_nutrition`/`item_unit_weights`; pure conversion in `grams.go`). Input is `recipe_ingredients.quantity` + `unit` (canonical keys from `groceries.Units`), never `amount_text`. Conversion factors come from `internal/groceries`, which gains an exported `BaseAmount(Amount) (value float64, kind, ok)` over the existing constants; `toMetric` has no teaspoons or tablespoons today, so the function covers them (`mlPerTsp`, `mlPerTbsp` exist).
+
+| Line | Rule | Example |
+|---|---|---|
+| `g`, `kg`, `mg`, `oz`, `lb` | mass factor | 200 g spaghetti |
+| `ml`, `cl`, `dl`, `l`, `tsp`, `tbsp`, `cup`, `floz` | millilitres × `density_g_ml` of the item; no density → not counted | 2 tbsp olive oil |
+| no unit, `piece` | `piece` weight; an item with one weight row of any other unit also counts for a bare number | 4 eggs, 1 onion |
+| `clove`, `slice`, `bunch`, `can`, `pack` | that unit's weight row | 2 cloves garlic |
+| `pinch` | 0.4 g | 1 pinch salt |
+| no `quantity` ("1 thumb", "1 handful", "2-3 cloves", "ca. 200 g", "2 large") | not counted | |
+| empty `amount_text` ("salt") | skipped: left out of both sides of the coverage count | |
+| `optional` ingredient | left out of the total, mentioned under the block | |
+
+No guessing: a volume line for an item without density is not counted rather than assumed to be water. Conversion is independent of the viewer's metric/US setting; it uses the stored structured amount.
+
+**Prototype result** (full report in the notes folder, `nutrition-coverage-report.md`): 8 hand-written recipes, 64 lines, with a 45-entry table: 55 resolve (86 %), 1 skipped, 8 not counted (5 free-text measures, 2 missing weight or density, 1 item without data). Weakest recipe 73 %. Parser gaps worth fixing as part of this feature (D5): ranges ("2-3 cloves", "2–3 EL") and "ca." currently produce no quantity.
+
+#### Calculation
+
+- Derived at render, not stored. A recipe has about 10 ingredient rows; the work is a map lookup per row plus one query for the household's `item_nutrition` and `item_unit_weights` for those items (the recipe load already reads ingredients). Storing would need invalidation on every item, ingredient and servings edit and a live event per item edit; the saving is microseconds. Revisit only if a list page shows nutrition per card.
+- Per serving = Σ (grams × nutrient per 100 g / 100) over counted lines ÷ `recipes.servings`. Servings ≤ 0 shows nothing.
+- **Servings scaling does not change per-serving figures** (amounts and servings scale together). The detail page's scaler changes the amounts only; the block says "per serving" and is not recomputed on the client. No total for the whole recipe in v1.
+- Rounding: kcal to 5, grams to 1 (0.1 below 10), sodium to 10 mg. Salt is shown as sodium × 2.5 / 1000 in grams, EU-style.
+- **Coverage.** `counted` = lines with grams; `of` = non-optional lines with an amount. The block always states it when `counted < of`: "Based on 7 of 9 ingredients". Under 50 % (D3) the numbers are hidden: "Not enough data yet. 3 of 9 ingredients have nutrition." The detail list (disclosure) names each uncounted line with its reason: "no nutrition data", "no weight for 'handful'", "no density for volumes", and links to the item editor where fixable.
+- All figures are labelled "estimate"; a footnote under the block says what the estimate rests on (naming USDA once the embedded data ships).
+
+#### Schema (migration `00013_nutrition`, both dialects)
+
+SQLite shown; Postgres: `uuid` ids, `double precision`, `timestamptz`, same names and keys. `TestSchemaParity` covers both.
+
+```sql
+CREATE TABLE item_nutrition (
+    household_id TEXT NOT NULL,
+    item_id      TEXT NOT NULL,
+    kcal REAL NOT NULL CHECK (kcal >= 0 AND kcal <= 900),
+    protein_g REAL CHECK (protein_g >= 0), fat_g REAL CHECK (fat_g >= 0),
+    saturated_fat_g REAL CHECK (saturated_fat_g >= 0), carbs_g REAL CHECK (carbs_g >= 0),
+    sugars_g REAL CHECK (sugars_g >= 0), fibre_g REAL CHECK (fibre_g >= 0),
+    sodium_mg REAL CHECK (sodium_mg >= 0),
+    density_g_ml REAL CHECK (density_g_ml > 0),
+    updated_by TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+    PRIMARY KEY (household_id, item_id),
+    FOREIGN KEY (household_id, item_id) REFERENCES items (household_id, id) ON DELETE CASCADE,
+    FOREIGN KEY (household_id, updated_by) REFERENCES memberships (household_id, user_id) ON DELETE RESTRICT
+) STRICT;
+CREATE TABLE item_unit_weights (
+    household_id TEXT NOT NULL, item_id TEXT NOT NULL,
+    unit TEXT NOT NULL CHECK (unit IN ('piece','clove','slice','bunch','can','pack')),
+    grams REAL NOT NULL CHECK (grams > 0),
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+    PRIMARY KEY (household_id, item_id, unit),
+    FOREIGN KEY (household_id, item_id) REFERENCES items (household_id, id) ON DELETE CASCADE
+) STRICT;
+```
+
+Timestamps bound from Go (`store.T`). `item_id` is the leading key column after `household_id`, so every lookup is indexed. Items are hard-deleted only through the existing item delete, which cascades.
+
+#### UI and manual entry
+
+- **Recipe detail:** a "Nutrition per serving" block under the ingredients (beside the method on wide screens): kcal large, then protein, fat, carbs, with saturated fat, sugars, fibre and salt in a disclosure. Partial coverage adds the line "Based on 7 of 9 ingredients" and the "What's missing" list. Shown whenever the recipe has ingredients; with too little counted it is the "Not enough data" state.
+- **Item editor (edit sheet):** a "Nutrition" section: source line ("From catalogue · USDA", "Custom"), kcal and 7 nutrient fields per 100 g, "1 l weighs … g" (density, entered as g per 100 ml), unit weights ("1 piece = … g", add row for clove, slice, bunch, can, pack). "Reset to catalogue" deletes the household rows when the item has a catalogue key. Validation in `internal/nutrition` returns `FieldErrors` keyed by form field: non-negative, kcal ≤ 900, protein + fat + carbs + fibre ≤ 100 g. Plain form post works without JavaScript like every other form.
+- **Entry points and design:** boards "Nutrition · …" on the design canvas (recipe page phone, tablet and desktop in both themes, "not enough data" state, item editor with a validation error, public page). The editor opens from a "Nutrition" row in the existing item edit sheet and from the recipe's "What's missing" rows. Label values are typed as salt in grams (EU packs) and stored as sodium.
+- **Public recipe page:** shows the per-serving block when coverage is at least the threshold, with the estimate wording, without the "what's missing" list (D4). It sits under the method in the main column, not under the ingredients, because the ingredients card is sticky on wide screens and a taller sticky column would cut off its bottom.
+- **Live:** saving an item's nutrition publishes `recipe.changed` for each recipe using the item, like linked recipes do, so open recipe pages recalculate.
+- **i18n keys** (en and de, `i18n.Key` constants): `nutrition.title`, `nutrition.per_serving`, `nutrition.estimate`, `nutrition.kcal`, `nutrition.protein`, `nutrition.fat`, `nutrition.fat_saturated`, `nutrition.carbs`, `nutrition.sugars`, `nutrition.fibre`, `nutrition.salt`, `nutrition.coverage` ("Based on {counted} of {of} ingredients", plural-aware), `nutrition.not_enough`, `nutrition.missing_title`, `nutrition.missing_no_data`, `nutrition.missing_no_weight`, `nutrition.missing_no_density`, `nutrition.optional_left_out`, `nutrition.source_catalogue`, `nutrition.source_custom`, `nutrition.credit`, `nutrition.edit_title`, `nutrition.per_100g`, `nutrition.density`, `nutrition.unit_weight`, `nutrition.add_weight`, `nutrition.reset`, `nutrition.err_range`, `nutrition.err_macros`.
+- **Tests:** conversion table tests per unit rule (no DB); calculation with partial coverage and servings; isolation cases for `item_nutrition` and `item_unit_weights` reads and writes in `internal/nutrition/isolation_test.go`; a test that every `nutrition.json` row has a key in the catalogue, an FDC ID, kcal ≤ 900 and macros ≤ 100 g; web tests (`b.post` and `b.datastar`) for the item editor and the recipe block; `go test` on both engines.
+
+#### Out of scope
+
+Daily targets and goals, meal-plan day or week totals, barcode lookup and Open Food Facts, per-recipe manual overrides ("I know this is 450 kcal"), micronutrients, cooked-versus-raw yield factors, allergens and diets, free-text measure weights ("1 handful"), a runtime USDA lookup, nutrition in list cards or filters, nutrition in the REST API (D7).
+
+#### Decisions (all decided as recommended)
+
+- **D1 Data: embedded USDA subset, no runtime API.** Recommend as written above. Alternative: optional API lookup for custom items; costs a key setup and sends names out.
+- **D2 Ship nutrition rows for the catalogue only.** Items outside the catalogue get data only by manual entry. Recommend yes; no fuzzy matching of free-text items to USDA names.
+- **D3 Coverage threshold: hide numbers under 50 % of counted ingredients.** Recommend 50 %. Alternative: always show with the warning.
+- **D4 Public recipe page shows nutrition** when above the threshold, estimate wording and credit, no missing list. Recommend show. Alternatives: hide, or a per-link switch (extra column on `recipe_shares`).
+- **D5 Parser: accept ranges ("2-3") and "ca." as a quantity** (a range would need a second quantity column or a midpoint stored as the quantity, so this touches the schema and scaling). Recommend a separate change before nutrition, since scaling and the shopping list benefit too, and the midpoint as the quantity with the typed text kept in `amount_text`. Alternative: leave as free text.
+- **D6 German BLS:** ask the Max Rubner-Institut for written confirmation of redistribution, as a background task. Recommend asking; nothing in v1 depends on it.
+- **D7 REST API:** leave nutrition out of `docs/api.md` for v1. Recommend out; add `nutrition` to the recipe resource when someone needs it.
+- **D8 Optional ingredients:** excluded from the total. Recommend excluded, with a note under the block. Alternative: include them.
 
 ### P5 — Later
 - KitchenOwl import, "always have" staples. (OIDC is done, see Auth; tablet polish is done.)

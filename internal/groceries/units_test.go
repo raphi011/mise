@@ -1,10 +1,35 @@
 package groceries
 
 import (
+	"math"
 	"testing"
 
 	"golang.org/x/text/language"
 )
+
+func TestBaseAmount(t *testing.T) {
+	q := func(v float64) *float64 { return &v }
+	for _, c := range []struct {
+		a    Amount
+		want float64
+		kind Kind
+		ok   bool
+	}{
+		{Amount{Quantity: q(2), Unit: "kg"}, 2000, KindMass, true},
+		{Amount{Quantity: q(1), Unit: "lb"}, gramsPerLb, KindMass, true},
+		{Amount{Quantity: q(2), Unit: "tbsp"}, 2 * mlPerTbsp, KindVolume, true},
+		{Amount{Quantity: q(1.5), Unit: "dl"}, 150, KindVolume, true},
+		{Amount{Quantity: q(3), Unit: "clove"}, 3, KindCount, true},
+		{Amount{Quantity: q(4)}, 4, KindCount, true},
+		{Amount{Text: "1 thumb"}, 0, 0, false},
+		{Amount{}, 0, 0, false},
+	} {
+		got, kind, ok := BaseAmount(c.a)
+		if ok != c.ok || kind != c.kind || math.Abs(got-c.want) > 1e-9 {
+			t.Errorf("BaseAmount(%+v) = %v, %v, %v; want %v, %v, %v", c.a, got, kind, ok, c.want, c.kind, c.ok)
+		}
+	}
+}
 
 func TestConvert(t *testing.T) {
 	en, de := language.English, language.German

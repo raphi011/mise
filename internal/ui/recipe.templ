@@ -115,6 +115,7 @@ templ RecipeRegion(v RecipeView) {
 				</div>
 			</div>
 			<div class="recipe-body">
+				<div class="recipe-body__side">
 				<section class="recipe-section" id="ingredients" aria-labelledby="ingredients-title">
 					<div class="recipe-section__head">
 						<h2 class="recipe-section__title" id="ingredients-title">{ i18n.T(ctx, "recipes.ingredients") }</h2>
@@ -134,6 +135,10 @@ templ RecipeRegion(v RecipeView) {
 						<p class="muted">{ i18n.T(ctx, "recipes.noIngredients") }</p>
 					}
 				</section>
+				if v.Nutrition != nil {
+					@nutritionSection(*v.Nutrition)
+				}
+				</div>
 				<div class="recipe-body__main">
 				<section class="recipe-section" aria-labelledby="method-title">
 					<div class="recipe-section__head">
@@ -260,6 +265,9 @@ templ ingredientRow(v RecipeView, ing IngredientView) {
 			{ ing.Name }
 			if ing.Optional {
 				<span class="ingredient__opt">{ i18n.T(ctx, "recipes.optional") }</span>
+			}
+			if ing.Uncounted {
+				<span class="ingredient__uncounted" role="img" aria-label={ i18n.T(ctx, "nutrition.uncounted") } title={ i18n.T(ctx, "nutrition.uncounted") }></span>
 			}
 		</span>
 		if ing.Amount != "" {
