@@ -654,7 +654,9 @@ func (s *Service) RestoreCart(ctx context.Context, sc store.Scoped, listID uuid.
 }
 
 // EntryUpdate is the edit sheet: the entry's amount, note and list, and
-// its item's name and category, which apply wherever the item is used.
+// its item's name and category, which apply wherever the item is used. A
+// new name keeps the item's catalogue link only while it names the same
+// entry (see renamedKey).
 type EntryUpdate struct {
 	Name   string
 	Amount Amount
@@ -769,14 +771,23 @@ func (s *Service) UpdateEntry(ctx context.Context, sc store.Scoped, id uuid.UUID
 		if categoryID != nil {
 			newCategory = *categoryID
 		}
-		var oldIcon *string
-		if err := q.Get(ctx, &oldIcon, `SELECT icon FROM items WHERE household_id = ? AND id = ?`, hh, before.ItemID); err != nil {
+		var old struct {
+			Icon       *string
+			CatalogKey *string
+		}
+		if err := q.Get(ctx, &old, `SELECT icon, catalog_key FROM items WHERE household_id = ? AND id = ?`, hh, before.ItemID); err != nil {
 			return err
 		}
-		if u.Name != before.ItemName || newCategory != oldCategory || deref(oldIcon) != u.Icon {
+		catalogKey := old.CatalogKey
+		if u.Name != before.ItemName {
+			if catalogKey, err = renamedKey(ctx, q.Reader, sc, before.ItemID, old.CatalogKey, u.Name); err != nil {
+				return err
+			}
+		}
+		if u.Name != before.ItemName || newCategory != oldCategory || deref(old.Icon) != u.Icon {
 			catalogEdited = true
-			_, err := q.Exec(ctx, `UPDATE items SET name = ?, name_key = ?, category_id = ?, icon = ?, updated_at = ?
-				WHERE household_id = ? AND id = ?`, u.Name, key, categoryID, nullable(u.Icon), now, hh, before.ItemID)
+			_, err := q.Exec(ctx, `UPDATE items SET name = ?, name_key = ?, category_id = ?, icon = ?, catalog_key = ?, updated_at = ?
+				WHERE household_id = ? AND id = ?`, u.Name, key, categoryID, nullable(u.Icon), catalogKey, now, hh, before.ItemID)
 			if store.IsUniqueViolation(err) {
 				// Add created an item with this name after the check above;
 				// Add takes no household lock.

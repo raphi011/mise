@@ -18,7 +18,7 @@ type Nutrition struct {
 	SodiumMg     *float64 `json:"sodium_mg"`
 	// Density is grams per millilitre.
 	Density *float64 `json:"density_g_ml"`
-	// Weights are grams per piece, clove, slice, bunch, can or pack.
+	// Weights are grams per piece, clove, slice, bunch, can, bottle or pack.
 	Weights map[string]float64 `json:"weights"`
 }
 

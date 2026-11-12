@@ -20,6 +20,11 @@ func TestParseIngredientAmount(t *testing.T) {
 		{"1 TL, rot", f(1), "tsp", "1 TL", "rot"},
 		{"2 TL getrocknet", f(2), "tsp", "2 TL", "getrocknet"},
 		{"1 Dose (400 g)", f(400), "g", "400 g", ""},
+		{"2 Dosen (je 400 g)", f(800), "g", "800 g", ""},
+		{"2 Dosen (à 400 g), stückig", f(800), "g", "800 g", "stückig"},
+		{"2 Dosen (400 g jeweils)", f(800), "g", "800 g", ""},
+		{"2 Dosen (400 g)", f(2), "can", "2 Dosen", "(400 g)"},
+		{"1/2 Dose (200 g)", f(200), "g", "200 g", ""},
 		{"800 g (2 Dosen)", f(800), "g", "800 g", "(2 Dosen)"},
 		{"1 (ca. 400 g)", f(400), "g", "ca. 400 g", ""},
 		{"1 (ca. 1,5 kg)", f(1.5), "kg", "ca. 1,5 kg", ""},
@@ -49,5 +54,12 @@ func TestParseIngredientAmount(t *testing.T) {
 		if (a.Quantity == nil) != (c.q == nil) || (c.q != nil && *a.Quantity != *c.q) || a.Unit != c.unit || a.Text != c.text || note != c.note {
 			t.Errorf("%q = {%v %q %q} %q, want {%v %q %q} %q", c.in, a.Quantity, a.Unit, a.Text, note, c.q, c.unit, c.text, c.note)
 		}
+	}
+}
+
+func TestParseIngredientAmountEnglishEach(t *testing.T) {
+	a, note := ParseIngredientAmount("2 cans (14 oz each)", language.English)
+	if a.Quantity == nil || *a.Quantity != 28 || a.Unit != "oz" || a.Text != "28 oz" || note != "" {
+		t.Errorf("got %+v %q", a, note)
 	}
 }

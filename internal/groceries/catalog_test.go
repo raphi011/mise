@@ -108,7 +108,7 @@ func TestTypedNameLinksToCatalogue(t *testing.T) {
 	})
 }
 
-func TestCatalogueItemKeepsKeyOnRenameAndIconOverride(t *testing.T) {
+func TestCatalogueItemRenameAndIconOverride(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db *store.DB) {
 		ctx := t.Context()
 		e := newEnv(t, db, "home")
@@ -121,26 +121,29 @@ func TestCatalogueItemKeepsKeyOnRenameAndIconOverride(t *testing.T) {
 			return e.s.UpdateEntry(ctx, e.sc, en.ID, EntryUpdate{Name: name, ListID: l.ID, CategoryID: &en.Category.ID, Icon: icon})
 		}
 
-		// Renaming keeps the link, so the icon stays.
-		if err := update("Citrus", ""); err != nil {
-			t.Fatal(err)
-		}
-		got, _ := e.s.Entry(ctx, e.sc, en.ID)
-		if got.ItemName != "Citrus" || got.ItemIcon != "lemon" {
-			t.Errorf("after rename: %+v", got)
+		// A name that still names the entry keeps the link, so the icon
+		// stays; another name drops it (TestRenameRelinksCatalogue).
+		for _, tc := range []struct{ name, want string }{{"Lemon", "lemon"}, {"Citrus", ""}, {"Lemons", "lemon"}} {
+			if err := update(tc.name, ""); err != nil {
+				t.Fatal(err)
+			}
+			got, _ := e.s.Entry(ctx, e.sc, en.ID)
+			if got.ItemName != tc.name || got.ItemIcon != tc.want {
+				t.Errorf("after rename to %q: icon %q, want %q", tc.name, got.ItemIcon, tc.want)
+			}
 		}
 		// Own pick, then none, then back to the catalogue's.
 		for _, tc := range []struct{ icon, want string }{{"onion", "onion"}, {IconNone, ""}, {"", "lemon"}} {
-			if err := update("Citrus", tc.icon); err != nil {
+			if err := update("Lemons", tc.icon); err != nil {
 				t.Fatal(err)
 			}
-			got, _ = e.s.Entry(ctx, e.sc, en.ID)
+			got, _ := e.s.Entry(ctx, e.sc, en.ID)
 			if got.ItemIcon != tc.want {
 				t.Errorf("icon %q shows %q, want %q", tc.icon, got.ItemIcon, tc.want)
 			}
 		}
 		var fe FieldErrors
-		if err := update("Citrus", "no-such-icon"); !errors.As(err, &fe) || fe["icon"] == "" {
+		if err := update("Lemons", "no-such-icon"); !errors.As(err, &fe) || fe["icon"] == "" {
 			t.Errorf("unknown icon: %v", err)
 		}
 	})
@@ -300,6 +303,45 @@ func TestCatalogueIsolation(t *testing.T) {
 		}
 		if !found {
 			t.Error("category of another household offered")
+		}
+	})
+}
+
+// TestRenameRelinksCatalogue: a renamed item keeps its catalogue entry only
+// while the name still names it; otherwise it takes the entry the new name
+// names, if no other item holds it, or none.
+func TestRenameRelinksCatalogue(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		ctx := t.Context()
+		e := newEnv(t, db, "home")
+		l, err := e.s.Start(ctx, e.sc, catalogDefaults)
+		if err != nil {
+			t.Fatal(err)
+		}
+		milk := e.add(t, l.ID, "Milk").Entry
+		e.add(t, l.ID, "Onion")
+		key := func() string {
+			t.Helper()
+			var k *string
+			if err := e.sc.Read().Get(ctx, &k, `SELECT catalog_key FROM items WHERE household_id = ? AND id = ?`,
+				e.sc.HouseholdID(), milk.ItemID); err != nil {
+				t.Fatal(err)
+			}
+			return deref(k)
+		}
+		for _, c := range []struct{ name, want string }{
+			{"milk", "milk"},         // same entry
+			{"Oat milk", "oat_milk"}, // another entry, free
+			{"Barista blend", ""},    // no entry
+			{"Onions", ""},           // an entry another item holds
+			{"Milk", "milk"},         // back again
+		} {
+			if err := e.s.UpdateEntry(ctx, e.sc, milk.ID, EntryUpdate{Name: c.name, ListID: l.ID}); err != nil {
+				t.Fatalf("rename to %q: %v", c.name, err)
+			}
+			if got := key(); got != c.want {
+				t.Errorf("renamed to %q: catalog key %q, want %q", c.name, got, c.want)
+			}
 		}
 	})
 }

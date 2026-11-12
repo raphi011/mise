@@ -55,7 +55,7 @@ func (e FieldErrors) orNil() error {
 // WeightUnits are the units that can have a weight per unit, in the order
 // the editor lists them. They are canonical groceries unit keys; a bare
 // number counts as a piece.
-var WeightUnits = []string{"piece", "clove", "slice", "bunch", "can", "pack"}
+var WeightUnits = []string{"piece", "clove", "slice", "bunch", "can", "bottle", "pack"}
 
 // Facts is what is known about one item: values per 100 g and the weights
 // that convert other units to grams. Optional values are nil when unknown.

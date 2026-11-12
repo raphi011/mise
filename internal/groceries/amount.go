@@ -371,8 +371,8 @@ func merge(a, b Amount, lang language.Tag) (Amount, bool) {
 
 // ParseIngredientAmount parses the amount field of a recipe ingredient into
 // an amount and a note: "600 g gemischt" is 600 g with the note "gemischt",
-// "1 TL, rot" one teaspoon with "rot", "1 Dose (400 g)" one can with
-// "(400 g)". A range ("2–3 EL") takes its midpoint as the quantity and keeps
+// "1 TL, rot" one teaspoon with "rot", "1 Dose (400 g)" 400 g (see
+// parentheticalWeight). A range ("2–3 EL") takes its midpoint as the quantity and keeps
 // the typed range as text; "ca." stays in the text. Text without a leading
 // number ("nach Geschmack", "zum Braten") is a free-text amount without a
 // note.
@@ -398,12 +398,23 @@ func ParseIngredientAmount(input string, lang language.Tag) (Amount, string) {
 	return a, note
 }
 
-// parentheticalWeight reads a weight or volume in brackets after a count
-// ("1 Dose (400 g)", "1 (ca. 1,5 kg)"): a count alone cannot be weighed, the
-// bracket says how much it is. It returns that amount and what follows the
-// bracket.
+// eachBefore and eachAfter mark a bracketed weight as per piece:
+// "2 Dosen (je 400 g)", "2 Dosen (à 400 g)", "2 cans (14 oz each)".
+var (
+	eachBefore = []string{"zu je ", "je ", "à ", "á ", "a ", "each ", "zu "}
+	eachAfter  = map[string]bool{"each": true, "je": true, "jeweils": true, "pro stück": true}
+)
+
+// parentheticalWeight reads a weight or volume in brackets after a count:
+// a count alone cannot be weighed, the bracket says how much it is. One
+// piece or less is the bracket's amount ("1 Dose (400 g)", "1 (ca. 1,5 kg)");
+// more pieces multiply it when the bracket says it is per piece ("2 Dosen
+// (je 400 g)" is 800 g). "2 Dosen (400 g)" is left alone, since it may mean
+// either: the count stays the amount and the bracket goes to the note. It
+// returns the amount and what follows the bracket.
 func parentheticalWeight(a Amount, rest string, lang language.Tag) (Amount, string, bool) {
-	if _, kind, ok := BaseAmount(a); !ok || kind != KindCount || !strings.HasPrefix(rest, "(") {
+	count, kind, ok := BaseAmount(a)
+	if !ok || kind != KindCount || !strings.HasPrefix(rest, "(") {
 		return Amount{}, "", false
 	}
 	end := strings.IndexByte(rest, ')')
@@ -411,11 +422,26 @@ func parentheticalWeight(a Amount, rest string, lang language.Tag) (Amount, stri
 		return Amount{}, "", false
 	}
 	inner := strings.TrimSpace(rest[1:end])
-	w, _, ok := leadingIngredientAmount(inner, lang)
+	each := false
+	for _, p := range eachBefore {
+		if strings.HasPrefix(strings.ToLower(inner), p) {
+			inner, each = strings.TrimSpace(inner[len(p):]), true
+			break
+		}
+	}
+	w, after, ok := leadingIngredientAmount(inner, lang)
 	if !ok || w.Quantity == nil {
 		return Amount{}, "", false
 	}
 	if _, kind, _ := BaseAmount(w); kind == KindCount {
+		return Amount{}, "", false
+	}
+	each = each || eachAfter[strings.ToLower(after)]
+	switch {
+	case each && count != 1:
+		total := count * *w.Quantity
+		w = Amount{Quantity: &total, Unit: w.Unit, Text: FormatAmount(total, w.Unit, lang)}
+	case count > 1:
 		return Amount{}, "", false
 	}
 	return w, strings.TrimSpace(rest[end+1:]), true

@@ -204,7 +204,7 @@ func TestSaveValidation(t *testing.T) {
 			{"sugars over carbs", Input{Kcal: 100, Carbs: ptr(5.0), Sugars: ptr(8.0)}, "sugars"},
 			{"density", Input{Kcal: 10, Density: ptr(0.0)}, "density"},
 			{"weight", Input{Kcal: 10, Weights: map[string]float64{"clove": 0}}, "weight.clove"},
-			{"weight unit", Input{Kcal: 10, Weights: map[string]float64{"bottle": 5}}, "weight.bottle"},
+			{"weight unit", Input{Kcal: 10, Weights: map[string]float64{"cup": 5}}, "weight.cup"},
 		} {
 			err := e.s.Save(ctx, e.sc, e.by, onion, c.in)
 			var fe FieldErrors
