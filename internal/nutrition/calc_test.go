@@ -140,3 +140,18 @@ func TestRounding(t *testing.T) {
 		t.Errorf("salt of 1000 mg sodium = %v, want 2.5", s)
 	}
 }
+
+// TestEveryCountUnitCanBeWeighed: a count unit missing from WeightUnits
+// could never be weighed, and the "add a weight" link would lead to an
+// editor without its field. A pinch has a fixed weight.
+func TestEveryCountUnitCanBeWeighed(t *testing.T) {
+	for _, u := range groceries.CountUnits() {
+		if u != "pinch" && !validUnit(u) {
+			t.Errorf("count unit %q is not in WeightUnits", u)
+		}
+	}
+	bottle := Facts{Kcal: 80, Weights: map[string]float64{"bottle": 750}}
+	if g, reason := Grams(amount("1 bottle"), bottle); reason != "" || !near(g, 750) {
+		t.Errorf("1 bottle: %v %q", g, reason)
+	}
+}

@@ -14,7 +14,7 @@ var energyFromAlcohol = map[string]bool{"wine": true, "beer": true, "vinegar": t
 // are possible per 100 g.
 func TestNutritionData(t *testing.T) {
 	ensure()
-	units := []string{"piece", "clove", "slice", "bunch", "can", "pack"}
+	units := []string{"piece", "clove", "slice", "bunch", "can", "bottle", "pack"}
 	for key, n := range nutrition {
 		if _, ok := For("en").Entry(key); !ok {
 			t.Errorf("%s: not a catalogue entry", key)

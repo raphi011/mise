@@ -128,7 +128,8 @@ func weightField(unit string) string { return "weight_" + unit }
 
 var weightLabels = map[string]i18n.Key{
 	"piece": "nutrition.weight.piece", "clove": "nutrition.weight.clove", "slice": "nutrition.weight.slice",
-	"bunch": "nutrition.weight.bunch", "can": "nutrition.weight.can", "pack": "nutrition.weight.pack",
+	"bunch": "nutrition.weight.bunch", "can": "nutrition.weight.can", "bottle": "nutrition.weight.bottle",
+	"pack": "nutrition.weight.pack",
 }
 
 func weightFields(ctx context.Context) []ui.WeightField {

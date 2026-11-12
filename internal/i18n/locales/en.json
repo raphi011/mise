@@ -988,6 +988,7 @@
   "nutrition.weight.slice": "1 slice weighs",
   "nutrition.weight.bunch": "1 bunch weighs",
   "nutrition.weight.can": "1 can weighs",
+  "nutrition.weight.bottle": "1 bottle weighs",
   "nutrition.weight.pack": "1 pack weighs",
   "nutrition.clear": "Remove values",
   "nutrition.save": "Save nutrition",

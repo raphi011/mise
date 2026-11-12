@@ -171,3 +171,15 @@ func BaseAmount(a Amount) (value float64, kind Kind, ok bool) {
 	}
 	return *a.Quantity, KindCount, true
 }
+
+// CountUnits are the unit keys that measure a number of things (KindCount),
+// in the order Units lists them.
+func CountUnits() []string {
+	var out []string
+	for _, u := range Units {
+		if _, ok := toBase[u.key]; !ok {
+			out = append(out, u.key)
+		}
+	}
+	return out
+}

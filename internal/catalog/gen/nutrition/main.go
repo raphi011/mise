@@ -13,7 +13,7 @@
 //	density        portion label such as "cup" (grams per ml from that row), or
 //	               "=0.91" for a hand-set g/ml
 //	weights        unit=label pairs separated by ";" (piece, clove, slice,
-//	               bunch, can, pack); a label is the portion row's unit,
+//	               bunch, can, bottle, pack); a label is the portion row's unit,
 //	               description and modifier joined by spaces ("medium (3" dia)"),
 //	               "label#2" takes the second row with that label; a number
 //	               is a hand-set gram weight
@@ -73,7 +73,7 @@ var (
 	idSodium  = []string{"1093"}
 )
 
-var weightUnits = []string{"piece", "clove", "slice", "bunch", "can", "pack"}
+var weightUnits = []string{"piece", "clove", "slice", "bunch", "can", "bottle", "pack"}
 
 // notRaw marks descriptions the build refuses: recipes list raw amounts.
 var notRaw = []string{"cooked", "boiled", "fried", "roasted", "baked", "braised", "broiled", "grilled", "toasted", "stewed", "steamed", "canned, drained"}

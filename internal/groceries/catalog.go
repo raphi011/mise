@@ -341,6 +341,50 @@ func (s *Service) suggestCatalog(ctx context.Context, sc store.Scoped, typed str
 	return out, nil
 }
 
+// namesEntry reports whether nameKey is the entry's name or one of its
+// aliases in any catalogue language.
+func namesEntry(key, nameKey string) bool {
+	for _, l := range catalog.Languages {
+		e, ok := catalog.For(l).Entry(key)
+		if !ok {
+			continue
+		}
+		for _, n := range append([]string{e.Name}, e.Aliases...) {
+			if NameKey(n) == nameKey {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// renamedKey is the catalogue key of item id after it is renamed to name:
+// its current key while the name still names that entry ("Zwiebeln" for
+// onion), else the key of the entry the new name names when no other item
+// holds it, else nil. A renamed item must not keep an entry's values and
+// icon under a name that is no longer the entry's ("Milch" renamed to
+// "Hafermilch").
+func renamedKey(ctx context.Context, q store.Reader, sc store.Scoped, id uuid.UUID, current *string, name string) (*string, error) {
+	nameKey := NameKey(name)
+	if current != nil && namesEntry(*current, nameKey) {
+		return current, nil
+	}
+	lang, err := householdLanguage(ctx, q, sc)
+	if err != nil {
+		return nil, err
+	}
+	e, ok := catalog.LookupAny(lang, name)
+	if !ok {
+		return nil, nil
+	}
+	var n int
+	if err := q.QueryRow(ctx, `SELECT count(*) FROM items WHERE household_id = ? AND catalog_key = ? AND id <> ?`,
+		sc.HouseholdID(), e.Key, id).Scan(&n); err != nil || n > 0 {
+		return nil, err
+	}
+	return &e.Key, nil
+}
+
 // isEntryName reports whether nameKey is the entry's own name in any
 // catalogue language, not one of its aliases.
 func isEntryName(key, nameKey string) bool {
