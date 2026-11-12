@@ -74,7 +74,7 @@ templ nutritionSection(n NutritionView) {
 // loads the popup as a page without JavaScript.
 templ nutritionTile(id string, n NutritionView) {
 	<form class="nutri-tile" method="get" action={ templ.SafeURL("/recipes/" + id + "/nutrition") } data-on:submit={ getAction("/recipes/" + id + "/nutrition") }>
-		<button type="submit" class="nutri-tile__btn" aria-haspopup="dialog">
+		<button type="submit" id="nutrition-tile" class="nutri-tile__btn" aria-haspopup="dialog">
 			<span class="nutri-tile__text">
 				<span class="nutri-tile__label">{ i18n.T(ctx, "nutrition.tile.label") }</span>
 				if n.Show {
@@ -131,10 +131,10 @@ templ NutritionPage(p Page, v NutritionSheetView) {
 templ NutritionSheetBody(v NutritionSheetView, modal bool) {
 	<div id="nutrition-body" class="nutri-sheet">
 		<div class="sheet__head">
-			<span class="list__text">
+			<div class="list__text">
 				<h2 class="sheet__title" id="nutrition-sheet-title">{ i18n.T(ctx, "nutrition.title") }</h2>
 				<span class="muted">{ v.Nutrition.Subtitle }</span>
-			</span>
+			</div>
 			if modal {
 				<button type="button" class="icon-btn" aria-label={ i18n.T(ctx, "groceries.edit.close") } data-on:click="el.closest('dialog').close()">
 					@iconClose()

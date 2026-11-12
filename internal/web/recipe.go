@@ -428,7 +428,7 @@ func (s *Server) nutritionSheetView(ctx context.Context, sc store.Scoped, id *au
 	if n == nil {
 		return nil, nil
 	}
-	return &ui.NutritionSheetView{ID: rec.ID.String(), Name: rec.Name, Nutrition: *n}, nil
+	return &ui.NutritionSheetView{ID: rec.ID.String(), Nutrition: *n}, nil
 }
 
 // recipeNutrition is the nutrition popup: a dialog for Datastar, a page
@@ -584,9 +584,13 @@ func nutritionPatch(sse *datastar.ServerSentEventGenerator, v ui.RecipeView, ope
 		return nil
 	}
 	if v.Gone || v.Nutrition == nil {
+		// Morphing the dialog away fires no close event, so reset the signal here.
+		if err := sse.MarshalAndPatchSignals(map[string]any{"nutOpen": false}); err != nil {
+			return err
+		}
 		return sse.PatchElementTempl(ui.EmptySheet())
 	}
-	return sse.PatchElementTempl(ui.NutritionSheetBody(ui.NutritionSheetView{ID: v.ID, Name: v.Name, Nutrition: *v.Nutrition}, true))
+	return sse.PatchElementTempl(ui.NutritionSheetBody(ui.NutritionSheetView{ID: v.ID, Nutrition: *v.Nutrition}, true))
 }
 
 // recipeLive re-renders a recipe page at the viewer's servings (a signal

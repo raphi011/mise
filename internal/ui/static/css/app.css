@@ -3147,7 +3147,7 @@ details.import-activity:not([open]) { gap: 0; }
 .nutrition__macros dt { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
 .nutrition__macros dd { margin: 0; font-size: 18px; font-weight: 600; }
 .nutrition__key { flex: none; width: 8px; height: 8px; border-radius: 4px; }
-.nutrition__more > summary, .nutrition__missing > summary {
+.nutrition__more > summary {
   display: flex;
   align-items: center;
   min-height: var(--target);
@@ -3188,7 +3188,7 @@ details.import-activity:not([open]) { gap: 0; }
 .nutrition-form__input .input { min-width: 0; }
 .nutrition-form__unit { color: var(--muted); font-size: 14px; }
 @media print {
-  .nutrition__missing, .nutrition__more > summary { display: none; }
+  .nutrition__more > summary { display: none; }
 }
 
 /* ---- Recipe header: nutrition tile and pairings ---- */

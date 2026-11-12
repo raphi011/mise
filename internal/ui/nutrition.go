@@ -27,9 +27,6 @@ type NutritionView struct {
 	// LeftOut names the optional ingredients left out, or "".
 	LeftOut string
 	Missing []NutritionMissing
-	// Public is the block as the public page shows it, without the list of
-	// what is missing.
-	Public bool
 	// Credit is the footnote on what the estimate rests on.
 	Credit string
 }
@@ -37,7 +34,7 @@ type NutritionView struct {
 // NutritionSheetView is the nutrition popup of a recipe.
 type NutritionSheetView struct {
 	// ID is the recipe's.
-	ID, Name  string
+	ID        string
 	Nutrition NutritionView
 }
 

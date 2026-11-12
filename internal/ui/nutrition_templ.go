@@ -491,7 +491,7 @@ func nutritionTile(id string, n NutritionView) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, "\"><button type=\"submit\" class=\"nutri-tile__btn\" aria-haspopup=\"dialog\"><span class=\"nutri-tile__text\"><span class=\"nutri-tile__label\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, "\"><button type=\"submit\" id=\"nutrition-tile\" class=\"nutri-tile__btn\" aria-haspopup=\"dialog\"><span class=\"nutri-tile__text\"><span class=\"nutri-tile__label\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -798,7 +798,7 @@ func NutritionSheetBody(v NutritionSheetView, modal bool) templ.Component {
 		}
 		ctx = templ.InitializeContext(ctx)
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 64, "<div id=\"nutrition-body\" class=\"nutri-sheet\"><div class=\"sheet__head\"><span class=\"list__text\"><h2 class=\"sheet__title\" id=\"nutrition-sheet-title\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 64, "<div id=\"nutrition-body\" class=\"nutri-sheet\"><div class=\"sheet__head\"><div class=\"list__text\"><h2 class=\"sheet__title\" id=\"nutrition-sheet-title\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -824,7 +824,7 @@ func NutritionSheetBody(v NutritionSheetView, modal bool) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 66, "</span></span> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 66, "</span></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

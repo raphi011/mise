@@ -206,12 +206,12 @@ templ pairings(links []LinkView) {
 			}
 		}
 		if len(links) > pairingsInline {
-			<input class="pairs__toggle visually-hidden" type="checkbox" id="pairs-toggle" data-ignore-morph/>
+			<input class="pairs__toggle visually-hidden" type="checkbox" id="pairs-toggle" aria-controls="pairs-list" data-ignore-morph/>
 			<label class="pairs__chip pairs__chip--more" for="pairs-toggle">
 				<span class="pairs__more-on">{ i18n.T(ctx, "recipes.links.more", len(links)-pairingsInline) }</span>
 				<span class="pairs__more-off">{ i18n.T(ctx, "recipes.links.less") }</span>
 			</label>
-			<ul class="pairs__list" role="list">
+			<ul class="pairs__list" id="pairs-list" role="list">
 				for _, l := range links {
 					<li>
 						<a class="pairs__row" href={ templ.SafeURL(RecipeHref(l.ID)) }>

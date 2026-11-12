@@ -106,7 +106,12 @@ func TestNutrition(t *testing.T) {
 		// Ben has the recipe open; Anna saves without JavaScript.
 		// Ben has the popup open too, so its body follows.
 		live := ben.openLive("page=recipe&id=" + id + "&datastar=" + url.QueryEscape(`{"servings":2,"nutOpen":true}`))
-		live.next("ben recipe initial", liveDeadline, "Not enough data yet")
+		live.next("ben recipe initial", liveDeadline, `id="nutrition-body"`, "Not enough data yet")
+		// With the popup closed no body is patched.
+		closed := ben.openLive("page=recipe&id=" + id + "&datastar=" + url.QueryEscape(`{"servings":2,"nutOpen":false}`))
+		if got := closed.next("ben recipe, popup closed", liveDeadline, "recipe-live"); strings.Contains(got, `id="nutrition-body"`) {
+			t.Error("popup body patched while closed")
+		}
 		anna.post(editor, url.Values{"next": {page}, "kcal": {"144"}, "protein": {"17,3"}, "fat": {"8.7"}, "saturated_fat": {"1.3"},
 			"carbs": {"2.8"}, "fibre": {"2.3"}, "salt": {"0.04"}}).expect(t, "save tofu", http.StatusSeeOther, page)
 		live.next("ben sees the estimate", liveDeadline, "Based on 1 of 2 ingredients")

@@ -1193,7 +1193,7 @@ func pairings(links []LinkView) templ.Component {
 			}
 		}
 		if len(links) > pairingsInline {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 103, "<input class=\"pairs__toggle visually-hidden\" type=\"checkbox\" id=\"pairs-toggle\" data-ignore-morph> <label class=\"pairs__chip pairs__chip--more\" for=\"pairs-toggle\"><span class=\"pairs__more-on\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 103, "<input class=\"pairs__toggle visually-hidden\" type=\"checkbox\" id=\"pairs-toggle\" aria-controls=\"pairs-list\" data-ignore-morph> <label class=\"pairs__chip pairs__chip--more\" for=\"pairs-toggle\"><span class=\"pairs__more-on\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1219,7 +1219,7 @@ func pairings(links []LinkView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 105, "</span></label><ul class=\"pairs__list\" role=\"list\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 105, "</span></label><ul class=\"pairs__list\" id=\"pairs-list\" role=\"list\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

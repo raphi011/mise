@@ -51,7 +51,7 @@ func nutritionBlock(ctx context.Context, recipeID uuid.UUID, res nutrition.Resul
 		return nil
 	}
 	lang := i18n.Locale(ctx)
-	n := &ui.NutritionView{Show: res.Show(), Counted: res.Counted, Of: res.Of, Public: public, Credit: i18n.T(ctx, "nutrition.credit")}
+	n := &ui.NutritionView{Show: res.Show(), Counted: res.Counted, Of: res.Of, Credit: i18n.T(ctx, "nutrition.credit")}
 	if catalog.NutritionCount() > 0 {
 		n.Credit = i18n.T(ctx, "nutrition.creditCatalogue")
 	}
