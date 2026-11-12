@@ -422,6 +422,32 @@ function registerServiceWorker() {
 
 // ---- Delegated handlers ----
 
+// Modal dialogs close on a click outside them. A click on the backdrop targets
+// the <dialog> itself, so compare the point with its box; padding clicks land
+// inside the box and stay open. The press must start on the backdrop too, so
+// dragging a text selection out of a field does not dismiss the dialog.
+let backdropPress = null;
+
+function onBackdrop(e) {
+  const d = e.target;
+  if (!(d instanceof HTMLDialogElement) || !d.open) return null;
+  const r = d.getBoundingClientRect();
+  const inside = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+  return inside ? null : d;
+}
+
+document.addEventListener("pointerdown", (e) => {
+  backdropPress = onBackdrop(e);
+});
+
+document.addEventListener("click", (e) => {
+  const d = onBackdrop(e);
+  const pressed = backdropPress;
+  backdropPress = null;
+  // Keyboard-activated clicks have no coordinates (0, 0); ignore those.
+  if (d && d === pressed && (e.clientX || e.clientY)) d.close();
+});
+
 document.addEventListener("click", async (e) => {
   const recent = e.target.closest("[data-recent-term]");
   if (recent) {

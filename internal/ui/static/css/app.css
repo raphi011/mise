@@ -2233,6 +2233,11 @@ a[draggable="true"], [draggable="true"] a, [draggable="true"] img {
   -webkit-user-select: none;
   user-select: none;
 }
+/* WebKit snapshots a dragged element for the lift preview and fills the area
+   outside its rounded corners with white (bugs.webkit.org/show_bug.cgi?id=108079),
+   which shows in dark mode. Giving the element its own compositing layer is the
+   reported workaround. */
+a[draggable="true"] { transform: translate(0, 0); }
 
 .meal-card__media {
   position: relative;
