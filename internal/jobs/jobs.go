@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/text/language"
 
 	"github.com/raphi011/mise/internal/ai"
 	"github.com/raphi011/mise/internal/groceries"
@@ -233,4 +234,43 @@ func SeedGroceries(ctx context.Context, db *store.DB, g *groceries.Service, defa
 		}
 	}
 	return nil
+}
+
+// SplitIngredientAmounts gives recipe ingredients whose amount text did not
+// parse as a whole ("600 g gemischt") a quantity, unit and note, so scaling
+// and nutrition can use them. Rows that already have a quantity or a note
+// are left alone, and text that still has no number stays as it is, so it
+// is idempotent. It returns the number of rows changed.
+func SplitIngredientAmounts(ctx context.Context, db *store.DB) (int, error) {
+	var rows []struct {
+		ID         uuid.UUID
+		AmountText string
+		Language   string
+	}
+	if err := db.System().Read().Select(ctx, &rows, `SELECT ri.id, ri.amount_text, h.default_language AS language
+		FROM recipe_ingredients ri JOIN households h ON h.id = ri.household_id
+		WHERE ri.quantity IS NULL AND ri.amount_text <> '' AND ri.note = ''`); err != nil {
+		return 0, err
+	}
+	changed := 0
+	err := db.System().Tx(ctx, func(ctx context.Context, q store.Querier) error {
+		for _, r := range rows {
+			lang, _ := language.Parse(r.Language)
+			a, note := groceries.ParseIngredientAmount(r.AmountText, lang)
+			if a.Quantity == nil {
+				continue
+			}
+			unit := &a.Unit
+			if a.Unit == "" {
+				unit = nil
+			}
+			if _, err := q.Exec(ctx, `UPDATE recipe_ingredients SET quantity = ?, unit = ?, amount_text = ?, note = ?
+				WHERE id = ? AND quantity IS NULL`, a.Quantity, unit, a.Text, note, r.ID); err != nil {
+				return err
+			}
+			changed++
+		}
+		return nil
+	})
+	return changed, err
 }

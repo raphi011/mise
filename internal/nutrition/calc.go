@@ -2,6 +2,8 @@ package nutrition
 
 import (
 	"math"
+	"strings"
+	"unicode"
 
 	"github.com/google/uuid"
 
@@ -114,6 +116,14 @@ type Result struct {
 	Lines       []LineStatus
 	// OptionalLeftOut is the number of optional ingredients left out.
 	OptionalLeftOut int
+	// OpenAmounts is the number of ingredients whose amount names no
+	// number ("to taste", "for frying"). They cannot be weighed, so they
+	// are in neither count.
+	OpenAmounts int
+}
+
+func hasDigit(s string) bool {
+	return strings.ContainsFunc(s, unicode.IsDigit)
 }
 
 // Show reports whether enough is counted to show the numbers.
@@ -136,6 +146,9 @@ func Calculate(lines []Line, facts map[uuid.UUID]Facts, servings int) Result {
 			r.OptionalLeftOut++
 			continue
 		case l.Amount.IsZero():
+			continue
+		case l.Amount.Quantity == nil && !hasDigit(l.Amount.Text):
+			r.OpenAmounts++
 			continue
 		}
 		r.Of++

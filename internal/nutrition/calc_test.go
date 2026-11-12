@@ -70,8 +70,12 @@ func TestCalculate(t *testing.T) {
 		{ItemID: salt, Name: "Salt"}, // no amount: in neither count
 		{ItemID: tofu, Name: "Sesame", Amount: amount("1 tbsp"), Optional: true},
 		{ItemID: ginger, Name: "Ginger", Amount: amount("1 thumb")},
+		{ItemID: salt, Name: "Pepper", Amount: amount("to taste")}, // no number: in neither count
 	}
 	r := Calculate(lines, facts, 2)
+	if r.OpenAmounts != 1 {
+		t.Errorf("open amounts %d, want 1", r.OpenAmounts)
+	}
 	if r.Of != 5 || r.Counted != 3 || r.OptionalLeftOut != 1 {
 		t.Fatalf("counted %d of %d, optional %d; want 3 of 5, 1", r.Counted, r.Of, r.OptionalLeftOut)
 	}

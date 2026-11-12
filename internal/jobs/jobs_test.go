@@ -375,3 +375,49 @@ func TestSweepImports(t *testing.T) {
 		}
 	})
 }
+
+func TestSplitIngredientAmounts(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		ctx := t.Context()
+		g := groceries.New(nil, nil)
+		r := recipes.New(nil, g, nil)
+		hh := storetest.NewHousehold(t, db, "home")
+		sc := db.ScopeFor(hh.ID)
+		if _, err := g.Start(ctx, sc, groceries.Defaults{ListName: "List"}); err != nil {
+			t.Fatal(err)
+		}
+		// Stored the way the editor saved them before notes existed.
+		id, err := r.Create(ctx, sc, hh.Admin, recipes.Input{Name: "Laibchen", Servings: 4, Ingredients: []recipes.IngredientInput{
+			{Name: "Faschiertes", Amount: groceries.Amount{Text: "600 g gemischt"}},
+			{Name: "Majoran", Amount: groceries.Amount{Text: "2 TL getrocknet"}},
+			{Name: "Salz", Amount: groceries.Amount{Text: "nach Geschmack"}},
+			{Name: "Milch", Amount: groceries.ParseAmount("150 ml", language.German)},
+		}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, want := range []int{2, 0} { // the second run changes nothing
+			n, err := SplitIngredientAmounts(ctx, db)
+			if err != nil {
+				t.Fatal(err)
+			}
+			rec, err := r.Get(ctx, sc, id, hh.Admin)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := rec.Ingredients
+			if q := got[0].Amount.Quantity; q == nil || *q != 600 || got[0].Amount.Unit != "g" || got[0].Amount.Text != "600 g" || got[0].Note != "gemischt" {
+				t.Errorf("Faschiertes: %+v %q", got[0].Amount, got[0].Note)
+			}
+			if q := got[1].Amount.Quantity; q == nil || *q != 2 || got[1].Amount.Unit != "tsp" || got[1].Note != "getrocknet" {
+				t.Errorf("Majoran: %+v %q", got[1].Amount, got[1].Note)
+			}
+			if got[2].Amount.Quantity != nil || got[2].Amount.Text != "nach Geschmack" || got[2].Note != "" {
+				t.Errorf("Salz: %+v %q", got[2].Amount, got[2].Note)
+			}
+			if n != want {
+				t.Errorf("changed %d rows, want %d", n, want)
+			}
+		}
+	})
+}

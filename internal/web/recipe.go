@@ -137,7 +137,7 @@ func (s *Server) recipeView(ctx context.Context, sc store.Scoped, id *auth.Ident
 	amounts := scaledAmounts(ctx, rec, servings, sys)
 	for i, ing := range rec.Ingredients {
 		v.Ingredients = append(v.Ingredients, ui.IngredientView{
-			ID: ing.ID.String(), Name: ing.ItemName, Amount: amounts[i], Optional: ing.Optional, On: st.On[ing.ItemID],
+			ID: ing.ID.String(), Name: ing.ItemName, Amount: amounts[i], Note: ing.Note, Optional: ing.Optional, On: st.On[ing.ItemID],
 			Uncounted: est.Lines[i].Uncounted,
 		})
 	}

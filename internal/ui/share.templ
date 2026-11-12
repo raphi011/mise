@@ -109,6 +109,9 @@ templ SharedRecipePage(p Page, v SharedRecipeView) {
 								<li class="ingredient ingredient--static">
 									<span class="ingredient__name">
 										{ ing.Name }
+										if ing.Note != "" {
+											<span class="ingredient__note">{ ing.Note }</span>
+										}
 										if ing.Optional {
 											<span class="ingredient__opt">{ i18n.T(ctx, "recipes.optional") }</span>
 										}

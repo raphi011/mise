@@ -159,6 +159,15 @@ func TestCreateGetUpdate(t *testing.T) {
 		if len(r.Steps) != 2 || r.Steps[1].Text != "Fry it." {
 			t.Errorf("steps %+v", r.Steps)
 		}
+		// An ingredient's note is stored beside its amount.
+		amount, note := groceries.ParseIngredientAmount("600 g, gemischt", language.German)
+		withNote := e.create(t, Input{Name: "Laibchen", Servings: 2, Ingredients: []IngredientInput{{Name: "Faschiertes", Amount: amount, Note: note}}})
+		if got := withNote.Ingredients[0]; got.Note != "gemischt" || *got.Amount.Quantity != 600 || got.Amount.Text != "600 g" {
+			t.Errorf("note: %+v %q", got.Amount, got.Note)
+		}
+		if got := AmountField(withNote.Ingredients[0].Amount, withNote.Ingredients[0].Note, language.German); got != "600 g, gemischt" {
+			t.Errorf("amount field %q", got)
+		}
 		if r.NotesBy == nil || r.NotesBy.ID != e.hh.Admin || r.CreatedBy.ID != e.hh.Admin {
 			t.Errorf("attribution %+v %+v", r.NotesBy, r.CreatedBy)
 		}

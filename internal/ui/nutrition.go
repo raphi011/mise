@@ -26,7 +26,9 @@ type NutritionView struct {
 	NotEnough string
 	// LeftOut names the optional ingredients left out, or "".
 	LeftOut string
-	Missing []NutritionMissing
+	// OpenAmounts names the ingredients without a number left out, or "".
+	OpenAmounts string
+	Missing     []NutritionMissing
 	// Credit is the footnote on what the estimate rests on.
 	Credit string
 }
