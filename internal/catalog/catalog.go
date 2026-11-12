@@ -74,6 +74,8 @@ var (
 	byLang  map[string]*Catalog
 	retired map[string]string
 	icons   map[string]string
+	// nutrition is data/nutrition.json by entry key.
+	nutrition map[string]Nutrition
 )
 
 // Languages are the catalogue's languages; the first is the fallback.
@@ -85,6 +87,9 @@ func load() {
 		return
 	}
 	if loadErr = readJSON("data/retired.json", &retired); loadErr != nil {
+		return
+	}
+	if loadErr = readJSON("data/nutrition.json", &nutrition); loadErr != nil {
 		return
 	}
 	byLang = map[string]*Catalog{}

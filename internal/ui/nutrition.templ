@@ -80,7 +80,7 @@ templ nutritionSection(n NutritionView) {
 					</ul>
 				</details>
 			}
-			<p class="muted nutrition__credit">{ i18n.T(ctx, "nutrition.credit") }</p>
+			<p class="muted nutrition__credit">{ n.Credit }</p>
 		</div>
 	</section>
 }
@@ -91,6 +91,9 @@ templ NutritionEditPage(p Page, v NutritionEditView) {
 		<div class="narrow stack">
 			<p class="lead">{ i18n.T(ctx, "nutrition.edit.lead", v.Name) }</p>
 			<p class="muted">{ v.Used }</p>
+			if v.Note != "" {
+				<p class="notice" role="status">{ v.Note }</p>
+			}
 			<form class="stack" method="post" action={ templ.SafeURL("/items/" + v.ID + "/nutrition") } novalidate>
 				<input type="hidden" name="next" value={ v.Next }/>
 				@formAlert(v.Form)
@@ -117,7 +120,7 @@ templ NutritionEditPage(p Page, v NutritionEditView) {
 				</fieldset>
 				<div class="sheet__actions">
 					if v.Has {
-						<button type="submit" class="btn btn--secondary" formaction={ "/items/" + v.ID + "/nutrition/clear" }>{ i18n.T(ctx, "nutrition.clear") }</button>
+						<button type="submit" class="btn btn--secondary" formaction={ "/items/" + v.ID + "/nutrition/clear" }>{ v.ClearLabel }</button>
 					}
 					<button type="submit" class="btn btn--primary sheet__save">{ i18n.T(ctx, "nutrition.save") }</button>
 				</div>

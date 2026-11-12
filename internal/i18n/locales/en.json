@@ -996,5 +996,9 @@
   "icon.egg": "Egg",
   "icon.milk": "Milk",
   "icon.flour": "Flour",
-  "icon.bread": "Bread"
+  "icon.bread": "Bread",
+  "nutrition.fromCatalogue": "These values come from the ingredient catalogue (USDA FoodData Central). Saving makes them your own.",
+  "nutrition.ownValues": "These are your own values. Resetting brings back the catalogue’s.",
+  "nutrition.resetCatalogue": "Reset to catalogue values",
+  "nutrition.creditCatalogue": "An estimate at raw weight. Catalogue values: USDA FoodData Central."
 }

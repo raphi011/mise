@@ -27,6 +27,8 @@ type NutritionView struct {
 	// Public is the block as the public page shows it, without the list of
 	// what is missing.
 	Public bool
+	// Credit is the footnote on what the estimate rests on.
+	Credit string
 }
 
 // NutrientRow is one label and value.
@@ -47,9 +49,13 @@ type NutritionEditView struct {
 	// Has is true when values are stored, which Clear removes.
 	Has bool
 	// Used is "Used in 3 recipes".
-	Used  string
-	Form  Form
-	Units []WeightField
+	Used string
+	// Note says where the shown values come from, or is empty.
+	Note string
+	// ClearLabel is the button that removes the household's values.
+	ClearLabel string
+	Form       Form
+	Units      []WeightField
 }
 
 // WeightField is the input for the weight of one unit.

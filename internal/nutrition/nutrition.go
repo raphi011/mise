@@ -70,15 +70,18 @@ type Facts struct {
 type Service struct {
 	pub live.Publisher
 	now func() time.Time
+	// reference gives the built-in values of a catalogue entry; items
+	// linked to one use them until the household types its own.
+	reference Reference
 }
 
 // New returns a Service that publishes changes to pub. now defaults to
-// time.Now.
+// time.Now. Items linked to the embedded catalogue take its values.
 func New(pub live.Publisher, now func() time.Time) *Service {
 	if now == nil {
 		now = time.Now
 	}
-	return &Service{pub: pub, now: now}
+	return &Service{pub: pub, now: now, reference: CatalogueReference}
 }
 
 func (s *Service) clock() store.Time { return store.T(s.now()) }

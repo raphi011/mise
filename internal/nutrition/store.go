@@ -2,10 +2,12 @@ package nutrition
 
 import (
 	"context"
+	"maps"
 	"strings"
 
 	"github.com/google/uuid"
 
+	"github.com/raphi011/mise/internal/catalog"
 	"github.com/raphi011/mise/internal/live"
 	"github.com/raphi011/mise/internal/store"
 )
@@ -34,10 +36,40 @@ func placeholders(n int) string {
 	return strings.TrimSuffix(strings.Repeat("?, ", n), ", ")
 }
 
-// facts reads what is known about items. Items without values are left out
-// of the result; an item with only weights has none either.
-func facts(ctx context.Context, q store.Reader, sc store.Scoped, ids []uuid.UUID) (map[uuid.UUID]Facts, error) {
-	out := map[uuid.UUID]Facts{}
+// Reference looks up the built-in values of a catalogue entry by key.
+type Reference func(key string) (Facts, bool)
+
+// CatalogueReference is the Reference backed by the embedded catalogue.
+func CatalogueReference(key string) (Facts, bool) {
+	n, ok := catalog.NutritionFor(key)
+	if !ok {
+		return Facts{}, false
+	}
+	f := Facts{
+		Kcal: n.Kcal, Protein: n.Protein, Fat: n.Fat, SatFat: n.SaturatedFat, Carbs: n.Carbs,
+		Sugars: n.Sugars, Fibre: n.Fibre, SodiumMg: n.SodiumMg, Density: n.Density,
+	}
+	if len(n.Weights) > 0 {
+		f.Weights = maps.Clone(n.Weights)
+	}
+	return f, true
+}
+
+// known is what is known about a set of items.
+type known struct {
+	facts map[uuid.UUID]Facts
+	// own marks items the household typed values for, catalogue marks items
+	// whose catalogue entry has values. An item can be both: the
+	// household's values win.
+	own, catalogue map[uuid.UUID]bool
+}
+
+// facts reads what is known about items. The household's values for an item
+// replace the catalogue's; the household's weights are added to the
+// catalogue's, a unit at a time. Items without values from either are left
+// out, and so are weights of an item without values.
+func (s *Service) facts(ctx context.Context, q store.Reader, sc store.Scoped, ids []uuid.UUID) (known, error) {
+	out := known{facts: map[uuid.UUID]Facts{}, own: map[uuid.UUID]bool{}, catalogue: map[uuid.UUID]bool{}}
 	if len(ids) == 0 {
 		return out, nil
 	}
@@ -47,14 +79,36 @@ func facts(ctx context.Context, q store.Reader, sc store.Scoped, ids []uuid.UUID
 		args = append(args, id)
 	}
 	in := placeholders(len(ids))
+
+	if s.reference != nil {
+		var linked []struct {
+			ID         uuid.UUID
+			CatalogKey string
+		}
+		if err := q.Select(ctx, &linked, `SELECT id, catalog_key FROM items
+			WHERE household_id = ? AND catalog_key IS NOT NULL AND id IN (`+in+`)`, args...); err != nil {
+			return known{}, err
+		}
+		for _, l := range linked {
+			if f, ok := s.reference(l.CatalogKey); ok {
+				out.facts[l.ID] = f
+				out.catalogue[l.ID] = true
+			}
+		}
+	}
+
 	var rows []nutritionRow
 	if err := q.Select(ctx, &rows, `SELECT item_id, kcal, protein_g, fat_g, saturated_fat_g, carbs_g, sugars_g, fibre_g, sodium_mg, density_g_ml
 		FROM item_nutrition WHERE household_id = ? AND item_id IN (`+in+`)`, args...); err != nil {
-		return nil, err
+		return known{}, err
 	}
 	for _, r := range rows {
-		out[r.ItemID] = r.facts()
+		f := r.facts()
+		f.Weights = out.facts[r.ItemID].Weights
+		out.facts[r.ItemID] = f
+		out.own[r.ItemID] = true
 	}
+
 	var weights []struct {
 		ItemID uuid.UUID
 		Unit   string
@@ -62,10 +116,10 @@ func facts(ctx context.Context, q store.Reader, sc store.Scoped, ids []uuid.UUID
 	}
 	if err := q.Select(ctx, &weights, `SELECT item_id, unit, grams FROM item_unit_weights
 		WHERE household_id = ? AND item_id IN (`+in+`)`, args...); err != nil {
-		return nil, err
+		return known{}, err
 	}
 	for _, w := range weights {
-		f, ok := out[w.ItemID]
+		f, ok := out.facts[w.ItemID]
 		if !ok {
 			continue
 		}
@@ -73,7 +127,7 @@ func facts(ctx context.Context, q store.Reader, sc store.Scoped, ids []uuid.UUID
 			f.Weights = map[string]float64{}
 		}
 		f.Weights[w.Unit] = w.Grams
-		out[w.ItemID] = f
+		out.facts[w.ItemID] = f
 	}
 	return out, nil
 }
@@ -85,20 +139,23 @@ func (s *Service) Recipe(ctx context.Context, sc store.Scoped, lines []Line, ser
 	for _, l := range lines {
 		ids = append(ids, l.ItemID)
 	}
-	f, err := facts(ctx, sc.Read(), sc, ids)
+	k, err := s.facts(ctx, sc.Read(), sc, ids)
 	if err != nil {
 		return Result{}, err
 	}
-	return Calculate(lines, f, servings), nil
+	return Calculate(lines, k.facts, servings), nil
 }
 
-// Item is an item with the household's nutrition values.
+// Item is an item with its nutrition values.
 type Item struct {
 	ID   uuid.UUID
 	Name string
 	// Set is true when the household has typed values for the item.
-	Set   bool
-	Facts Facts
+	Set bool
+	// Catalogue is true when the item's catalogue entry has values. They
+	// are Facts unless Set, and what Clear goes back to.
+	Catalogue bool
+	Facts     Facts
 	// Recipes counts the live recipes that use the item.
 	Recipes int
 }
@@ -112,12 +169,12 @@ func (s *Service) Get(ctx context.Context, sc store.Scoped, id uuid.UUID) (Item,
 		return Item{}, err
 	}
 	out := Item{ID: id, Name: name}
-	f, err := facts(ctx, q, sc, []uuid.UUID{id})
+	k, err := s.facts(ctx, q, sc, []uuid.UUID{id})
 	if err != nil {
 		return Item{}, err
 	}
-	out.Facts, out.Set = f[id]
-	if !out.Set {
+	out.Facts, out.Set, out.Catalogue = k.facts[id], k.own[id], k.catalogue[id]
+	if _, ok := k.facts[id]; !ok {
 		// Weights can exist without values; show them too.
 		var weights []struct {
 			Unit  string

@@ -996,5 +996,9 @@
   "icon.egg": "Ei",
   "icon.milk": "Milch",
   "icon.flour": "Mehl",
-  "icon.bread": "Brot"
+  "icon.bread": "Brot",
+  "nutrition.fromCatalogue": "Diese Werte stammen aus dem Zutatenkatalog (USDA FoodData Central). Beim Speichern werden sie zu deinen eigenen.",
+  "nutrition.ownValues": "Das sind deine eigenen Werte. Zurücksetzen bringt die Werte des Katalogs zurück.",
+  "nutrition.resetCatalogue": "Auf Katalogwerte zurücksetzen",
+  "nutrition.creditCatalogue": "Eine Schätzung bezogen auf das Rohgewicht. Katalogwerte: USDA FoodData Central."
 }

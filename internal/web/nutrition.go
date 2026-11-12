@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/raphi011/mise/internal/catalog"
 	"github.com/raphi011/mise/internal/groceries"
 	"github.com/raphi011/mise/internal/i18n"
 	"github.com/raphi011/mise/internal/nutrition"
@@ -50,7 +51,10 @@ func nutritionBlock(ctx context.Context, recipeID uuid.UUID, res nutrition.Resul
 		return nil
 	}
 	lang := i18n.Locale(ctx)
-	n := &ui.NutritionView{Show: res.Show(), Counted: res.Counted, Of: res.Of, Public: public}
+	n := &ui.NutritionView{Show: res.Show(), Counted: res.Counted, Of: res.Of, Public: public, Credit: i18n.T(ctx, "nutrition.credit")}
+	if catalog.NutritionCount() > 0 {
+		n.Credit = i18n.T(ctx, "nutrition.creditCatalogue")
+	}
 	if res.Partial() {
 		n.Coverage = i18n.T(ctx, "nutrition.coverage", res.Counted, res.Of)
 		if public {
@@ -162,7 +166,7 @@ func nutritionValues(ctx context.Context, it nutrition.Item) map[string]string {
 			vals[name] = groceries.FormatQuantity(*v*scale, lang)
 		}
 	}
-	if it.Set {
+	if it.Set || it.Catalogue {
 		f := it.Facts
 		vals["kcal"] = groceries.FormatQuantity(f.Kcal, lang)
 		set("protein", f.Protein, 1)
@@ -184,10 +188,19 @@ func (s *Server) nutritionEditView(ctx context.Context, it nutrition.Item, next 
 	if f.Values == nil {
 		f.Values = nutritionValues(ctx, it)
 	}
-	return ui.NutritionEditView{
+	v := ui.NutritionEditView{
 		ID: it.ID.String(), Name: it.Name, Next: next, Has: it.Set, Form: f, Units: weightFields(ctx),
-		Used: pluralKey(ctx, it.Recipes, "nutrition.usedOne", "nutrition.used"),
+		Used:       pluralKey(ctx, it.Recipes, "nutrition.usedOne", "nutrition.used"),
+		ClearLabel: i18n.T(ctx, "nutrition.clear"),
 	}
+	switch {
+	case it.Catalogue && it.Set:
+		v.Note = i18n.T(ctx, "nutrition.ownValues")
+		v.ClearLabel = i18n.T(ctx, "nutrition.resetCatalogue")
+	case it.Catalogue:
+		v.Note = i18n.T(ctx, "nutrition.fromCatalogue")
+	}
+	return v
 }
 
 func (s *Server) renderNutritionEdit(w http.ResponseWriter, r *http.Request, status int, it nutrition.Item, next string, f ui.Form) {
