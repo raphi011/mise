@@ -84,9 +84,11 @@ type ImportRow struct {
 	Item  string
 	// ItemID is the matched item, empty for a new item.
 	ItemID string
-	// Match is "matched", "check" or "new".
+	// Match is "matched", "check", "new" or "catalog".
 	Match    string
 	Category string
+	// Icon is the catalogue icon key of a "catalog" row, "" for none.
+	Icon string
 }
 
 // ImportPickView is the item picker for one review row.

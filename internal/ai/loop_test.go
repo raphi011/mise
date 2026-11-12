@@ -124,7 +124,7 @@ func TestLoopAllTools(t *testing.T) {
 					ingredient{"2 tbsp maple syrup", "new:1"},
 					ingredient{"1 onion", ""},
 					ingredient{"1 tsp garam masala", other.items["Garam masala"].String()},
-					ingredient{"1 lime", "new:7"},
+					ingredient{"1 kumquat", "new:7"},
 				))(req)
 			},
 		)
@@ -160,7 +160,7 @@ func TestLoopAllTools(t *testing.T) {
 			{"Maple syrup", ai.MatchNew},
 			{"Onion", ai.MatchExact},      // no item from the model: matched by name
 			{"Garam masala", ai.MatchNew}, // another household's ID is ignored
-			{"Lime", ai.MatchNew},         // unknown reference: matched by name
+			{"Kumquat", ai.MatchNew},      // unknown reference: matched by name
 		}
 		if len(d.Ingredients) != len(want) {
 			t.Fatalf("ingredients %+v", d.Ingredients)
@@ -196,7 +196,7 @@ func TestLoopAllTools(t *testing.T) {
 func TestLoopPermissionsOff(t *testing.T) {
 	storetestEach(t, func(t *testing.T, e, _ *importEnv, base string) {
 		m := script(t,
-			calls("search_items", map[string]any{"query": "tofu"}, "create_item", map[string]any{"name": "Lime", "category": ""},
+			calls("search_items", map[string]any{"query": "tofu"}, "create_item", map[string]any{"name": "Kumquat", "category": ""},
 				"fetch_page", map[string]any{"url": "/print"}),
 			func(req ai.Request) ai.Response {
 				for _, r := range lastResults(req) {
@@ -205,7 +205,7 @@ func TestLoopPermissionsOff(t *testing.T) {
 					}
 				}
 				return calls("create_recipe", recipe("Tofu", ingredient{"400 g firm tofu", e.items["Soy sauce"].String()},
-					ingredient{"1 lime", "new:1"}))(req)
+					ingredient{"1 kumquat", "new:1"}))(req)
 			},
 		)
 		d, _, err := e.s.RunLoop(t.Context(), e.sc, m, ai.LoopInput{SourceURL: base + "/tofu", Text: "x", Lang: language.English})
@@ -218,7 +218,7 @@ func TestLoopPermissionsOff(t *testing.T) {
 		// Without search_items the model's IDs are ignored and the server
 		// matches by name; without create_item references are too.
 		if d.Ingredients[0].ItemName != "Firm tofu" || d.Ingredients[0].Match != ai.MatchExact ||
-			d.Ingredients[1].ItemName != "Lime" || d.Ingredients[1].Match != ai.MatchNew {
+			d.Ingredients[1].ItemName != "Kumquat" || d.Ingredients[1].Match != ai.MatchNew {
 			t.Errorf("ingredients %+v", d.Ingredients)
 		}
 	})
@@ -238,7 +238,7 @@ func TestLoopPastedTextHasNoFetch(t *testing.T) {
 		if slices.Contains(toolNames(m.reqs[0]), "fetch_page") || !strings.Contains(m.reqs[0].Messages[0].Text, "pasted text") {
 			t.Errorf("pasted text request %+v", m.reqs[0])
 		}
-		if d.SourceURL != "" || d.Ingredients[0].Amount.Unit != "g" || d.Ingredients[0].ItemName != "Linsen" || len(steps) != 2 {
+		if d.SourceURL != "" || d.Ingredients[0].Amount.Unit != "g" || d.Ingredients[0].ItemName != "Lentils" || len(steps) != 2 {
 			t.Errorf("draft %+v, steps %+v", d, steps)
 		}
 	})

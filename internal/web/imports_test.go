@@ -152,7 +152,7 @@ func TestImportReviewAndSave(t *testing.T) {
 	page := "/imports/" + job
 	body := waitForPage(t, anna, page, "Review import")
 	for _, want := range []string{"Crispy tofu", "10 min prep · 20 min cook · 2 servings · 2 steps", "3 found · 1 matched · 1 to check · 1 new",
-		"match--matched", "match--check", "match--new", "Maple syrup", "Save recipe &amp; 1 new item", page + "/photo", "Read the recipe page on 127.0.0.1"} {
+		"match--matched", "match--check", "match--catalog", "Maple syrup", "Save recipe &amp; 1 new item", page + "/photo", "Read the recipe page on 127.0.0.1"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("review lacks %q", want)
 		}

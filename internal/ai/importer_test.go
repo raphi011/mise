@@ -186,11 +186,14 @@ func TestPageDraft(t *testing.T) {
 		if d.ImageURL != base+"/curry.jpg" {
 			t.Errorf("image %q", d.ImageURL)
 		}
+		// "Kartoffeln" and "Salz" are catalogue entries, which the English
+		// household names Potato and Salt.
 		amounts := []struct {
-			qty  float64
-			unit string
-			name string
-		}{{1.5, "kg", "Kartoffeln"}, {2, "tbsp", "Öl"}, {0.5, "tsp", "Salz"}}
+			qty   float64
+			unit  string
+			name  string
+			match ai.Match
+		}{{1.5, "kg", "Potato", ai.MatchCatalog}, {2, "tbsp", "Öl", ai.MatchNew}, {0.5, "tsp", "Salt", ai.MatchCatalog}}
 		if len(d.Ingredients) != len(amounts) {
 			t.Fatalf("ingredients %+v", d.Ingredients)
 		}
@@ -199,9 +202,12 @@ func TestPageDraft(t *testing.T) {
 			if a := ing.Amount; a.Quantity == nil || *a.Quantity != w.qty || a.Unit != w.unit {
 				t.Errorf("ingredient %d amount %+v, want %v %s", i, a, w.qty, w.unit)
 			}
-			if ing.Match != ai.MatchNew || ing.ItemID != nil || ing.ItemName != w.name {
+			if ing.Match != w.match || ing.ItemID != nil || ing.ItemName != w.name {
 				t.Errorf("ingredient %d: %+v", i, ing)
 			}
+		}
+		if ing := d.Ingredients[0]; ing.CatalogKey != "potato" || ing.Category != "" || ing.ItemID != nil {
+			t.Errorf("catalogue match carries its key: %+v", ing)
 		}
 		if got := d.NewItems(); len(got) != 3 {
 			t.Errorf("new items %q", got)

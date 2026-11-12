@@ -579,7 +579,9 @@ func TestSuggest(t *testing.T) {
 		}
 		var order []string
 		for _, s := range got {
-			order = append(order, s.Item.Name)
+			if s.Catalog == nil {
+				order = append(order, s.Item.Name)
+			}
 		}
 		want := []string{"Tom", "Tomatoes", "Tomato paste", "Cherry tomatoes", "Bottom round"}
 		if !slices.Equal(order, want) {

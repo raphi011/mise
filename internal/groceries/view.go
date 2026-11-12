@@ -38,6 +38,15 @@ type Item struct {
 	Category        *Category
 	PurchaseCount   int
 	LastPurchasedAt *time.Time
+	// CatalogKey links the item to the default-ingredient catalogue ("" for
+	// none).
+	CatalogKey string
+	// IconOverride is the icon the household picked: "" inherits the
+	// catalogue's, IconNone shows no icon.
+	IconOverride string
+	// Icon is the icon to show: the override, else the catalogue's, else ""
+	// for the initial tile.
+	Icon string
 }
 
 // usualLimit caps the "Usually bought" chips.
@@ -114,10 +123,13 @@ type itemRow struct {
 	CategoryColor   *string
 	PurchaseCount   int
 	LastPurchasedAt *store.Time
+	CatalogKey      *string
+	Icon            *string
 }
 
 func (r itemRow) item() Item {
-	it := Item{ID: r.ID, Name: r.Name, PurchaseCount: r.PurchaseCount, LastPurchasedAt: timePtr(r.LastPurchasedAt)}
+	it := Item{ID: r.ID, Name: r.Name, PurchaseCount: r.PurchaseCount, LastPurchasedAt: timePtr(r.LastPurchasedAt),
+		CatalogKey: deref(r.CatalogKey), IconOverride: deref(r.Icon), Icon: showIcon(r.Icon, r.CatalogKey)}
 	if r.CategoryID != nil {
 		it.Category = &Category{ID: *r.CategoryID, Name: deref(r.CategoryName), Color: deref(r.CategoryColor)}
 	}
@@ -125,7 +137,7 @@ func (r itemRow) item() Item {
 }
 
 const itemSelect = `SELECT i.id, i.name, i.name_key, i.category_id, c.name AS category_name, c.color AS category_color,
-		i.purchase_count, i.last_purchased_at
+		i.purchase_count, i.last_purchased_at, i.catalog_key, i.icon
 	FROM items i LEFT JOIN categories c ON c.household_id = i.household_id AND c.id = i.category_id
 	WHERE i.household_id = ?`
 
@@ -163,6 +175,9 @@ const (
 type Suggestion struct {
 	Item  Item
 	Match Match
+	// Catalog is set instead of Item for a catalogue entry the household
+	// has no item for yet; picking it creates the item.
+	Catalog *CatalogHit
 	// OnList is the amount of the item's open entry on the list, if any.
 	OnList *Amount
 }
@@ -174,8 +189,17 @@ const suggestCandidates = 200
 // SearchItems) and adds each one's open entry on the list.
 func (s *Service) Suggest(ctx context.Context, sc store.Scoped, listID uuid.UUID, name string, limit int) ([]Suggestion, error) {
 	out, err := s.SearchItems(ctx, sc, name, limit)
-	if err != nil || len(out) == 0 {
-		return out, err
+	if err != nil {
+		return nil, err
+	}
+	// The household's own items come first; catalogue entries fill what is
+	// left of the limit.
+	cat, err := s.suggestCatalog(ctx, sc, name, limit-len(out))
+	if err != nil {
+		return nil, err
+	}
+	if len(out) == 0 {
+		return cat, nil
 	}
 
 	var open []struct {
@@ -197,7 +221,7 @@ func (s *Service) Suggest(ctx context.Context, sc store.Scoped, listID uuid.UUID
 			}
 		}
 	}
-	return out, nil
+	return append(out, cat...), nil
 }
 
 // SearchItems ranks catalogue items whose name contains name: exact
