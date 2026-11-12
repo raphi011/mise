@@ -1,5 +1,5 @@
 -- Groceries (P1b): categories, the item catalogue, shopping lists and their
--- entries. See docs/plan.md, Schema and Undo.
+-- entries.
 
 -- +goose Up
 CREATE TABLE categories (
@@ -21,7 +21,7 @@ CREATE TABLE items (
     name              TEXT NOT NULL,
     name_key          TEXT NOT NULL,
     -- NULL is "Uncategorised". Deleting a category nulls this column in Go
-    -- first; see docs/plan.md on composite foreign keys.
+    -- first.
     category_id       TEXT,
     purchase_count    INTEGER NOT NULL DEFAULT 0,
     last_purchased_at TEXT,

@@ -4,7 +4,7 @@
 // some of its ingredients on the default list in the same transaction.
 //
 // Days are calendar dates in the household's time zone, and weeks start on
-// the household's first day of the week (docs/plan.md, Time and locale).
+// the household's first day of the week.
 //
 // Every method takes a store.Scoped and filters every query on its
 // household. Writes publish live events after they commit.

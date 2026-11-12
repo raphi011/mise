@@ -19,9 +19,9 @@ import (
 	"github.com/raphi011/mise/internal/ui"
 )
 
-// Public recipe links (docs/plan.md, Public recipe links). Members create
-// and turn off a recipe's link from its menu; anyone with the link reads
-// the recipe at /s/{token}, without a session.
+// Public recipe links. Members create and turn off a recipe's link from its
+// menu; anyone with the link reads the recipe at /s/{token}, without a
+// session.
 
 // sharePrefix starts every public link route. Requests under it skip the
 // session middleware, so a member's identity never reaches them.

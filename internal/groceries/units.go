@@ -7,7 +7,7 @@ import (
 )
 
 // System is a measurement system a user reads amounts in. Amounts are
-// stored as written and converted when shown (docs/plan.md, Units).
+// stored as written and converted when shown.
 type System string
 
 const (

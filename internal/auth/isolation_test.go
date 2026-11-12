@@ -14,7 +14,7 @@ import (
 
 // TestHouseholdIsolation walks every Scoped method of this package against
 // two households and checks that neither sees or changes the other's rows.
-// Later phases add their repositories here (docs/plan.md, Multi-tenancy).
+// Later phases add their repositories here.
 func TestHouseholdIsolation(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db *store.DB) {
 		ctx := t.Context()

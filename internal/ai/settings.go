@@ -1,7 +1,7 @@
 // Package ai imports recipes from links and pasted text: per-household
 // settings with an encrypted API key, a fetcher that refuses private
 // addresses, the schema.org JSON-LD extractor, model providers, the tool
-// loop and the import job runner (docs/plan.md, AI import).
+// loop and the import job runner.
 //
 // Every method takes a store.Scoped and filters every query on its
 // household; the job runner builds one with store.ScopeFor.

@@ -3,7 +3,7 @@
 -- and every request looks the token up again, so revocation is immediate.
 -- The token is stored as issued (not hashed) so members can copy the link
 -- again later; it grants nothing a reader of this database cannot already
--- read. See docs/plan.md, Public recipe links.
+-- read.
 
 -- +goose Up
 CREATE TABLE recipe_shares (

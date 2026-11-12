@@ -12,7 +12,7 @@ import (
 const pinchGrams = 0.4
 
 // MinCoverage is the share of ingredients that must be counted before the
-// numbers are shown (docs/plan.md, D3).
+// numbers are shown.
 const MinCoverage = 0.5
 
 // Reason says why an ingredient line could not be turned into grams.

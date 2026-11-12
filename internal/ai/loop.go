@@ -25,7 +25,7 @@ var (
 	ErrLimit = errors.New("ai: the import hit its limits")
 )
 
-// Tool loop limits (docs/plan.md, AI import).
+// Tool loop limits.
 const (
 	maxTurns        = 12
 	maxOutputTokens = 16000

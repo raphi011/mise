@@ -1,7 +1,7 @@
 -- Linked recipes ("Goes well with"): a link joins two recipes of a household
 -- both ways, stored as one row per direction so each side reads its links
 -- by recipe_id. The recipes service writes and deletes both rows together.
--- See docs/plan.md, Linked recipes.
+--
 
 -- +goose Up
 CREATE TABLE recipe_links (

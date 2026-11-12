@@ -223,7 +223,7 @@ func TestSaveValidation(t *testing.T) {
 
 // TestHouseholdIsolation walks every Scoped method against two households
 // with an item of the same name and checks that neither sees or changes the
-// other's rows (docs/plan.md, Multi-tenancy).
+// other's rows.
 func TestHouseholdIsolation(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db *store.DB) {
 		ctx := t.Context()

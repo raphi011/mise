@@ -1,5 +1,5 @@
 -- Recipes (P2): recipes, their ingredients and steps, tags, favourites and
--- cook events, plus the recipe tag on list entries. See docs/plan.md, Schema.
+-- cook events, plus the recipe tag on list entries.
 
 -- +goose NO TRANSACTION
 -- +goose Up

@@ -1,4 +1,4 @@
--- Invites and server-wide settings (P1a). See docs/plan.md, Multi-tenancy.
+-- Invites and server-wide settings (P1a).
 
 -- +goose Up
 CREATE TABLE invites (

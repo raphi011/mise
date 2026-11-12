@@ -1,4 +1,4 @@
--- Conventions (see docs/plan.md, Database layer):
+-- Conventions:
 -- * IDs are UUIDv7 as TEXT; timestamps are fixed-width UTC TEXT bound from Go.
 -- * Household-scoped tables carry household_id and use composite foreign keys.
 -- * Composite foreign keys use ON DELETE RESTRICT or CASCADE, never SET NULL.

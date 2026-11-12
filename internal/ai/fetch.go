@@ -72,8 +72,7 @@ type Fetched struct {
 
 // Fetcher fetches recipe pages and photos from the public internet only:
 // the address actually dialled is checked (so DNS rebinding can't slip
-// past), redirects are re-checked, and bodies and time are capped
-// (docs/plan.md, AI import). It must not be used for the admin-configured
+// past), redirects are re-checked, and bodies and time are capped. It must not be used for the admin-configured
 // provider endpoint, which is often on the local network.
 type Fetcher struct {
 	client *http.Client

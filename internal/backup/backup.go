@@ -1,5 +1,4 @@
-// Package backup writes the data of a mise installation into one archive
-// (docs/plan.md, Operations; restore steps in docs/operations.md).
+// Package backup writes the data of a mise installation into one archive (restore steps in docs/operations.md).
 //
 // The archive mirrors the data directory: mise.db, a consistent copy of the
 // SQLite database, and images/... . A Postgres database is not included;
