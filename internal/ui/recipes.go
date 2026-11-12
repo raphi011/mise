@@ -229,6 +229,8 @@ type StepPart struct {
 	Text    string
 	Mention bool
 	Amount  string
+	// Icon is the catalogue icon of the mentioned item, "" for none.
+	Icon string
 }
 
 // RecipeMenuView is the ⋯ menu of a recipe.

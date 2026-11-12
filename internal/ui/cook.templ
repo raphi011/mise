@@ -56,6 +56,7 @@ templ CookPage(p Page, v CookView) {
 						for _, part := range st.Parts {
 							if part.Mention {
 								<span class="cook__mention">
+									@mentionIcon(part.Icon)
 									{ part.Text }
 									if part.Amount != "" {
 										<span class="cook__amount">{ part.Amount }</span>

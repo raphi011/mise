@@ -69,7 +69,7 @@ type entryRow struct {
 
 func (r entryRow) entry() Entry {
 	e := Entry{
-		ID: r.ID, ListID: r.ListID, ItemID: r.ItemID, ItemName: r.ItemName, ItemIcon: showIcon(r.ItemIcon, r.ItemCatalogKey),
+		ID: r.ID, ListID: r.ListID, ItemID: r.ItemID, ItemName: r.ItemName, ItemIcon: ShowIcon(r.ItemIcon, r.ItemCatalogKey),
 		Amount:  Amount{Quantity: r.Quantity, Unit: deref(r.Unit), Text: r.AmountText},
 		Note:    deref(r.Note),
 		AddedBy: r.AddedBy, AddedByName: r.AddedByName, AddedByColor: r.AddedByColor,

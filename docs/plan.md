@@ -313,7 +313,7 @@ Each phase ends with something usable and is merged before the next starts.
 
 ### P2 — Recipes
 - Library with cards, quick filters, filter sheet, sort; search by name and ingredient with highlights and recent searches.
-- Editor (ingredients typed as "2 tbsp soy sauce" / "2 EL Sojasoße", steps, tags, photo upload), detail with servings scaling, inline ingredient highlights in steps, +/✓ add-to-list toggles with live count, notes, favourites, share link, delete with confirm.
+- Editor (ingredients typed as "2 tbsp soy sauce" / "2 EL Sojasoße", steps, tags, photo upload), detail with servings scaling, inline ingredient highlights in steps (with the item's catalogue icon when it has one, in cook mode too), +/✓ add-to-list toggles with live count, notes, favourites, share link, delete with confirm.
 - Image pipeline (orientation, size limits, HEIC message, orphan sweep).
 - Settings: tags.
 - Done when: a recipe's ingredients reach the list one by one.

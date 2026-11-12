@@ -75,6 +75,8 @@ type Ingredient struct {
 	ItemName string
 	Amount   groceries.Amount
 	Optional bool
+	// Icon is the icon key to show for the item, "" for none.
+	Icon string
 }
 
 // Step is one step of the method.
@@ -619,15 +621,17 @@ func loadMethod(ctx context.Context, q store.Reader, hh, id uuid.UUID, out *Reci
 		Unit       *string
 		AmountText string
 		Optional   bool
+		Icon       *string
+		CatalogKey *string
 	}
-	if err := q.Select(ctx, &ings, `SELECT ri.id, ri.item_id, i.name AS item_name, ri.quantity, ri.unit, ri.amount_text, ri.optional
+	if err := q.Select(ctx, &ings, `SELECT ri.id, ri.item_id, i.name AS item_name, i.icon, i.catalog_key, ri.quantity, ri.unit, ri.amount_text, ri.optional
 		FROM recipe_ingredients ri JOIN items i ON i.household_id = ri.household_id AND i.id = ri.item_id
 		WHERE ri.household_id = ? AND ri.recipe_id = ? ORDER BY ri.position`, hh, id); err != nil {
 		return err
 	}
 	for _, ri := range ings {
 		out.Ingredients = append(out.Ingredients, Ingredient{
-			ID: ri.ID, ItemID: ri.ItemID, ItemName: ri.ItemName, Optional: ri.Optional,
+			ID: ri.ID, ItemID: ri.ItemID, ItemName: ri.ItemName, Optional: ri.Optional, Icon: groceries.ShowIcon(ri.Icon, ri.CatalogKey),
 			Amount: groceries.Amount{Quantity: ri.Quantity, Unit: deref(ri.Unit), Text: ri.AmountText},
 		})
 	}

@@ -16,9 +16,9 @@ import (
 // instead of inheriting its catalogue entry's. NULL inherits.
 const IconNone = "none"
 
-// showIcon resolves the icon to show for an item: its own pick, else the
+// ShowIcon resolves the icon to show for an item: its own pick, else the
 // catalogue entry's, else "".
-func showIcon(icon, catalogKey *string) string {
+func ShowIcon(icon, catalogKey *string) string {
 	switch {
 	case icon != nil && *icon == IconNone:
 		return ""

@@ -129,7 +129,7 @@ type itemRow struct {
 
 func (r itemRow) item() Item {
 	it := Item{ID: r.ID, Name: r.Name, PurchaseCount: r.PurchaseCount, LastPurchasedAt: timePtr(r.LastPurchasedAt),
-		CatalogKey: deref(r.CatalogKey), IconOverride: deref(r.Icon), Icon: showIcon(r.Icon, r.CatalogKey)}
+		CatalogKey: deref(r.CatalogKey), IconOverride: deref(r.Icon), Icon: ShowIcon(r.Icon, r.CatalogKey)}
 	if r.CategoryID != nil {
 		it.Category = &Category{ID: *r.CategoryID, Name: deref(r.CategoryName), Color: deref(r.CategoryColor)}
 	}

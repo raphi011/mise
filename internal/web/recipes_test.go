@@ -612,3 +612,21 @@ func TestUnitsPerUser(t *testing.T) {
 		}
 	})
 }
+
+// TestStepMentionIcon: an ingredient mention in a step carries the item's
+// catalogue icon; an item outside the catalogue has none.
+func TestStepMentionIcon(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		_, srv := startTimedServer(t, db)
+		anna, _ := household(t, srv)
+		form := stickyTofu()
+		form["ing_name"] = []string{"Firm tofu", "Soy sauce"}
+		form["step"] = []string{"Whisk the soy sauce.", "Press the firm tofu."}
+		id := createRecipe(t, anna, form)
+
+		page := anna.get("/recipes/"+id).expect(t, "recipe", http.StatusOK)
+		if !strings.Contains(page.body, `class="mention"><i class="mention__icon"`) {
+			t.Errorf("no icon in the soy sauce mention:\n%.3000s", page.body)
+		}
+	})
+}

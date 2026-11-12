@@ -1,6 +1,9 @@
 package ui
 
-import "github.com/raphi011/mise/internal/i18n"
+import (
+	"github.com/raphi011/mise/internal/catalog"
+	"github.com/raphi011/mise/internal/i18n"
+)
 
 // RecipePage is a recipe's detail page. Its region re-renders over the
 // live stream at the viewer's servings ($servings); the stepper changes
@@ -246,6 +249,7 @@ templ stepList(steps [][]StepPart) {
 					for _, part := range parts {
 						if part.Mention {
 							<span class="mention">
+								@mentionIcon(part.Icon)
 								{ part.Text }
 								if part.Amount != "" {
 									<span class="mention__amount">{ part.Amount }</span>
@@ -259,6 +263,16 @@ templ stepList(steps [][]StepPart) {
 			</li>
 		}
 	</ol>
+}
+
+// mentionIcon is the catalogue icon in front of an ingredient mention, drawn
+// in the mention's colour; nothing when the item has no icon.
+templ mentionIcon(icon string) {
+	if svg := catalog.IconSVG(icon); svg != "" {
+		<i class="mention__icon" aria-hidden="true">
+			@templ.Raw(svg)
+		</i>
+	}
 }
 
 templ metaTile(label, value, class string) {
