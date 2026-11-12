@@ -1,5 +1,5 @@
 -- Links items and categories to the embedded default-ingredient catalogue
--- and lets an item override its icon. See docs/plan.md, Default ingredients.
+-- and lets an item override its icon.
 
 -- +goose Up
 ALTER TABLE items ADD COLUMN icon TEXT;

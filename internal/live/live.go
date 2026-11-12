@@ -3,8 +3,7 @@
 // open page holds one Datastar SSE stream (see Serve) that re-renders its
 // region for the viewer when a relevant event arrives.
 //
-// The hub is in-process: mise runs as a single instance (docs/plan.md, Live
-// updates).
+// The hub is in-process: mise runs as a single instance.
 package live
 
 import (

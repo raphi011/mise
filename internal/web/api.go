@@ -21,8 +21,6 @@ import (
 // the HTML pages. Bodies and answers are JSON; errors look like
 //
 //	{"error": {"code": "invalid", "message": "...", "fields": {"name": "..."}}}
-//
-// See docs/plan.md, API.
 
 const (
 	apiPrefix = "/api/"

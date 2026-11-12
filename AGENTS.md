@@ -2,7 +2,6 @@
 
 Self-hosted recipes, meal plan and shopping lists: one Go binary, server-rendered with templ + Datastar, SQLite or Postgres.
 
-- Design, schema and every product decision: [docs/plan.md](docs/plan.md). Read the section for the area you touch before changing behaviour, and update it in the same change when a decision moves.
 - REST API and tokens: [docs/api.md](docs/api.md).
 - Proxy, backup, SMTP, SSO: [docs/operations.md](docs/operations.md).
 - Writing a migration: [internal/store/migrations/README.md](internal/store/migrations/README.md).

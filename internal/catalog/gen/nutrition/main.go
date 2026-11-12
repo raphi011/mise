@@ -5,7 +5,7 @@
 //
 // The directory holds the unzipped Foundation Foods and SR Legacy downloads
 // (any depth; every folder with a food_nutrient.csv is read). They are never
-// committed. See docs/plan.md ("Nutrition"). Columns of nutrition_map.csv:
+// committed. Columns of nutrition_map.csv:
 //
 //	key            catalogue key (internal/catalog/data/entries.json)
 //	fdc_id         FoodData Central ID of the raw food; empty = unmapped

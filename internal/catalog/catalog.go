@@ -1,8 +1,7 @@
 // Package catalog is the embedded catalogue of default ingredients: a
 // stable key per ingredient, its name and aliases in each language, a
 // default category and an icon. Households link items to entries through
-// items.catalog_key; the catalogue itself is never stored per household
-// (docs/plan.md, Default ingredients).
+// items.catalog_key; the catalogue itself is never stored per household.
 //
 // Keys are the contract with every other feature that hangs data on an
 // ingredient. They never change and are never reused: a key that goes

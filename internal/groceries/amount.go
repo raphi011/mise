@@ -69,7 +69,7 @@ var Units = []unitDef{
 
 // measures are words for amounts that are not units: they don't convert,
 // add up or scale, so "1 thumb ginger" is the free-text amount "1 thumb"
-// of ginger, not one "thumb ginger" (docs/plan.md, Amounts).
+// of ginger, not one "thumb ginger".
 var measures = map[string]bool{
 	"thumb": true, "thumbs": true, "daumen": true,
 	"handful": true, "handfuls": true, "handvoll": true,

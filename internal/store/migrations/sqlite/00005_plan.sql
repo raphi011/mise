@@ -1,5 +1,4 @@
--- Meal plan (P3): planned meals. Cook events exist since 00004. See
--- docs/plan.md, Schema.
+-- Meal plan (P3): planned meals. Cook events exist since 00004.
 
 -- +goose Up
 CREATE TABLE planned_meals (

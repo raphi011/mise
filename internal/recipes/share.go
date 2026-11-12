@@ -14,8 +14,7 @@ import (
 )
 
 // Share is a recipe's public link: anyone with its token can read the
-// recipe at /s/{token} without signing in (docs/plan.md, Public recipe
-// links). A recipe has at most one.
+// recipe at /s/{token} without signing in. A recipe has at most one.
 type Share struct {
 	Token     string
 	CreatedBy Person

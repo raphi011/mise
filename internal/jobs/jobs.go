@@ -22,7 +22,7 @@ const DefaultInterval = time.Hour
 // Sweeper hard-deletes rows whose Undo window has passed: list entries
 // removed or cleared, deleted shopping lists (with their entries), removed
 // planned meals and deleted recipes (with their ingredients, steps, tags,
-// favourites, cook history and planned meals) (docs/plan.md, Undo). It
+// favourites, cook history and planned meals). It
 // also deletes password-reset tokens that expired or were used, and old
 // recipe imports.
 type Sweeper struct {
@@ -99,7 +99,7 @@ func (s *Sweeper) Sweep(ctx context.Context) (Swept, error) {
 			return err
 		}
 		// List entries keep their item but lose the recipe tag; the foreign
-		// key is RESTRICT, see docs/plan.md on composite foreign keys.
+		// key is RESTRICT.
 		// Planned meals of the recipe go with it (ON DELETE CASCADE).
 		if _, err := q.Exec(ctx, `UPDATE list_entries SET recipe_id = NULL
 			WHERE recipe_id IN (SELECT id FROM recipes WHERE deleted_at < ?)`, cutoff); err != nil {
@@ -195,10 +195,9 @@ func (s *Sweeper) Run(ctx context.Context) {
 }
 
 // LinkCatalog links every household's categories and items to the default
-// ingredient catalogue, in the household's language (docs/plan.md, Default
-// ingredients). It covers households created before the catalogue and items
-// they added since; it is idempotent and changes no names, categories or
-// icons.
+// ingredient catalogue, in the household's language. It covers households
+// created before the catalogue and items they added since; it is idempotent
+// and changes no names, categories or icons.
 func LinkCatalog(ctx context.Context, db *store.DB, g *groceries.Service, defaults func(lang string) groceries.Defaults) error {
 	var households []struct {
 		ID              uuid.UUID

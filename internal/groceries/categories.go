@@ -154,7 +154,7 @@ func (s *Service) MoveCategory(ctx context.Context, sc store.Scoped, id uuid.UUI
 
 // DeleteCategory deletes a category; its items become uncategorised. The
 // foreign key restricts deletes, so the items are updated first in the same
-// transaction (docs/plan.md, Multi-tenancy).
+// transaction.
 func (s *Service) DeleteCategory(ctx context.Context, sc store.Scoped, id uuid.UUID) error {
 	err := sc.Tx(ctx, func(ctx context.Context, q store.Querier) error {
 		// Ordered against UpdateEntry, which checks the category exists

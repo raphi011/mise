@@ -1,6 +1,6 @@
 -- API tokens: bearer credentials for scripts and agents, acting as one member
 -- of one household with a read or read/write scope. Only the SHA-256 of the
--- token is stored. See docs/plan.md, API.
+-- token is stored.
 
 -- +goose Up
 CREATE TABLE api_tokens (

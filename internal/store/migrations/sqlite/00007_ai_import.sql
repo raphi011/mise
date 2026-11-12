@@ -1,5 +1,4 @@
--- Recipe import (P6): per-household AI settings and import jobs. See
--- docs/plan.md, AI import.
+-- Recipe import (P6): per-household AI settings and import jobs.
 
 -- +goose Up
 CREATE TABLE ai_settings (

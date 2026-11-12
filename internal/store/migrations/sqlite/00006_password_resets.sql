@@ -1,5 +1,5 @@
 -- Self-service password reset by email (P4). Global like sessions: an
--- account's password is not a household's. See docs/plan.md, Auth.
+-- account's password is not a household's.
 
 -- +goose Up
 CREATE TABLE password_resets (

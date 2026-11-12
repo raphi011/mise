@@ -119,7 +119,7 @@ Every variable has a matching flag, e.g. `-db`, `-listen`. `mise-server migrate`
 
 ## Develop
 
-Design, schema and every product decision are in [docs/plan.md](docs/plan.md); contributor conventions are in [AGENTS.md](AGENTS.md). Tools are pinned in `mise.toml`; templ runs via `go tool templ`.
+Contributor conventions are in [AGENTS.md](AGENTS.md). Tools are pinned in `mise.toml`; templ runs via `go tool templ`.
 
 ```sh
 mise run run    # generate templ, serve on :8080 with ./data

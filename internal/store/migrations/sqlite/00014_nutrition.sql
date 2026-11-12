@@ -1,7 +1,7 @@
 -- Nutrition: values per 100 g that a household typed for an item, and the
 -- weights that turn "2 tbsp" or "3 cloves" into grams. Per-serving nutrition
 -- of a recipe is derived from these when the page renders and is not
--- stored. See docs/plan.md, Nutrition.
+-- stored.
 
 -- +goose Up
 CREATE TABLE item_nutrition (

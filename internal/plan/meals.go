@@ -452,7 +452,7 @@ func (s *Service) Place(ctx context.Context, sc store.Scoped, placements []Place
 }
 
 // SetServings changes what a meal is planned for. Amounts already on a
-// list stay as they are (docs/plan.md, Decisions). It returns the meal's
+// list stay as they are. It returns the meal's
 // previous servings.
 func (s *Service) SetServings(ctx context.Context, sc store.Scoped, id uuid.UUID, servings int) (int, error) {
 	if servings < 1 || servings > MaxServings {

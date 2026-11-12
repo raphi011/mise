@@ -1,5 +1,5 @@
 // Package nutrition estimates a recipe's nutrition per serving from its
-// ingredients (docs/plan.md, Nutrition).
+// ingredients.
 //
 // Values are per 100 g and belong to grocery items. Turning an ingredient
 // line into grams needs the amount's unit and, for volumes and counts, a

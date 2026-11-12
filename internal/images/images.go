@@ -1,7 +1,7 @@
 // Package images stores recipe photos: it validates uploads, applies EXIF
 // orientation, re-encodes them as JPEG (which strips all metadata) in two
 // sizes and serves them by content hash. Files live under
-// <data dir>/images/<household id>/<hash>-<size>.jpg (docs/plan.md, Images).
+// <data dir>/images/<household id>/<hash>-<size>.jpg.
 package images
 
 import (

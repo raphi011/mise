@@ -1,5 +1,5 @@
 -- Single sign-on links: an OpenID Connect identity (issuer, subject) signs in
--- as one account. Global like sessions. See docs/plan.md, Auth.
+-- as one account. Global like sessions.
 
 -- +goose Up
 CREATE TABLE user_identities (
