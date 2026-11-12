@@ -125,7 +125,7 @@ RECIPES = [
 def main():
     post("/setup", dict(household="Home", timezone="Europe/Vienna", week_start="mon", base_url=BASE,
                         name="Demo", username="demo", email="demo@example.com", password=PASSWORD))
-    ids = {}
+    ids, slugs = {}, {}
     for r in RECIPES:
         n = len(r["ing"])
         fields = {
@@ -136,7 +136,10 @@ def main():
         }
         files = {"photo_file": ("photo.jpg", (PHOTOS / f"{r['photo']}.jpg").read_bytes())}
         url, _ = post("/recipes", fields, files)
-        ids[r["name"]] = re.search(r"/recipes/([0-9a-f-]{36})", url).group(1)
+        # Member URLs use the slug; writes still address the recipe by id.
+        _, page = get(urllib.parse.urlparse(url).path)
+        ids[r["name"]] = re.search(r"/plan/add\?recipe=([0-9a-f-]{36})", page).group(1)
+        slugs[r["name"]] = urllib.parse.urlparse(url).path.rsplit("/", 1)[1]
 
     # Plan next week, so no day is in the past whenever this runs (shoot.mjs
     # opens that week), plus tonight's dinner; the ingredients of the first
@@ -150,7 +153,7 @@ def main():
     meals = [("Lemon spaghetti", today)] + [(n, monday + datetime.timedelta(days=d)) for n, d in week]
     for i, (name, day) in enumerate(meals):
         rid = ids[name]
-        _, page = get(f"/recipes/{rid}")
+        _, page = get(f"/recipes/{slugs[name]}")
         ing = sorted(set(re.findall(rf"/recipes/{rid}/ingredients/([0-9a-f-]{{36}})/toggle", page))) if 1 <= i <= 2 else []
         date = day.isoformat()
         post("/plan", {"recipe": rid, "date": date, "servings": str(servings[name]), "ingredient": ing,
