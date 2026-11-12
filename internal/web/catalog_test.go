@@ -59,7 +59,7 @@ func TestCatalogueOverHTTP(t *testing.T) {
 // Fragments of the lemon and onion paths, which identify the icons in a page.
 const (
 	lemonMarker = "M16.3 5.3c.2-1.5"
-	onionMarker = "M10.5 21.3l-.4 1"
+	onionMarker = "M10.5 20.5l-.5 1.5"
 )
 
 // TestIconLabels: every icon has a translated name in both languages.
