@@ -7,7 +7,7 @@ import (
 
 // energyFromAlcohol lists rows whose energy is mostly ethanol or acetic acid,
 // which the macros do not show.
-var energyFromAlcohol = map[string]bool{"wine": true, "beer": true, "vinegar": true, "vanilla": true}
+var energyFromAlcohol = map[string]bool{"wine": true, "beer": true, "vinegar": true, "cider_vinegar": true, "vanilla": true}
 
 // TestNutritionData checks every row of data/nutrition.json: its key is an
 // entry of the catalogue, it names its FoodData Central food, and the values

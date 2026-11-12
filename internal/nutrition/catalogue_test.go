@@ -81,3 +81,26 @@ func TestCatalogueFallback(t *testing.T) {
 		}
 	})
 }
+
+// TestAliasItemUsesEntryValues: an item without a catalogue key, named like
+// an entry's alias, has the entry's values.
+func TestAliasItemUsesEntryValues(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		ctx := t.Context()
+		e := newEnv(t, db, "home")
+		rec := e.recipe(t, "Dressing", 2, "100 g Meersalz")
+		if err := e.sc.Tx(ctx, func(ctx context.Context, q store.Querier) error {
+			_, err := q.Exec(ctx, `UPDATE items SET catalog_key = NULL WHERE household_id = ?`, e.sc.HouseholdID())
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		r, err := e.s.Recipe(ctx, e.sc, lines(rec), rec.Servings)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if r.Counted != 1 {
+			t.Errorf("counted %d of %d, missing %+v", r.Counted, r.Of, r.Missing)
+		}
+	})
+}

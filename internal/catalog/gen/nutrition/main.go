@@ -385,7 +385,8 @@ func build(r row, s *source) (catalog.Nutrition, error) {
 	default:
 		return catalog.Nutrition{}, fmt.Errorf("FDC %d is %s, not Foundation or SR Legacy", r.fdcID, s.dataType[id])
 	}
-	desc := strings.ToLower(s.desc[id])
+	// "uncooked" is raw.
+	desc := strings.ReplaceAll(strings.ToLower(s.desc[id]), "uncooked", "raw")
 	for _, w := range notRaw {
 		if strings.Contains(desc, w) {
 			return catalog.Nutrition{}, fmt.Errorf("FDC %d %q is not a raw food", r.fdcID, s.desc[id])

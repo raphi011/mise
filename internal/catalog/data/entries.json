@@ -693,5 +693,625 @@
   "key": "sponges",
   "category": "household",
   "icon": "sponge"
+ },
+ {
+  "key": "pumpkin",
+  "category": "produce",
+  "icon": "leaf"
+ },
+ {
+  "key": "butternut_squash",
+  "category": "produce",
+  "icon": "leaf"
+ },
+ {
+  "key": "kohlrabi",
+  "category": "produce",
+  "icon": "cabbage"
+ },
+ {
+  "key": "radish",
+  "category": "produce",
+  "icon": "leaf"
+ },
+ {
+  "key": "beetroot",
+  "category": "produce",
+  "icon": "carrot"
+ },
+ {
+  "key": "fennel",
+  "category": "produce",
+  "icon": "leaf"
+ },
+ {
+  "key": "asparagus",
+  "category": "produce",
+  "icon": "leaf"
+ },
+ {
+  "key": "brussels_sprouts",
+  "category": "produce",
+  "icon": "cabbage"
+ },
+ {
+  "key": "red_cabbage",
+  "category": "produce",
+  "icon": "cabbage"
+ },
+ {
+  "key": "savoy_cabbage",
+  "category": "produce",
+  "icon": "cabbage"
+ },
+ {
+  "key": "kale",
+  "category": "produce",
+  "icon": "leaf"
+ },
+ {
+  "key": "parsnip",
+  "category": "produce",
+  "icon": "carrot"
+ },
+ {
+  "key": "celeriac",
+  "category": "produce",
+  "icon": "celery"
+ },
+ {
+  "key": "turnip",
+  "category": "produce",
+  "icon": "carrot"
+ },
+ {
+  "key": "mango",
+  "category": "produce",
+  "icon": "citrus"
+ },
+ {
+  "key": "pineapple",
+  "category": "produce",
+  "icon": "citrus"
+ },
+ {
+  "key": "peach",
+  "category": "produce",
+  "icon": "citrus"
+ },
+ {
+  "key": "plum",
+  "category": "produce",
+  "icon": "grapes"
+ },
+ {
+  "key": "cherry",
+  "category": "produce",
+  "icon": "grapes"
+ },
+ {
+  "key": "raspberry",
+  "category": "produce",
+  "icon": "berries"
+ },
+ {
+  "key": "blackberry",
+  "category": "produce",
+  "icon": "berries"
+ },
+ {
+  "key": "apricot",
+  "category": "produce",
+  "icon": "citrus"
+ },
+ {
+  "key": "kiwi",
+  "category": "produce",
+  "icon": "citrus"
+ },
+ {
+  "key": "watermelon",
+  "category": "produce",
+  "icon": "citrus"
+ },
+ {
+  "key": "grapefruit",
+  "category": "produce",
+  "icon": "citrus"
+ },
+ {
+  "key": "pomegranate",
+  "category": "produce",
+  "icon": "citrus"
+ },
+ {
+  "key": "fig",
+  "category": "produce",
+  "icon": "citrus"
+ },
+ {
+  "key": "dates",
+  "category": "produce",
+  "icon": "nut"
+ },
+ {
+  "key": "cranberries",
+  "category": "produce",
+  "icon": "berries"
+ },
+ {
+  "key": "lemongrass",
+  "category": "produce",
+  "icon": "herb"
+ },
+ {
+  "key": "olives",
+  "category": "pantry",
+  "icon": "jar"
+ },
+ {
+  "key": "capers",
+  "category": "pantry",
+  "icon": "jar"
+ },
+ {
+  "key": "sauerkraut",
+  "category": "pantry",
+  "icon": "jar"
+ },
+ {
+  "key": "pickles",
+  "category": "pantry",
+  "icon": "jar"
+ },
+ {
+  "key": "jalapeno",
+  "category": "produce",
+  "icon": "chili"
+ },
+ {
+  "key": "horseradish",
+  "category": "pantry",
+  "icon": "jar"
+ },
+ {
+  "key": "sage",
+  "category": "produce",
+  "icon": "herb"
+ },
+ {
+  "key": "bay_leaf",
+  "category": "spices",
+  "icon": "leaf"
+ },
+ {
+  "key": "cardamom",
+  "category": "spices",
+  "icon": "spice_bowl"
+ },
+ {
+  "key": "coriander_seed",
+  "category": "spices",
+  "icon": "spice_bowl"
+ },
+ {
+  "key": "cloves",
+  "category": "spices",
+  "icon": "spice_bowl"
+ },
+ {
+  "key": "caraway",
+  "category": "spices",
+  "icon": "spice_bowl"
+ },
+ {
+  "key": "cayenne",
+  "category": "spices",
+  "icon": "chili"
+ },
+ {
+  "key": "allspice",
+  "category": "spices",
+  "icon": "spice_bowl"
+ },
+ {
+  "key": "anise",
+  "category": "spices",
+  "icon": "spice_bowl"
+ },
+ {
+  "key": "fennel_seed",
+  "category": "spices",
+  "icon": "spice_bowl"
+ },
+ {
+  "key": "mustard_seed",
+  "category": "spices",
+  "icon": "spice_bowl"
+ },
+ {
+  "key": "saffron",
+  "category": "spices",
+  "icon": "spice_bowl"
+ },
+ {
+  "key": "sesame",
+  "category": "pantry",
+  "icon": "grain"
+ },
+ {
+  "key": "sunflower_seeds",
+  "category": "pantry",
+  "icon": "grain"
+ },
+ {
+  "key": "pumpkin_seeds",
+  "category": "pantry",
+  "icon": "grain"
+ },
+ {
+  "key": "flaxseed",
+  "category": "pantry",
+  "icon": "grain"
+ },
+ {
+  "key": "chia_seeds",
+  "category": "pantry",
+  "icon": "grain"
+ },
+ {
+  "key": "pine_nuts",
+  "category": "pantry",
+  "icon": "nut"
+ },
+ {
+  "key": "cashews",
+  "category": "pantry",
+  "icon": "nut"
+ },
+ {
+  "key": "hazelnuts",
+  "category": "pantry",
+  "icon": "nut"
+ },
+ {
+  "key": "peanuts",
+  "category": "pantry",
+  "icon": "nut"
+ },
+ {
+  "key": "pistachios",
+  "category": "pantry",
+  "icon": "nut"
+ },
+ {
+  "key": "pecans",
+  "category": "pantry",
+  "icon": "nut"
+ },
+ {
+  "key": "coconut_flakes",
+  "category": "pantry",
+  "icon": "nut"
+ },
+ {
+  "key": "tahini",
+  "category": "pantry",
+  "icon": "jar"
+ },
+ {
+  "key": "breadcrumbs",
+  "category": "pantry",
+  "icon": "grain"
+ },
+ {
+  "key": "cornstarch",
+  "category": "pantry",
+  "icon": "flour"
+ },
+ {
+  "key": "semolina",
+  "category": "pantry",
+  "icon": "flour"
+ },
+ {
+  "key": "cornmeal",
+  "category": "pantry",
+  "icon": "flour"
+ },
+ {
+  "key": "bulgur",
+  "category": "pantry",
+  "icon": "grain"
+ },
+ {
+  "key": "quinoa",
+  "category": "pantry",
+  "icon": "grain"
+ },
+ {
+  "key": "cocoa_powder",
+  "category": "pantry",
+  "icon": "flour"
+ },
+ {
+  "key": "rice_noodles",
+  "category": "pantry",
+  "icon": "pasta"
+ },
+ {
+  "key": "egg_noodles",
+  "category": "pantry",
+  "icon": "pasta"
+ },
+ {
+  "key": "rye_flour",
+  "category": "pantry",
+  "icon": "flour"
+ },
+ {
+  "key": "spelt_flour",
+  "category": "pantry",
+  "icon": "flour"
+ },
+ {
+  "key": "buckwheat",
+  "category": "pantry",
+  "icon": "grain"
+ },
+ {
+  "key": "oat_flour",
+  "category": "pantry",
+  "icon": "flour"
+ },
+ {
+  "key": "almond_flour",
+  "category": "pantry",
+  "icon": "flour"
+ },
+ {
+  "key": "barley",
+  "category": "pantry",
+  "icon": "grain"
+ },
+ {
+  "key": "millet",
+  "category": "pantry",
+  "icon": "grain"
+ },
+ {
+  "key": "spelt",
+  "category": "pantry",
+  "icon": "grain"
+ },
+ {
+  "key": "white_beans",
+  "category": "pantry",
+  "icon": "beans"
+ },
+ {
+  "key": "black_beans",
+  "category": "pantry",
+  "icon": "beans"
+ },
+ {
+  "key": "red_lentils",
+  "category": "pantry",
+  "icon": "beans"
+ },
+ {
+  "key": "tomato_sauce",
+  "category": "pantry",
+  "icon": "can"
+ },
+ {
+  "key": "sun_dried_tomatoes",
+  "category": "pantry",
+  "icon": "jar"
+ },
+ {
+  "key": "lemon_juice",
+  "category": "pantry",
+  "icon": "bottle"
+ },
+ {
+  "key": "lime_juice",
+  "category": "pantry",
+  "icon": "bottle"
+ },
+ {
+  "key": "worcestershire",
+  "category": "pantry",
+  "icon": "squeeze_bottle"
+ },
+ {
+  "key": "fish_sauce",
+  "category": "pantry",
+  "icon": "squeeze_bottle"
+ },
+ {
+  "key": "hoisin_sauce",
+  "category": "pantry",
+  "icon": "squeeze_bottle"
+ },
+ {
+  "key": "teriyaki_sauce",
+  "category": "pantry",
+  "icon": "squeeze_bottle"
+ },
+ {
+  "key": "sweet_chili_sauce",
+  "category": "pantry",
+  "icon": "squeeze_bottle"
+ },
+ {
+  "key": "bbq_sauce",
+  "category": "pantry",
+  "icon": "squeeze_bottle"
+ },
+ {
+  "key": "miso",
+  "category": "pantry",
+  "icon": "jar"
+ },
+ {
+  "key": "sesame_oil",
+  "category": "pantry",
+  "icon": "bottle"
+ },
+ {
+  "key": "coconut_oil",
+  "category": "pantry",
+  "icon": "bottle"
+ },
+ {
+  "key": "sunflower_oil",
+  "category": "pantry",
+  "icon": "bottle"
+ },
+ {
+  "key": "rapeseed_oil",
+  "category": "pantry",
+  "icon": "bottle"
+ },
+ {
+  "key": "cider_vinegar",
+  "category": "pantry",
+  "icon": "bottle"
+ },
+ {
+  "key": "gelatin",
+  "category": "pantry",
+  "icon": "jar"
+ },
+ {
+  "key": "hazelnut_spread",
+  "category": "pantry",
+  "icon": "jar"
+ },
+ {
+  "key": "milk_chocolate",
+  "category": "pantry",
+  "icon": "chocolate"
+ },
+ {
+  "key": "cheddar",
+  "category": "fridge",
+  "icon": "cheese"
+ },
+ {
+  "key": "swiss_cheese",
+  "category": "fridge",
+  "icon": "cheese"
+ },
+ {
+  "key": "gouda",
+  "category": "fridge",
+  "icon": "cheese"
+ },
+ {
+  "key": "ricotta",
+  "category": "fridge",
+  "icon": "tub"
+ },
+ {
+  "key": "goat_cheese",
+  "category": "fridge",
+  "icon": "cheese"
+ },
+ {
+  "key": "cottage_cheese",
+  "category": "fridge",
+  "icon": "tub"
+ },
+ {
+  "key": "buttermilk",
+  "category": "fridge",
+  "icon": "milk"
+ },
+ {
+  "key": "greek_yogurt",
+  "category": "fridge",
+  "icon": "tub"
+ },
+ {
+  "key": "half_and_half",
+  "category": "fridge",
+  "icon": "milk"
+ },
+ {
+  "key": "soy_milk",
+  "category": "fridge",
+  "icon": "milk"
+ },
+ {
+  "key": "almond_milk",
+  "category": "fridge",
+  "icon": "milk"
+ },
+ {
+  "key": "egg_white",
+  "category": "fridge",
+  "icon": "egg"
+ },
+ {
+  "key": "egg_yolk",
+  "category": "fridge",
+  "icon": "egg"
+ },
+ {
+  "key": "ground_pork",
+  "category": "meat_fish",
+  "icon": "steak"
+ },
+ {
+  "key": "turkey",
+  "category": "meat_fish",
+  "icon": "drumstick"
+ },
+ {
+  "key": "lamb",
+  "category": "meat_fish",
+  "icon": "steak"
+ },
+ {
+  "key": "chicken_drumsticks",
+  "category": "meat_fish",
+  "icon": "drumstick"
+ },
+ {
+  "key": "cod",
+  "category": "meat_fish",
+  "icon": "fish"
+ },
+ {
+  "key": "trout",
+  "category": "meat_fish",
+  "icon": "fish"
+ },
+ {
+  "key": "anchovies",
+  "category": "meat_fish",
+  "icon": "fish"
+ },
+ {
+  "key": "smoked_salmon",
+  "category": "meat_fish",
+  "icon": "fish"
+ },
+ {
+  "key": "salami",
+  "category": "meat_fish",
+  "icon": "sausage"
+ },
+ {
+  "key": "chorizo",
+  "category": "meat_fish",
+  "icon": "sausage"
+ },
+ {
+  "key": "apple_juice",
+  "category": "drinks",
+  "icon": "bottle"
  }
 ]

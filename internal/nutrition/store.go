@@ -95,6 +95,27 @@ func (s *Service) facts(ctx context.Context, q store.Reader, sc store.Scoped, id
 				out.catalogue[l.ID] = true
 			}
 		}
+		// A household has one item per catalogue key, so a second item named
+		// like an alias ("Meersalz" next to "Salz") has no key. Its values
+		// are the entry's all the same.
+		var unlinked []struct {
+			ID   uuid.UUID
+			Name string
+		}
+		if err := q.Select(ctx, &unlinked, `SELECT id, name FROM items
+			WHERE household_id = ? AND catalog_key IS NULL AND id IN (`+in+`)`, args...); err != nil {
+			return known{}, err
+		}
+		for _, u := range unlinked {
+			e, ok := catalog.LookupAny("", u.Name)
+			if !ok {
+				continue
+			}
+			if f, ok := s.reference(e.Key); ok {
+				out.facts[u.ID] = f
+				out.catalogue[u.ID] = true
+			}
+		}
 	}
 
 	var rows []nutritionRow
