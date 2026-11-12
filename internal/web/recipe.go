@@ -186,7 +186,7 @@ func stepParts(rec recipes.Recipe, amounts []string, sys groceries.System, scope
 		for _, p := range recipes.Highlight(step.Text, rec.Ingredients, seen) {
 			part := ui.StepPart{Text: p.Text}
 			if p.Ingredient >= 0 {
-				part.Mention, part.Amount = true, amounts[p.Ingredient]
+				part.Mention, part.Amount, part.Icon = true, amounts[p.Ingredient], rec.Ingredients[p.Ingredient].Icon
 			} else {
 				part.Text = recipes.ConvertTemperatures(p.Text, sys)
 			}
