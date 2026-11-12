@@ -151,7 +151,7 @@ All tables also have `household_id` (except `households`, `users`) and `created_
 | shopping_lists | id, name, position (first = default), deleted_at (Undo for list delete). First-run setup creates the default list and categories in the household's language (categories carry `catalog_key`, see Default ingredients), in its transaction; startup backfills households created before P1b, so every GET stays read-only. |
 | list_entries | id, list_id, item_id, quantity, unit, amount_text, note, added_by, recipe_id (added in P2 with its FK), checked_at, deleted_at |
 | recipes | id, name, name_key, description, photo, prep_min, cook_min, servings, source_url, notes, notes_by, notes_at, draft, created_by, updated_by, deleted_at |
-| recipe_ingredients | id, recipe_id, item_id, quantity, unit, amount_text, optional, position |
+| recipe_ingredients | id, recipe_id, item_id, quantity, unit, amount_text, note, optional, position |
 | steps | id, recipe_id, position, text, timer_seconds (set per step in the editor, P4) |
 | tags / recipe_tags | id, name, name_key, pinned / recipe_id, tag_id |
 | favourites | user_id, recipe_id |
@@ -181,6 +181,7 @@ Derived, not stored: "on a list" per ingredient, times cooked (count of `cook_ev
 - Editing categories, items, tags, lists: everyone.
 - Live updates: SSE.
 - Amounts: structured quantity (decimal) + unit + original text; scaling acts on the structured part, free text like "1 thumb" is left as is. The parser is locale-aware: decimal comma ("1,5 kg"), fractions ("½", "1/2"), English and German units ("EL", "TL", "Prise", "Bund").
+- Recipe ingredients split the amount field (`groceries.ParseIngredientAmount`) into an amount and a `note`: "600 g gemischt" and "1 TL, rot" are 600 g / 1 tsp with a note, "2–3 EL" is a range with its midpoint as the quantity and the typed text kept, "ca. 80 g" keeps "ca." in the text, "1 Dose (400 g)" is one can with the note "(400 g)". Text without a leading number ("nach Geschmack") stays free text. The editor and API show amount and note as one field ("600 g, gemischt"); `jobs.SplitIngredientAmounts` splits existing rows at startup.
 - SSO: OIDC via `coreos/go-oidc`, optional and next to passwords (see Auth).
 - KitchenOwl import: later.
 
@@ -472,7 +473,7 @@ New package `internal/nutrition` (no SQL beyond `item_nutrition`/`item_unit_weig
 | `clove`, `slice`, `bunch`, `can`, `pack` | that unit's weight row | 2 cloves garlic |
 | `pinch` | 0.4 g | 1 pinch salt |
 | no `quantity` ("1 thumb", "1 handful", "2-3 cloves", "ca. 200 g", "2 large") | not counted | |
-| empty `amount_text` ("salt") | skipped: left out of both sides of the coverage count | |
+| empty `amount_text` ("salt") or text without a number ("to taste", "for frying") | skipped: left out of both sides of the coverage count, mentioned under the block | |
 | `optional` ingredient | left out of the total, mentioned under the block | |
 
 No guessing: a volume line for an item without density is not counted rather than assumed to be water. Conversion is independent of the viewer's metric/US setting; it uses the stored structured amount.
@@ -539,7 +540,7 @@ Daily targets and goals, meal-plan day or week totals, barcode lookup and Open F
 - **D2 Ship nutrition rows for the catalogue only.** Items outside the catalogue get data only by manual entry. Recommend yes; no fuzzy matching of free-text items to USDA names.
 - **D3 Coverage threshold: hide numbers under 50 % of counted ingredients.** Recommend 50 %. Alternative: always show with the warning.
 - **D4 Public recipe page shows nutrition** when above the threshold, estimate wording and credit, no missing list. Recommend show. Alternatives: hide, or a per-link switch (extra column on `recipe_shares`).
-- **D5 Parser: accept ranges ("2-3") and "ca." as a quantity** (a range would need a second quantity column or a midpoint stored as the quantity, so this touches the schema and scaling). Recommend a separate change before nutrition, since scaling and the shopping list benefit too, and the midpoint as the quantity with the typed text kept in `amount_text`. Alternative: leave as free text.
+- **D5 Parser: accept ranges ("2-3") and "ca." as a quantity** (built: `ParseIngredientAmount`, with the qualifier in `recipe_ingredients.note`) (a range would need a second quantity column or a midpoint stored as the quantity, so this touches the schema and scaling). Recommend a separate change before nutrition, since scaling and the shopping list benefit too, and the midpoint as the quantity with the typed text kept in `amount_text`. Alternative: leave as free text.
 - **D6 German BLS:** ask the Max Rubner-Institut for written confirmation of redistribution, as a background task. Recommend asking; nothing in v1 depends on it.
 - **D7 REST API:** leave nutrition out of `docs/api.md` for v1. Recommend out; add `nutrition` to the recipe resource when someone needs it.
 - **D8 Optional ingredients:** excluded from the total. Recommend excluded, with a note under the block. Alternative: include them.

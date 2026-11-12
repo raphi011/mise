@@ -212,6 +212,23 @@ func roundQuantity(q float64) float64 {
 	return math.Max(math.Round(q*100)/100, 0.01)
 }
 
+// AmountField is an ingredient's amount and note as one text, the way the
+// editor and the API show it: "600 g, gemischt". ParseIngredientAmount
+// splits it again.
+func AmountField(a groceries.Amount, note string, lang language.Tag) string {
+	text := a.Text
+	if text == "" {
+		text = DisplayAmount(a, lang)
+	}
+	switch {
+	case note == "":
+		return text
+	case text == "":
+		return note
+	}
+	return text + ", " + note
+}
+
 // DisplayAmount returns the text to show for an amount: the formatted
 // quantity when it has one, else what was typed.
 func DisplayAmount(a groceries.Amount, lang language.Tag) string {

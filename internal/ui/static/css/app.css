@@ -1860,7 +1860,7 @@ mark {
 .ingredient + .ingredient { border-top: 1px solid var(--surface-2); }
 .ingredient form { display: contents; }
 .ingredient__name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.ingredient__opt { margin-left: 6px; font-size: 12px; color: var(--muted); }
+.ingredient__opt, .ingredient__note { margin-left: 6px; font-size: 12px; color: var(--muted); }
 .ingredient__amount { font-size: 14px; color: var(--muted); text-align: right; }
 
 .list-toggle {

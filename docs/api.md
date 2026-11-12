@@ -71,6 +71,6 @@ Messages follow the token owner's language.
 }
 ```
 
-Ingredients and steps are either one line (amounts are read like the shopping list's add field, in the owner's language) or an object. To keep an existing ingredient across an update, send its `id` back. Photos are not part of the API yet.
+Ingredients and steps are either one line (amounts are read like the shopping list's add field, in the owner's language) or an object. An ingredient's `amount` may carry a note after the amount (`"600 g, gemischt"`, `"1 TL, rot"`); it is stored separately and returned joined again. To keep an existing ingredient across an update, send its `id` back. Photos are not part of the API yet.
 
 Amounts come back as one string ("400 g", "½ bunch"), formatted for the owner's language. Dates are `YYYY-MM-DD`; times are RFC 3339.

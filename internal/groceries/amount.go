@@ -368,3 +368,106 @@ func merge(a, b Amount, lang language.Tag) (Amount, bool) {
 	}
 	return Amount{}, false
 }
+
+// ParseIngredientAmount parses the amount field of a recipe ingredient into
+// an amount and a note: "600 g gemischt" is 600 g with the note "gemischt",
+// "1 TL, rot" one teaspoon with "rot", "1 Dose (400 g)" one can with
+// "(400 g)". A range ("2–3 EL") takes its midpoint as the quantity and keeps
+// the typed range as text; "ca." stays in the text. Text without a leading
+// number ("nach Geschmack", "zum Braten") is a free-text amount without a
+// note.
+func ParseIngredientAmount(input string, lang language.Tag) (Amount, string) {
+	s := normalizeSpace(input)
+	if s == "" {
+		return Amount{}, ""
+	}
+	head, tail := splitQualifier(s)
+	a, rest, ok := leadingIngredientAmount(head, lang)
+	if !ok {
+		return Amount{Text: s}, ""
+	}
+	note := rest
+	if tail != "" {
+		note = strings.Join(slicesNonEmpty(rest, tail), ", ")
+	}
+	return a, note
+}
+
+func slicesNonEmpty(parts ...string) []string {
+	var out []string
+	for _, p := range parts {
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// splitQualifier splits s at its first comma that is not a decimal comma:
+// "1 TL, rot" is "1 TL" and "rot"; "1,5 kg" is not split.
+func splitQualifier(s string) (head, tail string) {
+	for i := 1; i < len(s); i++ {
+		if s[i] != ',' {
+			continue
+		}
+		if isDigit(s[i-1]) && i+1 < len(s) && isDigit(s[i+1]) {
+			continue
+		}
+		return strings.TrimSpace(s[:i]), strings.TrimSpace(s[i+1:])
+	}
+	return s, ""
+}
+
+// leadingIngredientAmount is leadingAmount that also reads "ca." before the
+// number and a range after it.
+func leadingIngredientAmount(s string, lang language.Tag) (Amount, string, bool) {
+	body := s
+	for _, p := range []string{"ca. ", "ca ", "circa ", "~"} {
+		if strings.HasPrefix(strings.ToLower(body), p) {
+			body = strings.TrimSpace(body[len(p):])
+			break
+		}
+	}
+	if v, n, _, ok := numberPrefix(body, lang); ok {
+		if w, m, ok := rangeEnd(body[n:], lang); ok && w > v {
+			// Parse "mid rest" so the unit is found as usual, then show the
+			// typed range.
+			mid := strconv.FormatFloat((v+w)/2, 'f', -1, 64)
+			a, rest, ok := leadingAmount(mid+" "+strings.TrimSpace(body[n+m:]), lang)
+			if !ok {
+				return Amount{}, "", false
+			}
+			a.Text = strings.TrimSpace(s[:len(s)-len(rest)])
+			if rest != "" && !strings.HasSuffix(s, rest) {
+				return Amount{}, "", false
+			}
+			return a, rest, true
+		}
+	}
+	a, rest, ok := leadingAmount(body, lang)
+	if !ok {
+		return Amount{}, "", false
+	}
+	if body != s {
+		a.Text = strings.TrimSpace(s[:len(s)-len(rest)])
+	}
+	return a, rest, true
+}
+
+// rangeEnd reads "-3", " – 3" after the first number of a range and returns
+// the second number and the bytes consumed.
+func rangeEnd(s string, lang language.Tag) (v float64, n int, ok bool) {
+	t := strings.TrimLeft(s, " ")
+	skipped := len(s) - len(t)
+	r, size := utf8.DecodeRuneInString(t)
+	if r != '-' && r != '–' && r != '—' {
+		return 0, 0, false
+	}
+	u := strings.TrimLeft(t[size:], " ")
+	skipped += size + len(t[size:]) - len(u)
+	v, m, _, ok := numberPrefix(u, lang)
+	if !ok {
+		return 0, 0, false
+	}
+	return v, skipped + m, true
+}

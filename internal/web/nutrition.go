@@ -98,6 +98,9 @@ func nutritionBlock(ctx context.Context, recipeID uuid.UUID, res nutrition.Resul
 	if res.OptionalLeftOut > 0 {
 		n.LeftOut = pluralKey(ctx, res.OptionalLeftOut, "nutrition.leftOutOne", "nutrition.leftOut")
 	}
+	if res.OpenAmounts > 0 {
+		n.OpenAmounts = pluralKey(ctx, res.OpenAmounts, "nutrition.openAmountsOne", "nutrition.openAmounts")
+	}
 	next := url.QueryEscape("/recipes/" + recipeID.String())
 	for _, m := range res.Missing {
 		row := ui.NutritionMissing{Name: m.Name, Amount: amounts[m.Index]}

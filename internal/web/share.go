@@ -179,7 +179,7 @@ func (s *Server) sharedRecipePage(w http.ResponseWriter, r *http.Request) {
 	sys := viewerSystem(r)
 	amounts := scaledAmounts(ctx, rec, rec.Servings, sys)
 	for i, ing := range rec.Ingredients {
-		v.Ingredients = append(v.Ingredients, ui.IngredientView{Name: ing.ItemName, Amount: amounts[i], Optional: ing.Optional})
+		v.Ingredients = append(v.Ingredients, ui.IngredientView{Name: ing.ItemName, Amount: amounts[i], Note: ing.Note, Optional: ing.Optional})
 	}
 	v.Steps = stepParts(rec, amounts, sys, firstInMethod)
 	est, err := s.nutritionOf(ctx, sc, rec)

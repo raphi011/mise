@@ -74,6 +74,8 @@ type Ingredient struct {
 	ItemID   uuid.UUID
 	ItemName string
 	Amount   groceries.Amount
+	// Note is what follows the amount ("gemischt" in "600 g gemischt").
+	Note     string
 	Optional bool
 	// Icon is the icon key to show for the item, "" for none.
 	Icon string
@@ -129,6 +131,7 @@ type IngredientInput struct {
 	ItemID   *uuid.UUID
 	Name     string
 	Amount   groceries.Amount
+	Note     string
 	Optional bool
 	// Category names the category a new item is filed under when saving
 	// creates it (imports propose one); ignored for existing items and
@@ -157,6 +160,7 @@ const (
 	maxTagLen         = 40
 	maxItemNameLen    = 80
 	maxAmountLen      = 40
+	maxNoteLen        = 80
 	maxMinutes        = 24 * 60
 	maxTimerSeconds   = maxMinutes * 60
 	maxServings       = 100
@@ -238,6 +242,8 @@ func (in *Input) clean() error {
 			checkLen(errs, field, ing.Name, maxItemNameLen)
 		}
 		checkLen(errs, field, ing.Amount.Text, maxAmountLen)
+		ing.Note = strings.TrimSpace(ing.Note)
+		checkLen(errs, field, ing.Note, maxNoteLen)
 	}
 
 	steps := in.Steps[:0:0]
@@ -457,19 +463,19 @@ func (s *Service) writeIngredients(ctx context.Context, q store.Querier, sc stor
 		if stale[ing.ID] {
 			delete(stale, ing.ID)
 			if _, err := q.Exec(ctx, `UPDATE recipe_ingredients SET item_id = ?, quantity = ?, unit = ?, amount_text = ?,
-					optional = ?, position = ?, updated_at = ?
+					note = ?, optional = ?, position = ?, updated_at = ?
 				WHERE household_id = ? AND recipe_id = ? AND id = ?`,
 				itemID, ing.Amount.Quantity, nullable(ing.Amount.Unit), ing.Amount.Text,
-				ing.Optional, i, now, hh, id, ing.ID); err != nil {
+				ing.Note, ing.Optional, i, now, hh, id, ing.ID); err != nil {
 				return false, err
 			}
 			continue
 		}
 		if _, err := q.Exec(ctx, `INSERT INTO recipe_ingredients (id, household_id, recipe_id, item_id, quantity, unit,
-				amount_text, optional, position, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				amount_text, note, optional, position, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			store.NewID(), hh, id, itemID, ing.Amount.Quantity, nullable(ing.Amount.Unit),
-			ing.Amount.Text, ing.Optional, i, now, now); err != nil {
+			ing.Amount.Text, ing.Note, ing.Optional, i, now, now); err != nil {
 			return false, err
 		}
 	}
@@ -620,18 +626,19 @@ func loadMethod(ctx context.Context, q store.Reader, hh, id uuid.UUID, out *Reci
 		Quantity   *float64
 		Unit       *string
 		AmountText string
+		Note       string
 		Optional   bool
 		Icon       *string
 		CatalogKey *string
 	}
-	if err := q.Select(ctx, &ings, `SELECT ri.id, ri.item_id, i.name AS item_name, i.icon, i.catalog_key, ri.quantity, ri.unit, ri.amount_text, ri.optional
+	if err := q.Select(ctx, &ings, `SELECT ri.id, ri.item_id, i.name AS item_name, i.icon, i.catalog_key, ri.quantity, ri.unit, ri.amount_text, ri.note, ri.optional
 		FROM recipe_ingredients ri JOIN items i ON i.household_id = ri.household_id AND i.id = ri.item_id
 		WHERE ri.household_id = ? AND ri.recipe_id = ? ORDER BY ri.position`, hh, id); err != nil {
 		return err
 	}
 	for _, ri := range ings {
 		out.Ingredients = append(out.Ingredients, Ingredient{
-			ID: ri.ID, ItemID: ri.ItemID, ItemName: ri.ItemName, Optional: ri.Optional, Icon: groceries.ShowIcon(ri.Icon, ri.CatalogKey),
+			ID: ri.ID, ItemID: ri.ItemID, ItemName: ri.ItemName, Note: ri.Note, Optional: ri.Optional, Icon: groceries.ShowIcon(ri.Icon, ri.CatalogKey),
 			Amount: groceries.Amount{Quantity: ri.Quantity, Unit: deref(ri.Unit), Text: ri.AmountText},
 		})
 	}
