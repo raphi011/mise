@@ -134,6 +134,9 @@ templ SharedRecipePage(p Page, v SharedRecipeView) {
 							<p class="muted">{ i18n.T(ctx, "recipes.noSteps") }</p>
 						}
 					</section>
+					if v.Nutrition != nil {
+						@nutritionSection(*v.Nutrition)
+					}
 				</div>
 			</div>
 		</article>

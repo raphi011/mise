@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"net/url"
+
 	"github.com/raphi011/mise/internal/catalog"
 	"github.com/raphi011/mise/internal/i18n"
 )
@@ -380,6 +382,13 @@ templ entryEditForm(v EntryEditView, modal bool) {
 			</select>
 		</div>
 		@textField(Field{ID: "edit-note", Name: "note", Label: i18n.T(ctx, "groceries.edit.note"), LabelNote: i18n.T(ctx, "field.optional")}, v.Form)
+		<a class="list__link hit" href={ templ.SafeURL("/items/" + v.ItemID + "/nutrition?next=" + url.QueryEscape("/groceries/entries/"+v.ID+"/edit")) }>
+			<span class="list__text">
+				<span class="hit__name">{ i18n.T(ctx, "nutrition.title") }</span>
+				<span class="muted">{ i18n.T(ctx, "nutrition.entry.hint") }</span>
+			</span>
+			@chevron()
+		</a>
 		<div class="sheet__actions">
 			<button type="submit" form="entry-remove" class="btn btn--destructive">
 				@iconTrash()

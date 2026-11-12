@@ -535,7 +535,7 @@ func (s *Server) editView(ctx context.Context, sc store.Scoped, e groceries.Entr
 	if err != nil {
 		return ui.EntryEditView{}, err
 	}
-	v := ui.EntryEditView{ID: e.ID.String(), ItemName: e.ItemName, ItemIcon: e.ItemIcon, ListID: e.ListID.String(), Form: f}
+	v := ui.EntryEditView{ID: e.ID.String(), ItemID: e.ItemID.String(), ItemName: e.ItemName, ItemIcon: e.ItemIcon, ListID: e.ListID.String(), Form: f}
 	for _, k := range catalog.IconKeys() {
 		v.Icons = append(v.Icons, ui.IconOption{Key: k, Label: i18n.T(ctx, i18n.Key("icon."+k))})
 	}

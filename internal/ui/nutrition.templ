@@ -1,0 +1,161 @@
+package ui
+
+import "github.com/raphi011/mise/internal/i18n"
+
+// nutritionSection is the estimate per serving under the ingredients, on
+// the recipe page and the public page.
+templ nutritionSection(n NutritionView) {
+	<section class="recipe-section nutrition" id="nutrition" aria-labelledby="nutrition-title">
+		<div class="recipe-section__head">
+			<h2 class="recipe-section__title" id="nutrition-title">{ i18n.T(ctx, "nutrition.title") }</h2>
+			<span class="nutrition__tag">{ i18n.T(ctx, "nutrition.estimate") }</span>
+		</div>
+		<div class="nutrition__card">
+			if n.Show {
+				<p class="nutrition__energy">
+					<span class="nutrition__kcal">{ n.Kcal }</span>
+					<span class="nutrition__unit">{ i18n.T(ctx, "nutrition.kcal") }</span>
+					<span class="muted">{ n.PerServing }</span>
+				</p>
+				if n.Split != [3]int{} {
+					<div class="nutrition__split" aria-hidden="true">
+						<span class="nutrition__seg nutrition__seg--protein" style={ "flex: " + itoa(n.Split[0]) }></span>
+						<span class="nutrition__seg nutrition__seg--fat" style={ "flex: " + itoa(n.Split[1]) }></span>
+						<span class="nutrition__seg nutrition__seg--carbs" style={ "flex: " + itoa(n.Split[2]) }></span>
+					</div>
+				}
+				<dl class="nutrition__macros">
+					if n.Protein != "" {
+						<div><dt><span class="nutrition__key nutrition__key--protein" aria-hidden="true"></span>{ i18n.T(ctx, "nutrition.protein") }</dt><dd>{ n.Protein }</dd></div>
+					}
+					if n.Fat != "" {
+						<div><dt><span class="nutrition__key nutrition__key--fat" aria-hidden="true"></span>{ i18n.T(ctx, "nutrition.fat") }</dt><dd>{ n.Fat }</dd></div>
+					}
+					if n.Carbs != "" {
+						<div><dt><span class="nutrition__key nutrition__key--carbs" aria-hidden="true"></span>{ i18n.T(ctx, "nutrition.carbs") }</dt><dd>{ n.Carbs }</dd></div>
+					}
+				</dl>
+				if len(n.More) > 0 {
+					<details class="nutrition__more">
+						<summary>{ i18n.T(ctx, "nutrition.more") }</summary>
+						<dl class="nutrition__rows">
+							for _, r := range n.More {
+								<div><dt>{ r.Label }</dt><dd>{ r.Value }</dd></div>
+							}
+						</dl>
+					</details>
+				}
+			} else {
+				<div class="nutrition__empty">
+					<strong>{ i18n.T(ctx, "nutrition.notEnough") }</strong>
+					<span>{ n.NotEnough }</span>
+				</div>
+			}
+			if n.Coverage != "" {
+				<p class="nutrition__coverage" role="status">
+					<span class="nutrition__dots" aria-hidden="true">
+						for i := range n.Of {
+							<span class={ "nutrition__dot", templ.KV("nutrition__dot--on", i < n.Counted) }></span>
+						}
+					</span>
+					{ n.Coverage }
+				</p>
+			}
+			if n.LeftOut != "" {
+				<p class="muted nutrition__note">{ n.LeftOut }</p>
+			}
+			if len(n.Missing) > 0 && !n.Public {
+				<details class="nutrition__missing" open?={ !n.Show }>
+					<summary>{ i18n.T(ctx, "nutrition.missing", len(n.Missing)) }</summary>
+					<ul class="nutrition__list" role="list">
+						for _, m := range n.Missing {
+							<li>
+								<span class="nutrition__what">
+									<span class="nutrition__name">{ m.Name }<span class="muted"> { m.Amount }</span></span>
+									<span class="muted">{ m.Why }</span>
+								</span>
+								<a class="section-action" href={ templ.SafeURL(m.Href) }>{ m.Action }</a>
+							</li>
+						}
+					</ul>
+				</details>
+			}
+			<p class="muted nutrition__credit">{ n.Credit }</p>
+		</div>
+	</section>
+}
+
+// NutritionEditPage edits an item's nutrition values and weights.
+templ NutritionEditPage(p Page, v NutritionEditView) {
+	@Layout(p) {
+		<div class="narrow stack">
+			<p class="lead">{ i18n.T(ctx, "nutrition.edit.lead", v.Name) }</p>
+			<p class="muted">{ v.Used }</p>
+			if v.Note != "" {
+				<p class="notice" role="status">{ v.Note }</p>
+			}
+			<form class="stack" method="post" action={ templ.SafeURL("/items/" + v.ID + "/nutrition") } novalidate>
+				<input type="hidden" name="next" value={ v.Next }/>
+				@formAlert(v.Form)
+				<div class="nutrition-form__grid">
+					@nutrientField("nutri-kcal", "kcal", i18n.T(ctx, "nutrition.energy"), i18n.T(ctx, "nutrition.kcal"), true, v.Form)
+					@nutrientField("nutri-protein", "protein", i18n.T(ctx, "nutrition.protein"), "g", false, v.Form)
+					@nutrientField("nutri-fat", "fat", i18n.T(ctx, "nutrition.fat"), "g", false, v.Form)
+					@nutrientField("nutri-sat", "saturated_fat", i18n.T(ctx, "nutrition.fatSaturated"), "g", false, v.Form)
+					@nutrientField("nutri-carbs", "carbs", i18n.T(ctx, "nutrition.carbs"), "g", false, v.Form)
+					@nutrientField("nutri-sugars", "sugars", i18n.T(ctx, "nutrition.sugars"), "g", false, v.Form)
+					@nutrientField("nutri-fibre", "fibre", i18n.T(ctx, "nutrition.fibre"), "g", false, v.Form)
+					@nutrientField("nutri-salt", "salt", i18n.T(ctx, "nutrition.salt"), "g", false, v.Form)
+				</div>
+				<p class="muted">{ i18n.T(ctx, "nutrition.per100g") }</p>
+				<fieldset class="stack">
+					<legend class="field__label">{ i18n.T(ctx, "nutrition.weights") }</legend>
+					<p class="muted">{ i18n.T(ctx, "nutrition.weightsHint") }</p>
+					<div class="nutrition-form__grid">
+						@nutrientField("nutri-density", "per100ml", i18n.T(ctx, "nutrition.per100ml"), "g", false, v.Form)
+						for _, u := range v.Units {
+							@nutrientField("nutri-"+u.Name, u.Name, u.Label, "g", false, v.Form)
+						}
+					</div>
+				</fieldset>
+				<div class="sheet__actions">
+					if v.Has {
+						<button type="submit" class="btn btn--secondary" formaction={ "/items/" + v.ID + "/nutrition/clear" }>{ v.ClearLabel }</button>
+					}
+					<button type="submit" class="btn btn--primary sheet__save">{ i18n.T(ctx, "nutrition.save") }</button>
+				</div>
+			</form>
+		</div>
+	}
+}
+
+templ nutrientField(id, name, label, unit string, required bool, form Form) {
+	<div class="field">
+		<label class="field__label" for={ id }>
+			{ label }
+			if !required {
+				<span class="field__note">{ i18n.T(ctx, "field.optional") }</span>
+			}
+		</label>
+		<div class="nutrition-form__input">
+			<input
+				class="input"
+				id={ id }
+				name={ name }
+				type="text"
+				inputmode="decimal"
+				autocomplete="off"
+				value={ form.Value(name) }
+				if required {
+					required
+				}
+				if form.Error(name) != "" {
+					aria-invalid="true"
+					aria-describedby={ id + "-error" }
+				}
+			/>
+			<span class="nutrition-form__unit">{ unit }</span>
+		</div>
+		@fieldError(id+"-error", form.Error(name))
+	</div>
+}

@@ -163,8 +163,8 @@ All tables also have `household_id` (except `households`, `users`) and `created_
 | api_tokens | id, household_id, user_id (composite FK to memberships), name, token_hash (SHA-256, unique), scope (`read`, `write`), expires_at, last_used_at, created_at, updated_at; global like sessions (looked up by hash) |
 | recipe_links | recipe_id, linked_id; one row per direction, written and deleted in pairs ("Goes well with", see Linked recipes) |
 | recipe_shares | recipe_id (one link per recipe), token (unique, stored as issued), created_by (see Public recipe links) |
-| item_nutrition | item_id (PK with household_id), kcal, protein_g, fat_g, saturated_fat_g, carbs_g, sugars_g, fibre_g, sodium_mg (all per 100 g, nullable except kcal), density_g_ml (nullable), updated_by (see Nutrition; decided, not built) |
-| item_unit_weights | item_id, unit (`piece`, `clove`, `slice`, `bunch`, `can`, `pack`), grams; PK (household_id, item_id, unit) (see Nutrition; decided, not built) |
+| item_nutrition | item_id (PK with household_id), kcal, protein_g, fat_g, saturated_fat_g, carbs_g, sugars_g, fibre_g, sodium_mg (all per 100 g, nullable except kcal), density_g_ml (nullable), updated_by (see Nutrition) |
+| item_unit_weights | item_id, unit (`piece`, `clove`, `slice`, `bunch`, `can`, `pack`), grams; PK (household_id, item_id, unit) (see Nutrition) |
 
 Derived, not stored: "on a list" per ingredient, times cooked (count of `cook_events`), "not cooked in a month", suggestion ranking, nutrition per serving (see Nutrition).
 
@@ -439,9 +439,11 @@ Recommended: catalogue entries stay virtual until used.
 - **Headers** on every `/s/` response, 404s included: `X-Robots-Tag: noindex, nofollow, noarchive`, `Referrer-Policy: no-referrer` (the token is in the URL; the source link also has `rel="noreferrer"`), `Cache-Control: no-store` (the photo as above); the page repeats robots and referrer as `<meta>`. An unknown, revoked or binned link answers 404 "This link doesn't work" without the app shell and without saying which. Logs record the route pattern, never the token.
 - Routes: `POST /recipes/{id}/share` (create), `POST /recipes/{id}/share/revoke`; both answer Datastar with the menu's link entry and a toast, and a form post with a redirect to the menu page. Schema: `recipe_shares` (migration `00011_recipe_shares`): household_id, recipe_id (primary key with household_id; composite FK to recipes, cascade), token (unique), created_by (composite FK to memberships), created_at, updated_at.
 
-### Nutrition (decided, not built)
+### Nutrition
 
 Per-serving nutrition on the recipe page, estimated from the ingredients. An estimate, labelled as one. Decisions D1–D8 at the end of this section are all decided as recommended (user, 2026-11-12).
+
+**Status.** Built: migration `00014_nutrition`, `internal/nutrition` (gram conversion, calculation, per-household values and weights, validation), the lookup through `items.catalog_key` (`catalog.NutritionFor`, `internal/catalog/data/nutrition.json`; a household's values replace the catalogue's, weights merge per unit, Clear goes back to the catalogue), the recipe block, the item editor at `/items/{id}/nutrition` (also linked from the grocery entry sheet), the public page block, `groceries.BaseAmount`, i18n and live updates. **Not built yet:** the data itself: `nutrition.json` is `{}` until the FoodData Central import (the build step in "Build step, not runtime") is written and run, and the parser change of D5. Until then every value comes from a household typing it in, the block's footnote does not name USDA (it does as soon as the file has rows), and `docs/credits.md` says so. The sections below describe the full design.
 
 #### Data source
 
@@ -484,9 +486,9 @@ No guessing: a volume line for an item without density is not counted rather tha
 - **Servings scaling does not change per-serving figures** (amounts and servings scale together). The detail page's scaler changes the amounts only; the block says "per serving" and is not recomputed on the client. No total for the whole recipe in v1.
 - Rounding: kcal to 5, grams to 1 (0.1 below 10), sodium to 10 mg. Salt is shown as sodium × 2.5 / 1000 in grams, EU-style.
 - **Coverage.** `counted` = lines with grams; `of` = non-optional lines with an amount. The block always states it when `counted < of`: "Based on 7 of 9 ingredients". Under 50 % (D3) the numbers are hidden: "Not enough data yet. 3 of 9 ingredients have nutrition." The detail list (disclosure) names each uncounted line with its reason: "no nutrition data", "no weight for 'handful'", "no density for volumes", and links to the item editor where fixable.
-- All figures are labelled "estimate"; the data credit sits under the block.
+- All figures are labelled "estimate"; a footnote under the block says what the estimate rests on (naming USDA once the embedded data ships).
 
-#### Schema (new migration, number after the catalogue's, both dialects)
+#### Schema (migration `00014_nutrition`, both dialects)
 
 SQLite shown; Postgres: `uuid` ids, `double precision`, `timestamptz`, same names and keys. `TestSchemaParity` covers both.
 
@@ -522,7 +524,7 @@ Timestamps bound from Go (`store.T`). `item_id` is the leading key column after 
 - **Recipe detail:** a "Nutrition per serving" block under the ingredients (beside the method on wide screens): kcal large, then protein, fat, carbs, with saturated fat, sugars, fibre and salt in a disclosure. Partial coverage adds the line "Based on 7 of 9 ingredients" and the "What's missing" list. Shown whenever the recipe has ingredients; with too little counted it is the "Not enough data" state.
 - **Item editor (edit sheet):** a "Nutrition" section: source line ("From catalogue · USDA", "Custom"), kcal and 7 nutrient fields per 100 g, "1 l weighs … g" (density, entered as g per 100 ml), unit weights ("1 piece = … g", add row for clove, slice, bunch, can, pack). "Reset to catalogue" deletes the household rows when the item has a catalogue key. Validation in `internal/nutrition` returns `FieldErrors` keyed by form field: non-negative, kcal ≤ 900, protein + fat + carbs + fibre ≤ 100 g. Plain form post works without JavaScript like every other form.
 - **Entry points and design:** boards "Nutrition · …" on the design canvas (recipe page phone, tablet and desktop in both themes, "not enough data" state, item editor with a validation error, public page). The editor opens from a "Nutrition" row in the existing item edit sheet and from the recipe's "What's missing" rows. Label values are typed as salt in grams (EU packs) and stored as sodium.
-- **Public recipe page:** shows the per-serving block when coverage is at least the threshold, with the estimate wording and the data credit, without the "what's missing" list (D4).
+- **Public recipe page:** shows the per-serving block when coverage is at least the threshold, with the estimate wording, without the "what's missing" list (D4). It sits under the method in the main column, not under the ingredients, because the ingredients card is sticky on wide screens and a taller sticky column would cut off its bottom.
 - **Live:** saving an item's nutrition publishes `recipe.changed` for each recipe using the item, like linked recipes do, so open recipe pages recalculate.
 - **i18n keys** (en and de, `i18n.Key` constants): `nutrition.title`, `nutrition.per_serving`, `nutrition.estimate`, `nutrition.kcal`, `nutrition.protein`, `nutrition.fat`, `nutrition.fat_saturated`, `nutrition.carbs`, `nutrition.sugars`, `nutrition.fibre`, `nutrition.salt`, `nutrition.coverage` ("Based on {counted} of {of} ingredients", plural-aware), `nutrition.not_enough`, `nutrition.missing_title`, `nutrition.missing_no_data`, `nutrition.missing_no_weight`, `nutrition.missing_no_density`, `nutrition.optional_left_out`, `nutrition.source_catalogue`, `nutrition.source_custom`, `nutrition.credit`, `nutrition.edit_title`, `nutrition.per_100g`, `nutrition.density`, `nutrition.unit_weight`, `nutrition.add_weight`, `nutrition.reset`, `nutrition.err_range`, `nutrition.err_macros`.
 - **Tests:** conversion table tests per unit rule (no DB); calculation with partial coverage and servings; isolation cases for `item_nutrition` and `item_unit_weights` reads and writes in `internal/nutrition/isolation_test.go`; a test that every `nutrition.json` row has a key in the catalogue, an FDC ID, kcal ≤ 900 and macros ≤ 100 g; web tests (`b.post` and `b.datastar`) for the item editor and the recipe block; `go test` on both engines.

@@ -22,6 +22,7 @@ import (
 	"github.com/raphi011/mise/internal/images"
 	"github.com/raphi011/mise/internal/live"
 	"github.com/raphi011/mise/internal/mail"
+	"github.com/raphi011/mise/internal/nutrition"
 	"github.com/raphi011/mise/internal/plan"
 	"github.com/raphi011/mise/internal/recipes"
 	"github.com/raphi011/mise/internal/sso"
@@ -79,6 +80,7 @@ type Server struct {
 	live      *live.Hub
 	groceries *groceries.Service
 	recipes   *recipes.Service
+	nutrition *nutrition.Service
 	plan      *plan.Service
 	ai        *ai.Service
 	// aiConfig is what ai was built from; tests rebuild it with fakes.
@@ -149,6 +151,7 @@ func New(cfg config.Config, db *store.DB, log *slog.Logger) (*Server, error) {
 	s.live = live.NewHub()
 	s.groceries = groceries.New(s.live, nil)
 	s.recipes = recipes.New(s.live, s.groceries, nil)
+	s.nutrition = nutrition.New(s.live, nil)
 	s.plan = plan.New(s.live, s.recipes, s.now)
 	s.images = images.New(cfg.DataDir)
 	key, err := ai.LoadKey(cfg.SecretKey, cfg.DataDir)
@@ -451,6 +454,9 @@ func (s *Server) routes(r *router) {
 	r.write(http.MethodPost, "/groceries/entries/{id}/edit", s.user(s.saveEntry))
 	r.write(http.MethodPost, "/groceries/entries/{id}/remove", s.user(s.removeEntry))
 	r.write(http.MethodPost, "/groceries/entries/{id}/restore", s.user(s.restoreEntry))
+	r.read("/items/{id}/nutrition", s.user(s.nutritionPage))
+	r.write(http.MethodPost, "/items/{id}/nutrition", s.user(s.saveNutrition))
+	r.write(http.MethodPost, "/items/{id}/nutrition/clear", s.user(s.clearNutrition))
 	r.read("/live", s.user(s.liveStream))
 
 	// Settings.

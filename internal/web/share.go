@@ -182,6 +182,12 @@ func (s *Server) sharedRecipePage(w http.ResponseWriter, r *http.Request) {
 		v.Ingredients = append(v.Ingredients, ui.IngredientView{Name: ing.ItemName, Amount: amounts[i], Optional: ing.Optional})
 	}
 	v.Steps = stepParts(rec, amounts, sys, firstInMethod)
+	est, err := s.nutritionOf(ctx, sc, rec)
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	v.Nutrition = nutritionBlock(ctx, rec.ID, est, nil, true)
 	page := ui.Page{Title: rec.Name, Public: true, Description: ui.SharedSummary(ctx, rec.Description, v)}
 	if v.PhotoURL != "" {
 		page.Image = s.publicOrigin(r) + v.PhotoURL

@@ -182,6 +182,9 @@ type RecipeView struct {
 	Gone bool
 	// Toast, when set, shows on the page as it loads.
 	Toast *Toast
+	// Nutrition is the estimate per serving, nil when the recipe has no
+	// ingredients with an amount.
+	Nutrition *NutritionView
 }
 
 // LinkView is a linked recipe under "Goes well with".
@@ -217,6 +220,8 @@ type IngredientView struct {
 	Amount   string
 	Optional bool
 	On       bool
+	// Uncounted marks an ingredient that is not in the nutrition estimate.
+	Uncounted bool
 }
 
 // StepPart is plain text, or an ingredient mention with its amount.
@@ -261,6 +266,8 @@ type SharedRecipeView struct {
 	SourceHost  string
 	Ingredients []IngredientView
 	Steps       [][]StepPart
+	// Nutrition is the estimate per serving, nil when it is not shown.
+	Nutrition *NutritionView
 }
 
 // DeleteRecipeView is the delete confirmation.

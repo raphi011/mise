@@ -127,11 +127,18 @@ func (s *Server) recipeView(ctx context.Context, sc store.Scoped, id *auth.Ident
 		v.NotesWhen = dayMonth(ctx, *rec.NotesAt, loc)
 	}
 
+	est, err := s.nutritionOf(ctx, sc, rec)
+	if err != nil {
+		return ui.RecipeView{}, err
+	}
 	sys := unitSystem(id)
+	v.Nutrition = nutritionBlock(ctx, rec.ID, est, scaledAmounts(ctx, rec, rec.Servings, sys), false)
+
 	amounts := scaledAmounts(ctx, rec, servings, sys)
 	for i, ing := range rec.Ingredients {
 		v.Ingredients = append(v.Ingredients, ui.IngredientView{
 			ID: ing.ID.String(), Name: ing.ItemName, Amount: amounts[i], Optional: ing.Optional, On: st.On[ing.ItemID],
+			Uncounted: est.Lines[i].Uncounted,
 		})
 	}
 	on, total := st.Count(rec.Ingredients)
