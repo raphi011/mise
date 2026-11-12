@@ -1,1 +1,1793 @@
-{}
+{
+ "almonds": {
+  "fdc_id": 2346393,
+  "kcal": 625.75,
+  "protein_g": 21.45,
+  "fat_g": 51.09,
+  "saturated_fat_g": 3.79,
+  "carbs_g": 9.25,
+  "sugars_g": null,
+  "fibre_g": 10.78,
+  "sodium_mg": 0,
+  "density_g_ml": null,
+  "weights": null
+ },
+ "apple": {
+  "fdc_id": 171688,
+  "kcal": 52,
+  "protein_g": 0.26,
+  "fat_g": 0.17,
+  "saturated_fat_g": 0.03,
+  "carbs_g": 11.41,
+  "sugars_g": 10.39,
+  "fibre_g": 2.4,
+  "sodium_mg": 1,
+  "density_g_ml": null,
+  "weights": {
+   "piece": 182
+  }
+ },
+ "arugula": {
+  "fdc_id": 2710822,
+  "kcal": 30.99,
+  "protein_g": 1.65,
+  "fat_g": 0.33,
+  "saturated_fat_g": null,
+  "carbs_g": 3.09,
+  "sugars_g": null,
+  "fibre_g": 2.28,
+  "sodium_mg": 86.93,
+  "density_g_ml": null,
+  "weights": null
+ },
+ "avocado": {
+  "fdc_id": 171705,
+  "kcal": 160,
+  "protein_g": 2,
+  "fat_g": 14.66,
+  "saturated_fat_g": 2.13,
+  "carbs_g": 1.83,
+  "sugars_g": 0.66,
+  "fibre_g": 6.7,
+  "sodium_mg": 7,
+  "density_g_ml": null,
+  "weights": {
+   "piece": 201
+  }
+ },
+ "bacon": {
+  "fdc_id": 168277,
+  "kcal": 393,
+  "protein_g": 13.66,
+  "fat_g": 37.13,
+  "saturated_fat_g": 12.62,
+  "carbs_g": 0,
+  "sugars_g": 0.35,
+  "fibre_g": 0,
+  "sodium_mg": 751,
+  "density_g_ml": null,
+  "weights": {
+   "pack": 150,
+   "slice": 28
+  }
+ },
+ "baguette": {
+  "fdc_id": 172675,
+  "kcal": 272,
+  "protein_g": 10.75,
+  "fat_g": 2.42,
+  "saturated_fat_g": 0.53,
+  "carbs_g": 49.68,
+  "sugars_g": 4.62,
+  "fibre_g": 2.2,
+  "sodium_mg": 602,
+  "density_g_ml": null,
+  "weights": {
+   "piece": 250
+  }
+ },
+ "baking_powder": {
+  "fdc_id": 172804,
+  "kcal": 51,
+  "protein_g": 0.1,
+  "fat_g": 0,
+  "saturated_fat_g": 0,
+  "carbs_g": 23.9,
+  "sugars_g": 0,
+  "fibre_g": 0.2,
+  "sodium_mg": 7893,
+  "density_g_ml": 0.933,
+  "weights": null
+ },
+ "baking_soda": {
+  "fdc_id": 175040,
+  "kcal": 0,
+  "protein_g": 0,
+  "fat_g": 0,
+  "saturated_fat_g": 0,
+  "carbs_g": 0,
+  "sugars_g": 0,
+  "fibre_g": 0,
+  "sodium_mg": 27360,
+  "density_g_ml": 0.933,
+  "weights": null
+ },
+ "balsamic_vinegar": {
+  "fdc_id": 172241,
+  "kcal": 88,
+  "protein_g": 0.49,
+  "fat_g": 0,
+  "saturated_fat_g": 0,
+  "carbs_g": 17.03,
+  "sugars_g": 14.95,
+  "fibre_g": null,
+  "sodium_mg": 23,
+  "density_g_ml": 1.078,
+  "weights": null
+ },
+ "banana": {
+  "fdc_id": 173944,
+  "kcal": 89,
+  "protein_g": 1.09,
+  "fat_g": 0.33,
+  "saturated_fat_g": 0.11,
+  "carbs_g": 20.24,
+  "sugars_g": 12.23,
+  "fibre_g": 2.6,
+  "sodium_mg": 1,
+  "density_g_ml": null,
+  "weights": {
+   "piece": 118
+  }
+ },
+ "basil": {
+  "fdc_id": 172232,
+  "kcal": 23,
+  "protein_g": 3.15,
+  "fat_g": 0.64,
+  "saturated_fat_g": 0.04,
+  "carbs_g": 1.05,
+  "sugars_g": 0.3,
+  "fibre_g": 1.6,
+  "sodium_mg": 4,
+  "density_g_ml": 0.179,
+  "weights": {
+   "bunch": 30
+  }
+ },
+ "basmati_rice": {
+  "fdc_id": 2512381,
+  "kcal": 358.71,
+  "protein_g": 7.04,
+  "fat_g": 1.03,
+  "saturated_fat_g": null,
+  "carbs_g": 80.16,
+  "sugars_g": null,
+  "fibre_g": 0.15,
+  "sodium_mg": 0.46,
+  "density_g_ml": 0.782,
+  "weights": null
+ },
+ "beef": {
+  "fdc_id": 2646173,
+  "kcal": 140.64,
+  "protein_g": 21.48,
+  "fat_g": 5.7,
+  "saturated_fat_g": 1.7,
+  "carbs_g": 0.85,
+  "sugars_g": null,
+  "fibre_g": null,
+  "sodium_mg": 45.54,
+  "density_g_ml": null,
+  "weights": null
+ },
+ "beer": {
+  "fdc_id": 168746,
+  "kcal": 43,
+  "protein_g": 0.46,
+  "fat_g": 0,
+  "saturated_fat_g": 0,
+  "carbs_g": 3.55,
+  "sugars_g": 0,
+  "fibre_g": 0,
+  "sodium_mg": 4,
+  "density_g_ml": 1.004,
+  "weights": null
+ },
+ "bell_pepper": {
+  "fdc_id": 2258590,
+  "kcal": 31.33,
+  "protein_g": 0.9,
+  "fat_g": 0.13,
+  "saturated_fat_g": null,
+  "carbs_g": 5.49,
+  "sugars_g": null,
+  "fibre_g": 1.16,
+  "sodium_mg": 0,
+  "density_g_ml": null,
+  "weights": {
+   "piece": 164
+  }
+ },
+ "black_pepper": {
+  "fdc_id": 170931,
+  "kcal": 251,
+  "protein_g": 10.39,
+  "fat_g": 3.26,
+  "saturated_fat_g": 1.39,
+  "carbs_g": 38.65,
+  "sugars_g": 0.64,
+  "fibre_g": 25.3,
+  "sodium_mg": 20,
+  "density_g_ml": 0.467,
+  "weights": null
+ },
+ "blueberry": {
+  "fdc_id": 2346411,
+  "kcal": 63.86,
+  "protein_g": 0.7,
+  "fat_g": 0.31,
+  "saturated_fat_g": null,
+  "carbs_g": 14.57,
+  "sugars_g": 9.36,
+  "fibre_g": null,
+  "sodium_mg": 0,
+  "density_g_ml": null,
+  "weights": null
+ },
+ "bread": {
+  "fdc_id": 174924,
+  "kcal": 266,
+  "protein_g": 8.85,
+  "fat_g": 3.33,
+  "saturated_fat_g": 0.7,
+  "carbs_g": 46.72,
+  "sugars_g": 5.67,
+  "fibre_g": 2.7,
+  "sodium_mg": 490,
+  "density_g_ml": null,
+  "weights": {
+   "slice": 29
+  }
+ },
+ "bread_rolls": {
+  "fdc_id": 172793,
+  "kcal": 310,
+  "protein_g": 10.86,
+  "fat_g": 6.47,
+  "saturated_fat_g": 1.38,
+  "carbs_g": 50.04,
+  "sugars_g": 5.55,
+  "fibre_g": 2,
+  "sodium_mg": 467,
+  "density_g_ml": null,
+  "weights": {
+   "piece": 55
+  }
+ },
+ "broccoli": {
+  "fdc_id": 321900,
+  "kcal": 32,
+  "protein_g": 2.57,
+  "fat_g": 0.34,
+  "saturated_fat_g": 0.04,
+  "carbs_g": 3.89,
+  "sugars_g": 1.4,
+  "fibre_g": 2.4,
+  "sodium_mg": 36,
+  "density_g_ml": null,
+  "weights": null
+ },
+ "brown_sugar": {
+  "fdc_id": 168833,
+  "kcal": 380,
+  "protein_g": 0.12,
+  "fat_g": 0,
+  "saturated_fat_g": 0,
+  "carbs_g": 98.09,
+  "sugars_g": 97.02,
+  "fibre_g": 0,
+  "sodium_mg": 28,
+  "density_g_ml": 0.93,
+  "weights": null
+ },
+ "butter": {
+  "fdc_id": 173410,
+  "kcal": 717,
+  "protein_g": 0.85,
+  "fat_g": 81.11,
+  "saturated_fat_g": 51.37,
+  "carbs_g": 0.06,
+  "sugars_g": 0.06,
+  "fibre_g": 0,
+  "sodium_mg": 643,
+  "density_g_ml": 0.959,
+  "weights": {
+   "pack": 250
+  }
+ },
+ "cabbage": {
+  "fdc_id": 169975,
+  "kcal": 25,
+  "protein_g": 1.28,
+  "fat_g": 0.1,
+  "saturated_fat_g": 0.03,
+  "carbs_g": 3.3,
+  "sugars_g": 3.2,
+  "fibre_g": 2.5,
+  "sodium_mg": 18,
+  "density_g_ml": null,
+  "weights": null
+ },
+ "canned_tomatoes": {
+  "fdc_id": 170501,
+  "kcal": 32,
+  "protein_g": 1.64,
+  "fat_g": 0.28,
+  "saturated_fat_g": 0.04,
+  "carbs_g": 5.39,
+  "sugars_g": 4.4,
+  "fibre_g": 1.9,
+  "sodium_mg": 186,
+  "density_g_ml": 1.023,
+  "weights": {
+   "can": 400
+  }
+ },
+ "carrot": {
+  "fdc_id": 170393,
+  "kcal": 41,
+  "protein_g": 0.93,
+  "fat_g": 0.24,
+  "saturated_fat_g": 0.03,
+  "carbs_g": 6.78,
+  "sugars_g": 4.74,
+  "fibre_g": 2.8,
+  "sodium_mg": 69,
+  "density_g_ml": null,
+  "weights": {
+   "piece": 61
+  }
+ },
+ "cauliflower": {
+  "fdc_id": 2685573,
+  "kcal": 27.59,
+  "protein_g": 1.64,
+  "fat_g": 0.24,
+  "saturated_fat_g": null,
+  "carbs_g": 2.77,
+  "sugars_g": null,
+  "fibre_g": 1.95,
+  "sodium_mg": 20,
+  "density_g_ml": null,
+  "weights": null
+ },
+ "celery": {
+  "fdc_id": 2346405,
+  "kcal": 16.7,
+  "protein_g": 0.49,
+  "fat_g": 0.16,
+  "saturated_fat_g": null,
+  "carbs_g": 3.32,
+  "sugars_g": null,
+  "fibre_g": null,
+  "sodium_mg": 97.21,
+  "density_g_ml": null,
+  "weights": {
+   "piece": 40
+  }
+ },
+ "cheese": {
+  "fdc_id": 328637,
+  "kcal": 408,
+  "protein_g": 23.3,
+  "fat_g": 34,
+  "saturated_fat_g": 19.2,
+  "carbs_g": 2.44,
+  "sugars_g": 0.33,
+  "fibre_g": null,
+  "sodium_mg": 654,
+  "density_g_ml": null,
+  "weights": {
+   "slice": 28
+  }
+ },
+ "cherry_tomato": {
+  "fdc_id": 170457,
+  "kcal": 18,
+  "protein_g": 0.88,
+  "fat_g": 0.2,
+  "saturated_fat_g": 0.03,
+  "carbs_g": 2.69,
+  "sugars_g": 2.63,
+  "fibre_g": 1.2,
+  "sodium_mg": 5,
+  "density_g_ml": null,
+  "weights": {
+   "piece": 17
+  }
+ },
+ "chicken_breast": {
+  "fdc_id": 2646170,
+  "kcal": 106.03,
+  "protein_g": 22.53,
+  "fat_g": 1.93,
+  "saturated_fat_g": 0.35,
+  "carbs_g": 0,
+  "sugars_g": null,
+  "fibre_g": null,
+  "sodium_mg": 65.75,
+  "density_g_ml": null,
+  "weights": {
+   "piece": 180
+  }
+ },
+ "chicken_thighs": {
+  "fdc_id": 2646171,
+  "kcal": 144.07,
+  "protein_g": 18.61,
+  "fat_g": 7.92,
+  "saturated_fat_g": 1.66,
+  "carbs_g": 0,
+  "sugars_g": null,
+  "fibre_g": null,
+  "sodium_mg": 62.33,
+  "density_g_ml": null,
+  "weights": {
+   "piece": 120
+  }
+ },
+ "chickpeas": {
+  "fdc_id": 173756,
+  "kcal": 378,
+  "protein_g": 20.47,
+  "fat_g": 6.04,
+  "saturated_fat_g": 0.6,
+  "carbs_g": 50.75,
+  "sugars_g": 10.7,
+  "fibre_g": 12.2,
+  "sodium_mg": 24,
+  "density_g_ml": 0.845,
+  "weights": null
+ },
+ "chili": {
+  "fdc_id": 170106,
+  "kcal": 40,
+  "protein_g": 1.87,
+  "fat_g": 0.44,
+  "saturated_fat_g": 0.04,
+  "carbs_g": 7.31,
+  "sugars_g": 5.3,
+  "fibre_g": 1.5,
+  "sodium_mg": 9,
+  "density_g_ml": null,
+  "weights": {
+   "piece": 45
+  }
+ },
+ "chives": {
+  "fdc_id": 169994,
+  "kcal": 30,
+  "protein_g": 3.27,
+  "fat_g": 0.73,
+  "saturated_fat_g": 0.15,
+  "carbs_g": 1.85,
+  "sugars_g": 1.85,
+  "fibre_g": 2.5,
+  "sodium_mg": 3,
+  "density_g_ml": 0.203,
+  "weights": {
+   "bunch": 30
+  }
+ },
+ "chocolate": {
+  "fdc_id": 170272,
+  "kcal": 579,
+  "protein_g": 6.12,
+  "fat_g": 38.31,
+  "saturated_fat_g": 22.03,
+  "carbs_g": 44.42,
+  "sugars_g": 36.71,
+  "fibre_g": 8,
+  "sodium_mg": 10,
+  "density_g_ml": null,
+  "weights": null
+ },
+ "cilantro": {
+  "fdc_id": 169997,
+  "kcal": 23,
+  "protein_g": 2.13,
+  "fat_g": 0.52,
+  "saturated_fat_g": 0.01,
+  "carbs_g": 0.87,
+  "sugars_g": 0.87,
+  "fibre_g": 2.8,
+  "sodium_mg": 46,
+  "density_g_ml": 0.068,
+  "weights": {
+   "bunch": 40
+  }
+ },
+ "cinnamon": {
+  "fdc_id": 171320,
+  "kcal": 247,
+  "protein_g": 3.99,
+  "fat_g": 1.24,
+  "saturated_fat_g": 0.35,
+  "carbs_g": 27.49,
+  "sugars_g": 2.17,
+  "fibre_g": 53.1,
+  "sodium_mg": 10,
+  "density_g_ml": 0.527,
+  "weights": null
+ },
+ "coconut_milk": {
+  "fdc_id": 170173,
+  "kcal": 197,
+  "protein_g": 2.02,
+  "fat_g": 21.33,
+  "saturated_fat_g": 18.92,
+  "carbs_g": 2.81,
+  "sugars_g": null,
+  "fibre_g": null,
+  "sodium_mg": 13,
+  "density_g_ml": 0.955,
+  "weights": {
+   "can": 400
+  }
+ },
+ "corn": {
+  "fdc_id": 169998,
+  "kcal": 86,
+  "protein_g": 3.27,
+  "fat_g": 1.35,
+  "saturated_fat_g": 0.33,
+  "carbs_g": 16.7,
+  "sugars_g": 6.26,
+  "fibre_g": 2,
+  "sodium_mg": 15,
+  "density_g_ml": null,
+  "weights": {
+   "piece": 102
+  }
+ },
+ "couscous": {
+  "fdc_id": 169699,
+  "kcal": 376,
+  "protein_g": 12.76,
+  "fat_g": 0.64,
+  "saturated_fat_g": 0.12,
+  "carbs_g": 72.43,
+  "sugars_g": null,
+  "fibre_g": 5,
+  "sodium_mg": 10,
+  "density_g_ml": 0.731,
+  "weights": null
+ },
+ "cream": {
+  "fdc_id": 170859,
+  "kcal": 340,
+  "protein_g": 2.84,
+  "fat_g": 36.08,
+  "saturated_fat_g": 23.03,
+  "carbs_g": 2.84,
+  "sugars_g": 2.92,
+  "fibre_g": 0,
+  "sodium_mg": 27,
+  "density_g_ml": 1.006,
+  "weights": null
+ },
+ "cream_cheese": {
+  "fdc_id": 173418,
+  "kcal": 350,
+  "protein_g": 6.15,
+  "fat_g": 34.44,
+  "saturated_fat_g": 20.21,
+  "carbs_g": 5.52,
+  "sugars_g": 3.76,
+  "fibre_g": 0,
+  "sodium_mg": 314,
+  "density_g_ml": 0.981,
+  "weights": {
+   "pack": 200
+  }
+ },
+ "cucumber": {
+  "fdc_id": 2346406,
+  "kcal": 15.91,
+  "protein_g": 0.63,
+  "fat_g": 0.18,
+  "saturated_fat_g": null,
+  "carbs_g": 2.95,
+  "sugars_g": null,
+  "fibre_g": null,
+  "sodium_mg": 1.52,
+  "density_g_ml": null,
+  "weights": {
+   "piece": 301
+  }
+ },
+ "cumin": {
+  "fdc_id": 170923,
+  "kcal": 375,
+  "protein_g": 17.81,
+  "fat_g": 22.27,
+  "saturated_fat_g": 1.54,
+  "carbs_g": 33.74,
+  "sugars_g": 2.25,
+  "fibre_g": 10.5,
+  "sodium_mg": 168,
+  "density_g_ml": 0.426,
+  "weights": null
+ },
+ "curry_powder": {
+  "fdc_id": 170924,
+  "kcal": 325,
+  "protein_g": 14.29,
+  "fat_g": 14.01,
+  "saturated_fat_g": 1.65,
+  "carbs_g": 2.63,
+  "sugars_g": 2.76,
+  "fibre_g": 53.2,
+  "sodium_mg": 52,
+  "density_g_ml": 0.406,
+  "weights": null
+ },
+ "dill": {
+  "fdc_id": 172233,
+  "kcal": 43,
+  "protein_g": 3.46,
+  "fat_g": 1.12,
+  "saturated_fat_g": 0.06,
+  "carbs_g": 4.92,
+  "sugars_g": null,
+  "fibre_g": 2.1,
+  "sodium_mg": 61,
+  "density_g_ml": null,
+  "weights": {
+   "bunch": 30
+  }
+ },
+ "eggplant": {
+  "fdc_id": 2685577,
+  "kcal": 26.08,
+  "protein_g": 0.85,
+  "fat_g": 0.12,
+  "saturated_fat_g": null,
+  "carbs_g": 2.95,
+  "sugars_g": 2.35,
+  "fibre_g": 2.45,
+  "sodium_mg": 0.44,
+  "density_g_ml": null,
+  "weights": null
+ },
+ "eggs": {
+  "fdc_id": 171287,
+  "kcal": 143,
+  "protein_g": 12.56,
+  "fat_g": 9.51,
+  "saturated_fat_g": 3.13,
+  "carbs_g": 0.72,
+  "sugars_g": 0.37,
+  "fibre_g": 0,
+  "sodium_mg": 142,
+  "density_g_ml": null,
+  "weights": {
+   "piece": 50
+  }
+ },
+ "feta": {
+  "fdc_id": 2259796,
+  "kcal": 272.88,
+  "protein_g": 19.71,
+  "fat_g": 19.08,
+  "saturated_fat_g": 11.17,
+  "carbs_g": 5.58,
+  "sugars_g": 1.63,
+  "fibre_g": null,
+  "sodium_mg": 1034,
+  "density_g_ml": null,
+  "weights": {
+   "pack": 200
+  }
+ },
+ "flour": {
+  "fdc_id": 789890,
+  "kcal": 366,
+  "protein_g": 10.9,
+  "fat_g": 1.48,
+  "saturated_fat_g": null,
+  "carbs_g": 77.3,
+  "sugars_g": null,
+  "fibre_g": null,
+  "sodium_mg": 2,
+  "density_g_ml": 0.528,
+  "weights": null
+ },
+ "frozen_peas": {
+  "fdc_id": 170016,
+  "kcal": 77,
+  "protein_g": 5.22,
+  "fat_g": 0.4,
+  "saturated_fat_g": 0.07,
+  "carbs_g": 9.12,
+  "sugars_g": 5,
+  "fibre_g": 4.5,
+  "sodium_mg": 108,
+  "density_g_ml": 0.566,
+  "weights": null
+ },
+ "frozen_spinach": {
+  "fdc_id": 169287,
+  "kcal": 29,
+  "protein_g": 3.63,
+  "fat_g": 0.57,
+  "saturated_fat_g": 0.04,
+  "carbs_g": 1.31,
+  "sugars_g": 0.65,
+  "fibre_g": 2.9,
+  "sodium_mg": 74,
+  "density_g_ml": 0.659,
+  "weights": null
+ },
+ "garlic": {
+  "fdc_id": 1104647,
+  "kcal": 143,
+  "protein_g": 6.62,
+  "fat_g": 0.38,
+  "saturated_fat_g": null,
+  "carbs_g": 25.5,
+  "sugars_g": null,
+  "fibre_g": 2.7,
+  "sodium_mg": null,
+  "density_g_ml": null,
+  "weights": {
+   "clove": 3,
+   "piece": 40
+  }
+ },
+ "ginger": {
+  "fdc_id": 169231,
+  "kcal": 80,
+  "protein_g": 1.82,
+  "fat_g": 0.75,
+  "saturated_fat_g": 0.2,
+  "carbs_g": 15.77,
+  "sugars_g": 1.7,
+  "fibre_g": 2,
+  "sodium_mg": 13,
+  "density_g_ml": 0.406,
+  "weights": null
+ },
+ "grape": {
+  "fdc_id": 2346412,
+  "kcal": 85.92,
+  "protein_g": 0.91,
+  "fat_g": 0.16,
+  "saturated_fat_g": null,
+  "carbs_g": 20.2,
+  "sugars_g": 17.34,
+  "fibre_g": null,
+  "sodium_mg": 7,
+  "density_g_ml": null,
+  "weights": null
+ },
+ "green_beans": {
+  "fdc_id": 2346400,
+  "kcal": 40,
+  "protein_g": 1.97,
+  "fat_g": 0.28,
+  "saturated_fat_g": null,
+  "carbs_g": 4.4,
+  "sugars_g": 2.33,
+  "fibre_g": 3.01,
+  "sodium_mg": 0,
+  "density_g_ml": null,
+  "weights": null
+ },
+ "ground_beef": {
+  "fdc_id": 2514744,
+  "kcal": 242.61,
+  "protein_g": 17.53,
+  "fat_g": 19.44,
+  "saturated_fat_g": 6.85,
+  "carbs_g": 0,
+  "sugars_g": null,
+  "fibre_g": null,
+  "sodium_mg": 54.94,
+  "density_g_ml": null,
+  "weights": null
+ },
+ "ham": {
+  "fdc_id": 167875,
+  "kcal": 246,
+  "protein_g": 18.49,
+  "fat_g": 18.52,
+  "saturated_fat_g": 6.62,
+  "carbs_g": 0.06,
+  "sugars_g": 0,
+  "fibre_g": 0,
+  "sodium_mg": 1284,
+  "density_g_ml": null,
+  "weights": null
+ },
+ "honey": {
+  "fdc_id": 169640,
+  "kcal": 304,
+  "protein_g": 0.3,
+  "fat_g": 0,
+  "saturated_fat_g": 0,
+  "carbs_g": 82.2,
+  "sugars_g": 82.12,
+  "fibre_g": 0.2,
+  "sodium_mg": 4,
+  "density_g_ml": 1.433,
+  "weights": null
+ },
+ "hummus": {
+  "fdc_id": 174289,
+  "kcal": 237,
+  "protein_g": 7.78,
+  "fat_g": 17.82,
+  "saturated_fat_g": 2.56,
+  "carbs_g": 9.5,
+  "sugars_g": 0.62,
+  "fibre_g": 5.5,
+  "sodium_mg": 426,
+  "density_g_ml": 1.04,
+  "weights": null
+ },
+ "ice_cream": {
+  "fdc_id": 167575,
+  "kcal": 207,
+  "protein_g": 3.5,
+  "fat_g": 11,
+  "saturated_fat_g": 6.79,
+  "carbs_g": 22.9,
+  "sugars_g": 21.22,
+  "fibre_g": 0.7,
+  "sodium_mg": 80,
+  "density_g_ml": null,
+  "weights": null
+ },
+ "jam": {
+  "fdc_id": 169641,
+  "kcal": 278,
+  "protein_g": 0.37,
+  "fat_g": 0.07,
+  "saturated_fat_g": 0.01,
+  "carbs_g": 67.76,
+  "sugars_g": 48.5,
+  "fibre_g": 1.1,
+  "sodium_mg": 32,
+  "density_g_ml": 1.353,
+  "weights": null
+ },
+ "ketchup": {
+  "fdc_id": 168556,
+  "kcal": 101,
+  "protein_g": 1.04,
+  "fat_g": 0.1,
+  "saturated_fat_g": 0.01,
+  "carbs_g": 27.1,
+  "sugars_g": 21.27,
+  "fibre_g": 0.3,
+  "sodium_mg": 907,
+  "density_g_ml": 1.014,
+  "weights": null
+ },
+ "kidney_beans": {
+  "fdc_id": 173744,
+  "kcal": 337,
+  "protein_g": 22.53,
+  "fat_g": 1.06,
+  "saturated_fat_g": 0.15,
+  "carbs_g": 46.09,
+  "sugars_g": 2.1,
+  "fibre_g": 15.2,
+  "sodium_mg": 12,
+  "density_g_ml": 0.778,
+  "weights": null
+ },
+ "leek": {
+  "fdc_id": 169246,
+  "kcal": 61,
+  "protein_g": 1.5,
+  "fat_g": 0.3,
+  "saturated_fat_g": 0.04,
+  "carbs_g": 12.35,
+  "sugars_g": 3.9,
+  "fibre_g": 1.8,
+  "sodium_mg": 20,
+  "density_g_ml": null,
+  "weights": {
+   "piece": 89
+  }
+ },
+ "lemon": {
+  "fdc_id": 167746,
+  "kcal": 29,
+  "protein_g": 1.1,
+  "fat_g": 0.3,
+  "saturated_fat_g": 0.04,
+  "carbs_g": 6.52,
+  "sugars_g": 2.5,
+  "fibre_g": 2.8,
+  "sodium_mg": 2,
+  "density_g_ml": null,
+  "weights": {
+   "piece": 58
+  }
+ },
+ "lentils": {
+  "fdc_id": 172420,
+  "kcal": 352,
+  "protein_g": 24.63,
+  "fat_g": 1.06,
+  "saturated_fat_g": 0.15,
+  "carbs_g": 52.65,
+  "sugars_g": 2.03,
+  "fibre_g": 10.7,
+  "sodium_mg": 6,
+  "density_g_ml": 0.812,
+  "weights": null
+ },
+ "lettuce": {
+  "fdc_id": 2346391,
+  "kcal": 22.05,
+  "protein_g": 1.09,
+  "fat_g": 0.16,
+  "saturated_fat_g": null,
+  "carbs_g": 4.07,
+  "sugars_g": null,
+  "fibre_g": null,
+  "sodium_mg": 28.88,
+  "density_g_ml": null,
+  "weights": null
+ },
+ "lime": {
+  "fdc_id": 168155,
+  "kcal": 30,
+  "protein_g": 0.7,
+  "fat_g": 0.2,
+  "saturated_fat_g": 0.02,
+  "carbs_g": 7.74,
+  "sugars_g": 1.69,
+  "fibre_g": 2.8,
+  "sodium_mg": 2,
+  "density_g_ml": null,
+  "weights": {
+   "piece": 67
+  }
+ },
+ "maple_syrup": {
+  "fdc_id": 169661,
+  "kcal": 260,
+  "protein_g": 0.04,
+  "fat_g": 0.06,
+  "saturated_fat_g": 0.01,
+  "carbs_g": 67.04,
+  "sugars_g": 60.46,
+  "fibre_g": 0,
+  "sodium_mg": 12,
+  "density_g_ml": 1.331,
+  "weights": null
+ },
+ "mayonnaise": {
+  "fdc_id": 171009,
+  "kcal": 680,
+  "protein_g": 0.96,
+  "fat_g": 74.85,
+  "saturated_fat_g": 11.7,
+  "carbs_g": 0.57,
+  "sugars_g": 0.57,
+  "fibre_g": 0,
+  "sodium_mg": 635,
+  "density_g_ml": 0.93,
+  "weights": null
+ },
+ "milk": {
+  "fdc_id": 322892,
+  "kcal": 60,
+  "protein_g": 3.28,
+  "fat_g": 3.2,
+  "saturated_fat_g": 1.86,
+  "carbs_g": 4.67,
+  "sugars_g": 4.81,
+  "fibre_g": null,
+  "sodium_mg": 38,
+  "density_g_ml": 1.031,
+  "weights": null
+ },
+ "mint": {
+  "fdc_id": 173475,
+  "kcal": 44,
+  "protein_g": 3.29,
+  "fat_g": 0.73,
+  "saturated_fat_g": 0.19,
+  "carbs_g": 1.61,
+  "sugars_g": null,
+  "fibre_g": 6.8,
+  "sodium_mg": 30,
+  "density_g_ml": 0.385,
+  "weights": {
+   "bunch": 30
+  }
+ },
+ "mozzarella": {
+  "fdc_id": 170845,
+  "kcal": 299,
+  "protein_g": 22.17,
+  "fat_g": 22.14,
+  "saturated_fat_g": 13.9,
+  "carbs_g": 2.4,
+  "sugars_g": 0,
+  "fibre_g": 0,
+  "sodium_mg": 486,
+  "density_g_ml": null,
+  "weights": {
+   "pack": 125
+  }
+ },
+ "mushroom": {
+  "fdc_id": 169251,
+  "kcal": 22,
+  "protein_g": 3.09,
+  "fat_g": 0.34,
+  "saturated_fat_g": 0.05,
+  "carbs_g": 2.26,
+  "sugars_g": 1.98,
+  "fibre_g": 1,
+  "sodium_mg": 5,
+  "density_g_ml": null,
+  "weights": {
+   "piece": 18
+  }
+ },
+ "mustard": {
+  "fdc_id": 326698,
+  "kcal": 61,
+  "protein_g": 4.25,
+  "fat_g": 3.38,
+  "saturated_fat_g": 0.25,
+  "carbs_g": 1,
+  "sugars_g": 1.42,
+  "fibre_g": 4.3,
+  "sodium_mg": 1100,
+  "density_g_ml": 1.052,
+  "weights": null
+ },
+ "nutmeg": {
+  "fdc_id": 171326,
+  "kcal": 525,
+  "protein_g": 5.84,
+  "fat_g": 36.31,
+  "saturated_fat_g": 25.94,
+  "carbs_g": 28.49,
+  "sugars_g": 2.99,
+  "fibre_g": 20.8,
+  "sodium_mg": 16,
+  "density_g_ml": 0.446,
+  "weights": null
+ },
+ "oat_milk": {
+  "fdc_id": 2257046,
+  "kcal": 48.33,
+  "protein_g": 0.8,
+  "fat_g": 2.75,
+  "saturated_fat_g": null,
+  "carbs_g": 5.1,
+  "sugars_g": 2.32,
+  "fibre_g": 0,
+  "sodium_mg": 41.98,
+  "density_g_ml": 1.03,
+  "weights": null
+ },
+ "oats": {
+  "fdc_id": 2346396,
+  "kcal": 381.63,
+  "protein_g": 13.5,
+  "fat_g": 5.89,
+  "saturated_fat_g": null,
+  "carbs_g": 58.24,
+  "sugars_g": null,
+  "fibre_g": 10.42,
+  "sodium_mg": 0.67,
+  "density_g_ml": 0.342,
+  "weights": null
+ },
+ "olive_oil": {
+  "fdc_id": 171413,
+  "kcal": 884,
+  "protein_g": 0,
+  "fat_g": 100,
+  "saturated_fat_g": 13.81,
+  "carbs_g": 0,
+  "sugars_g": 0,
+  "fibre_g": 0,
+  "sodium_mg": 2,
+  "density_g_ml": 0.913,
+  "weights": null
+ },
+ "onion": {
+  "fdc_id": 170000,
+  "kcal": 40,
+  "protein_g": 1.1,
+  "fat_g": 0.1,
+  "saturated_fat_g": 0.04,
+  "carbs_g": 7.64,
+  "sugars_g": 4.24,
+  "fibre_g": 1.7,
+  "sodium_mg": 4,
+  "density_g_ml": null,
+  "weights": {
+   "piece": 110
+  }
+ },
+ "orange": {
+  "fdc_id": 746771,
+  "kcal": 47,
+  "protein_g": 0.91,
+  "fat_g": 0.15,
+  "saturated_fat_g": null,
+  "carbs_g": 9.8,
+  "sugars_g": 8.57,
+  "fibre_g": 2,
+  "sodium_mg": 9,
+  "density_g_ml": null,
+  "weights": {
+   "piece": 131
+  }
+ },
+ "orange_juice": {
+  "fdc_id": 2003597,
+  "kcal": 46.51,
+  "protein_g": 0.81,
+  "fat_g": 0.36,
+  "saturated_fat_g": null,
+  "carbs_g": 10.01,
+  "sugars_g": 8.08,
+  "fibre_g": null,
+  "sodium_mg": 0.08,
+  "density_g_ml": 1.048,
+  "weights": null
+ },
+ "oregano": {
+  "fdc_id": 171328,
+  "kcal": 265,
+  "protein_g": 9,
+  "fat_g": 4.28,
+  "saturated_fat_g": 1.55,
+  "carbs_g": 26.42,
+  "sugars_g": 4.09,
+  "fibre_g": 42.5,
+  "sodium_mg": 25,
+  "density_g_ml": 0.203,
+  "weights": null
+ },
+ "paprika_powder": {
+  "fdc_id": 171329,
+  "kcal": 282,
+  "protein_g": 14.14,
+  "fat_g": 12.89,
+  "saturated_fat_g": 2.14,
+  "carbs_g": 19.09,
+  "sugars_g": 10.34,
+  "fibre_g": 34.9,
+  "sodium_mg": 68,
+  "density_g_ml": 0.467,
+  "weights": null
+ },
+ "parmesan": {
+  "fdc_id": 170848,
+  "kcal": 392,
+  "protein_g": 35.75,
+  "fat_g": 25,
+  "saturated_fat_g": 14.85,
+  "carbs_g": 3.22,
+  "sugars_g": 0.11,
+  "fibre_g": 0,
+  "sodium_mg": 1175,
+  "density_g_ml": null,
+  "weights": null
+ },
+ "parsley": {
+  "fdc_id": 170416,
+  "kcal": 36,
+  "protein_g": 2.97,
+  "fat_g": 0.79,
+  "saturated_fat_g": 0.13,
+  "carbs_g": 3.03,
+  "sugars_g": 0.85,
+  "fibre_g": 3.3,
+  "sodium_mg": 56,
+  "density_g_ml": 0.257,
+  "weights": {
+   "bunch": 50
+  }
+ },
+ "pasta": {
+  "fdc_id": 169736,
+  "kcal": 371,
+  "protein_g": 13.04,
+  "fat_g": 1.51,
+  "saturated_fat_g": 0.28,
+  "carbs_g": 71.47,
+  "sugars_g": 2.67,
+  "fibre_g": 3.2,
+  "sodium_mg": 6,
+  "density_g_ml": null,
+  "weights": null
+ },
+ "peanut_butter": {
+  "fdc_id": 324860,
+  "kcal": 597,
+  "protein_g": 22.5,
+  "fat_g": 51.1,
+  "saturated_fat_g": 10.1,
+  "carbs_g": 17.5,
+  "sugars_g": 10.5,
+  "fibre_g": 4.8,
+  "sodium_mg": 429,
+  "density_g_ml": 1.091,
+  "weights": null
+ },
+ "pear": {
+  "fdc_id": 169118,
+  "kcal": 57,
+  "protein_g": 0.36,
+  "fat_g": 0.14,
+  "saturated_fat_g": 0.02,
+  "carbs_g": 12.13,
+  "sugars_g": 9.75,
+  "fibre_g": 3.1,
+  "sodium_mg": 1,
+  "density_g_ml": null,
+  "weights": {
+   "piece": 178
+  }
+ },
+ "peas": {
+  "fdc_id": 170419,
+  "kcal": 81,
+  "protein_g": 5.42,
+  "fat_g": 0.4,
+  "saturated_fat_g": 0.07,
+  "carbs_g": 8.75,
+  "sugars_g": 5.67,
+  "fibre_g": 5.7,
+  "sodium_mg": 5,
+  "density_g_ml": null,
+  "weights": null
+ },
+ "pita": {
+  "fdc_id": 174915,
+  "kcal": 275,
+  "protein_g": 9.1,
+  "fat_g": 1.2,
+  "saturated_fat_g": 0.17,
+  "carbs_g": 53.5,
+  "sugars_g": 1.3,
+  "fibre_g": 2.2,
+  "sodium_mg": 536,
+  "density_g_ml": null,
+  "weights": {
+   "piece": 60
+  }
+ },
+ "pork": {
+  "fdc_id": 2646169,
+  "kcal": 119.04,
+  "protein_g": 21.58,
+  "fat_g": 3.9,
+  "saturated_fat_g": 0.87,
+  "carbs_g": 0,
+  "sugars_g": null,
+  "fibre_g": null,
+  "sodium_mg": 41.39,
+  "density_g_ml": null,
+  "weights": null
+ },
+ "potato": {
+  "fdc_id": 170026,
+  "kcal": 77,
+  "protein_g": 2.05,
+  "fat_g": 0.09,
+  "saturated_fat_g": 0.03,
+  "carbs_g": 15.39,
+  "sugars_g": 0.82,
+  "fibre_g": 2.1,
+  "sodium_mg": 6,
+  "density_g_ml": null,
+  "weights": {
+   "piece": 213
+  }
+ },
+ "powdered_sugar": {
+  "fdc_id": 169656,
+  "kcal": 389,
+  "protein_g": 0,
+  "fat_g": 0,
+  "saturated_fat_g": 0,
+  "carbs_g": 99.77,
+  "sugars_g": 97.81,
+  "fibre_g": 0,
+  "sodium_mg": 2,
+  "density_g_ml": 0.507,
+  "weights": null
+ },
+ "red_onion": {
+  "fdc_id": 790577,
+  "kcal": 44,
+  "protein_g": 0.94,
+  "fat_g": 0.1,
+  "saturated_fat_g": null,
+  "carbs_g": 7.73,
+  "sugars_g": 5.76,
+  "fibre_g": 2.2,
+  "sodium_mg": 1,
+  "density_g_ml": null,
+  "weights": {
+   "piece": 110
+  }
+ },
+ "rice": {
+  "fdc_id": 2512381,
+  "kcal": 358.71,
+  "protein_g": 7.04,
+  "fat_g": 1.03,
+  "saturated_fat_g": null,
+  "carbs_g": 80.16,
+  "sugars_g": null,
+  "fibre_g": 0.15,
+  "sodium_mg": 0.46,
+  "density_g_ml": 0.782,
+  "weights": null
+ },
+ "rosemary": {
+  "fdc_id": 173473,
+  "kcal": 131,
+  "protein_g": 3.31,
+  "fat_g": 5.86,
+  "saturated_fat_g": 2.84,
+  "carbs_g": 6.6,
+  "sugars_g": null,
+  "fibre_g": 14.1,
+  "sodium_mg": 26,
+  "density_g_ml": 0.115,
+  "weights": {
+   "bunch": 20
+  }
+ },
+ "salmon": {
+  "fdc_id": 175167,
+  "kcal": 208,
+  "protein_g": 20.42,
+  "fat_g": 13.42,
+  "saturated_fat_g": 3.05,
+  "carbs_g": 0,
+  "sugars_g": 0,
+  "fibre_g": 0,
+  "sodium_mg": 59,
+  "density_g_ml": null,
+  "weights": {
+   "piece": 150
+  }
+ },
+ "salt": {
+  "fdc_id": 173468,
+  "kcal": 0,
+  "protein_g": 0,
+  "fat_g": 0,
+  "saturated_fat_g": 0,
+  "carbs_g": 0,
+  "sugars_g": 0,
+  "fibre_g": 0,
+  "sodium_mg": 38758,
+  "density_g_ml": 1.217,
+  "weights": null
+ },
+ "sausage": {
+  "fdc_id": 171631,
+  "kcal": 290,
+  "protein_g": 13.9,
+  "fat_g": 24.26,
+  "saturated_fat_g": 8.62,
+  "carbs_g": 2.97,
+  "sugars_g": 1.19,
+  "fibre_g": 0,
+  "sodium_mg": 563,
+  "density_g_ml": null,
+  "weights": {
+   "piece": 101
+  }
+ },
+ "shallot": {
+  "fdc_id": 170499,
+  "kcal": 72,
+  "protein_g": 2.5,
+  "fat_g": 0.1,
+  "saturated_fat_g": 0.02,
+  "carbs_g": 13.6,
+  "sugars_g": 7.87,
+  "fibre_g": 3.2,
+  "sodium_mg": 12,
+  "density_g_ml": null,
+  "weights": {
+   "piece": 25
+  }
+ },
+ "shrimp": {
+  "fdc_id": 174210,
+  "kcal": 71,
+  "protein_g": 13.61,
+  "fat_g": 1.01,
+  "saturated_fat_g": 0.26,
+  "carbs_g": 0.91,
+  "sugars_g": 0,
+  "fibre_g": 0,
+  "sodium_mg": 566,
+  "density_g_ml": null,
+  "weights": {
+   "piece": 6
+  }
+ },
+ "sour_cream": {
+  "fdc_id": 2346387,
+  "kcal": 196.41,
+  "protein_g": 3.07,
+  "fat_g": 17.99,
+  "saturated_fat_g": 10.7,
+  "carbs_g": 5.56,
+  "sugars_g": null,
+  "fibre_g": null,
+  "sodium_mg": 50.04,
+  "density_g_ml": 0.972,
+  "weights": null
+ },
+ "soy_sauce": {
+  "fdc_id": 174277,
+  "kcal": 53,
+  "protein_g": 8.14,
+  "fat_g": 0.57,
+  "saturated_fat_g": 0.07,
+  "carbs_g": 4.13,
+  "sugars_g": 0.4,
+  "fibre_g": 0.8,
+  "sodium_mg": 5493,
+  "density_g_ml": 1.078,
+  "weights": null
+ },
+ "spaghetti": {
+  "fdc_id": 169736,
+  "kcal": 371,
+  "protein_g": 13.04,
+  "fat_g": 1.51,
+  "saturated_fat_g": 0.28,
+  "carbs_g": 71.47,
+  "sugars_g": 2.67,
+  "fibre_g": 3.2,
+  "sodium_mg": 6,
+  "density_g_ml": null,
+  "weights": null
+ },
+ "spinach": {
+  "fdc_id": 168462,
+  "kcal": 23,
+  "protein_g": 2.86,
+  "fat_g": 0.39,
+  "saturated_fat_g": 0.06,
+  "carbs_g": 1.43,
+  "sugars_g": 0.42,
+  "fibre_g": 2.2,
+  "sodium_mg": 79,
+  "density_g_ml": null,
+  "weights": null
+ },
+ "spring_onion": {
+  "fdc_id": 170005,
+  "kcal": 32,
+  "protein_g": 1.83,
+  "fat_g": 0.19,
+  "saturated_fat_g": 0.03,
+  "carbs_g": 4.74,
+  "sugars_g": 2.33,
+  "fibre_g": 2.6,
+  "sodium_mg": 16,
+  "density_g_ml": null,
+  "weights": {
+   "bunch": 100,
+   "piece": 15
+  }
+ },
+ "strawberry": {
+  "fdc_id": 2346409,
+  "kcal": 36.4,
+  "protein_g": 0.64,
+  "fat_g": 0.22,
+  "saturated_fat_g": null,
+  "carbs_g": 7.96,
+  "sugars_g": 4.86,
+  "fibre_g": null,
+  "sodium_mg": 0,
+  "density_g_ml": null,
+  "weights": null
+ },
+ "sugar": {
+  "fdc_id": 334247,
+  "kcal": 385,
+  "protein_g": 0,
+  "fat_g": 0.32,
+  "saturated_fat_g": null,
+  "carbs_g": 99.6,
+  "sugars_g": 99.8,
+  "fibre_g": null,
+  "sodium_mg": 1,
+  "density_g_ml": 0.795,
+  "weights": null
+ },
+ "sweet_potato": {
+  "fdc_id": 168482,
+  "kcal": 86,
+  "protein_g": 1.57,
+  "fat_g": 0.05,
+  "saturated_fat_g": 0.02,
+  "carbs_g": 17.12,
+  "sugars_g": 4.18,
+  "fibre_g": 3,
+  "sodium_mg": 55,
+  "density_g_ml": null,
+  "weights": {
+   "piece": 130
+  }
+ },
+ "thyme": {
+  "fdc_id": 173470,
+  "kcal": 101,
+  "protein_g": 5.56,
+  "fat_g": 1.68,
+  "saturated_fat_g": 0.47,
+  "carbs_g": 10.45,
+  "sugars_g": null,
+  "fibre_g": 14,
+  "sodium_mg": 9,
+  "density_g_ml": 0.162,
+  "weights": {
+   "bunch": 20
+  }
+ },
+ "toast_bread": {
+  "fdc_id": 174924,
+  "kcal": 266,
+  "protein_g": 8.85,
+  "fat_g": 3.33,
+  "saturated_fat_g": 0.7,
+  "carbs_g": 46.72,
+  "sugars_g": 5.67,
+  "fibre_g": 2.7,
+  "sodium_mg": 490,
+  "density_g_ml": null,
+  "weights": {
+   "slice": 29
+  }
+ },
+ "tofu": {
+  "fdc_id": 172475,
+  "kcal": 144,
+  "protein_g": 17.27,
+  "fat_g": 8.72,
+  "saturated_fat_g": 1.26,
+  "carbs_g": 0.48,
+  "sugars_g": null,
+  "fibre_g": 2.3,
+  "sodium_mg": 14,
+  "density_g_ml": null,
+  "weights": {
+   "pack": 200
+  }
+ },
+ "tomato": {
+  "fdc_id": 170457,
+  "kcal": 18,
+  "protein_g": 0.88,
+  "fat_g": 0.2,
+  "saturated_fat_g": 0.03,
+  "carbs_g": 2.69,
+  "sugars_g": 2.63,
+  "fibre_g": 1.2,
+  "sodium_mg": 5,
+  "density_g_ml": null,
+  "weights": {
+   "can": 400,
+   "piece": 123
+  }
+ },
+ "tomato_paste": {
+  "fdc_id": 170459,
+  "kcal": 82,
+  "protein_g": 4.32,
+  "fat_g": 0.47,
+  "saturated_fat_g": 0.1,
+  "carbs_g": 14.81,
+  "sugars_g": 12.18,
+  "fibre_g": 4.1,
+  "sodium_mg": 59,
+  "density_g_ml": 1.116,
+  "weights": null
+ },
+ "tortillas": {
+  "fdc_id": 167535,
+  "kcal": 297,
+  "protein_g": 8.01,
+  "fat_g": 7.58,
+  "saturated_fat_g": 1.23,
+  "carbs_g": 46.87,
+  "sugars_g": 2.66,
+  "fibre_g": 2.4,
+  "sodium_mg": 742,
+  "density_g_ml": null,
+  "weights": {
+   "piece": 40
+  }
+ },
+ "tuna": {
+  "fdc_id": 175159,
+  "kcal": 109,
+  "protein_g": 24.4,
+  "fat_g": 0.49,
+  "saturated_fat_g": 0.17,
+  "carbs_g": 0,
+  "sugars_g": 0,
+  "fibre_g": 0,
+  "sodium_mg": 45,
+  "density_g_ml": null,
+  "weights": null
+ },
+ "turmeric": {
+  "fdc_id": 172231,
+  "kcal": 312,
+  "protein_g": 9.68,
+  "fat_g": 3.25,
+  "saturated_fat_g": 1.84,
+  "carbs_g": 44.44,
+  "sugars_g": 3.21,
+  "fibre_g": 22.7,
+  "sodium_mg": 27,
+  "density_g_ml": 0.609,
+  "weights": null
+ },
+ "vanilla": {
+  "fdc_id": 173471,
+  "kcal": 288,
+  "protein_g": 0.06,
+  "fat_g": 0.06,
+  "saturated_fat_g": 0.01,
+  "carbs_g": 12.65,
+  "sugars_g": 12.65,
+  "fibre_g": 0,
+  "sodium_mg": 9,
+  "density_g_ml": 0.852,
+  "weights": null
+ },
+ "vegetable_oil": {
+  "fdc_id": 172336,
+  "kcal": 884,
+  "protein_g": 0,
+  "fat_g": 100,
+  "saturated_fat_g": 7.37,
+  "carbs_g": 0,
+  "sugars_g": 0,
+  "fibre_g": 0,
+  "sodium_mg": 0,
+  "density_g_ml": 0.921,
+  "weights": null
+ },
+ "vinegar": {
+  "fdc_id": 172237,
+  "kcal": 18,
+  "protein_g": 0,
+  "fat_g": 0,
+  "saturated_fat_g": 0,
+  "carbs_g": 0.04,
+  "sugars_g": 0.04,
+  "fibre_g": 0,
+  "sodium_mg": 2,
+  "density_g_ml": 1.006,
+  "weights": null
+ },
+ "walnuts": {
+  "fdc_id": 2346394,
+  "kcal": 729.56,
+  "protein_g": 14.56,
+  "fat_g": 69.74,
+  "saturated_fat_g": 6.05,
+  "carbs_g": 5.7,
+  "sugars_g": null,
+  "fibre_g": 5.21,
+  "sodium_mg": 0,
+  "density_g_ml": null,
+  "weights": null
+ },
+ "water": {
+  "fdc_id": 173647,
+  "kcal": 0,
+  "protein_g": 0,
+  "fat_g": 0,
+  "saturated_fat_g": 0,
+  "carbs_g": 0,
+  "sugars_g": 0,
+  "fibre_g": 0,
+  "sodium_mg": 4,
+  "density_g_ml": 1,
+  "weights": null
+ },
+ "whole_wheat_flour": {
+  "fdc_id": 168893,
+  "kcal": 340,
+  "protein_g": 13.21,
+  "fat_g": 2.5,
+  "saturated_fat_g": 0.43,
+  "carbs_g": 61.27,
+  "sugars_g": 0.41,
+  "fibre_g": 10.7,
+  "sodium_mg": 2,
+  "density_g_ml": 0.507,
+  "weights": null
+ },
+ "wine": {
+  "fdc_id": 173190,
+  "kcal": 85,
+  "protein_g": 0.07,
+  "fat_g": 0,
+  "saturated_fat_g": 0,
+  "carbs_g": 2.61,
+  "sugars_g": 0.62,
+  "fibre_g": 0,
+  "sodium_mg": 4,
+  "density_g_ml": 0.994,
+  "weights": null
+ },
+ "yeast": {
+  "fdc_id": 175043,
+  "kcal": 325,
+  "protein_g": 40.44,
+  "fat_g": 7.61,
+  "saturated_fat_g": 1,
+  "carbs_g": 14.32,
+  "sugars_g": 0,
+  "fibre_g": 26.9,
+  "sodium_mg": 51,
+  "density_g_ml": 0.812,
+  "weights": {
+   "pack": 7.2
+  }
+ },
+ "yogurt": {
+  "fdc_id": 2259793,
+  "kcal": 77.95,
+  "protein_g": 3.82,
+  "fat_g": 4.48,
+  "saturated_fat_g": 2.32,
+  "carbs_g": 5.57,
+  "sugars_g": 4.09,
+  "fibre_g": null,
+  "sodium_mg": 41.78,
+  "density_g_ml": 1.036,
+  "weights": null
+ },
+ "zucchini": {
+  "fdc_id": 169291,
+  "kcal": 17,
+  "protein_g": 1.21,
+  "fat_g": 0.32,
+  "saturated_fat_g": 0.08,
+  "carbs_g": 2.11,
+  "sugars_g": 2.5,
+  "fibre_g": 1,
+  "sodium_mg": 8,
+  "density_g_ml": null,
+  "weights": {
+   "piece": 196
+  }
+ }
+}

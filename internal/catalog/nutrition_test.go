@@ -5,9 +5,13 @@ import (
 	"testing"
 )
 
+// energyFromAlcohol lists rows whose energy is mostly ethanol or acetic acid,
+// which the macros do not show.
+var energyFromAlcohol = map[string]bool{"wine": true, "beer": true, "vinegar": true, "vanilla": true}
+
 // TestNutritionData checks every row of data/nutrition.json: its key is an
 // entry of the catalogue, it names its FoodData Central food, and the values
-// are possible per 100 g. It passes while the file is empty.
+// are possible per 100 g.
 func TestNutritionData(t *testing.T) {
 	ensure()
 	units := []string{"piece", "clove", "slice", "bunch", "can", "pack"}
@@ -36,6 +40,16 @@ func TestNutritionData(t *testing.T) {
 		if macros > 100.5 {
 			t.Errorf("%s: protein, fat, carbs and fibre add up to %v g", key, macros)
 		}
+		if !energyFromAlcohol[key] && n.Protein != nil && n.Fat != nil && n.Carbs != nil && n.Kcal > 0 {
+			// Atwater factors, with room for alcohol, polyols and rounding.
+			atwater := 4**n.Protein + 9**n.Fat + 4*(*n.Carbs)
+			if n.Fibre != nil {
+				atwater += 2 * *n.Fibre
+			}
+			if n.Kcal > atwater*1.3+15 || n.Kcal < atwater*0.6-15 {
+				t.Errorf("%s: %v kcal but macros give about %.0f", key, n.Kcal, atwater)
+			}
+		}
 		if n.Density != nil && (*n.Density < 0.05 || *n.Density > 25) {
 			t.Errorf("%s: density %v", key, *n.Density)
 		}
@@ -52,7 +66,11 @@ func TestNutritionFor(t *testing.T) {
 	if _, ok := NutritionFor("no_such_ingredient"); ok {
 		t.Error("nutrition for an unknown key")
 	}
-	if n := NutritionCount(); n < 0 {
-		t.Errorf("count %d", n)
+	if n := NutritionCount(); n < 120 {
+		t.Errorf("only %d entries have nutrition data", n)
+	}
+	n, ok := NutritionFor("olive_oil")
+	if !ok || n.FDCID == 0 || n.Density == nil {
+		t.Errorf("olive_oil = %+v, %v", n, ok)
 	}
 }

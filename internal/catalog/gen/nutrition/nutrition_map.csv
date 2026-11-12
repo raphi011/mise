@@ -1,0 +1,140 @@
+key,fdc_id,portion_fdc_id,density,weights,hand_edited,note
+lemon,167746,,,"piece=fruit (2-1/8"" dia)",,
+lime,168155,,,"piece=fruit (2"" dia)",,
+orange,746771,169097,,"piece=fruit (2-5/8"" dia)",,"Foundation nutrients, SR Legacy portion"
+apple,171688,,,"piece=medium (3"" dia)",,
+banana,173944,,,"piece=medium (7"" to 7-7/8"" long)",,
+pear,169118,,,piece=medium,,
+strawberry,2346409,167762,,,,"Foundation nutrients, SR Legacy portion"
+blueberry,2346411,171711,,,,
+grape,2346412,174683,,,,
+avocado,171705,,,"piece=avocado, ns as to florida or california",,
+onion,170000,,,"piece=medium (2-1/2"" dia)",,
+red_onion,790577,170000,,"piece=medium (2-1/2"" dia)",,Foundation nutrients; piece weight from the SR Legacy onion
+shallot,170499,,,piece=25,yes,"The source has no whole-shallot weight, 25 g is a typical bulb"
+spring_onion,170005,,,"piece=medium (4-1/8"" long);bunch=100",yes,"Bunch of 6 to 8 stems from a supermarket, hand-set"
+garlic,1104647,169230,,clove=clove;piece=40,yes,"Foundation nutrients; piece is a whole bulb, hand-set"
+ginger,169231,,tsp,,,
+tomato,170457,,,"piece=medium whole (2-3/5"" dia);can=400",yes,"Can is the common 400 g pack, hand-set"
+cherry_tomato,170457,,,piece=cherry,,
+potato,170026,,,"piece=potato medium (2-1/4"" to 3-1/4"" dia)",,SR Legacy: the Foundation russet row has an implausible fibre value (14.9 g)
+sweet_potato,168482,,,"piece=sweetpotato, 5"" long",,
+carrot,170393,,,piece=medium,,
+celery,2346405,169988,,"piece=stalk, medium (7-1/2"" - 8"" long)",,
+cucumber,2346406,168409,,"piece=cucumber (8-1/4"")",,
+bell_pepper,2258590,170108,,"piece=large (2-1/4 per pound, approx 3-3/4"" long, 3"" dia.)",,"Foundation nutrients (red), SR Legacy portion"
+zucchini,169291,,,piece=medium,,
+eggplant,2685577,169228,,,,
+broccoli,321900,170379,,,,
+cauliflower,2685573,169986,,,,
+spinach,168462,,,,,
+lettuce,2346391,169249,,,,Leaf lettuce stands for any head or leaf salad
+arugula,2710822,169387,,,,
+cabbage,169975,,,,,
+mushroom,169251,,,piece=medium,,
+leek,169246,,,piece=leek,,
+corn,169998,,,"piece=ear, medium (6-3/4"" to 7-1/2"" long) yields",,
+peas,170419,,,,,
+green_beans,2346400,169961,,,,
+parsley,170416,,tbsp,bunch=50,yes,Bunch hand-set (supermarket bunch of leaves and stems)
+basil,172232,,"tbsp, chopped",bunch=30,yes,Bunch hand-set
+cilantro,169997,,cup,bunch=40,yes,Bunch hand-set
+mint,173475,,tbsp,bunch=30,yes,Bunch hand-set
+dill,172233,,,bunch=30,yes,Bunch hand-set
+chives,169994,,tbsp chopped,bunch=30,yes,Bunch hand-set
+rosemary,173473,,tbsp,bunch=20,yes,Bunch hand-set
+thyme,173470,,tsp#1,bunch=20,yes,Bunch hand-set
+chili,170106,,,piece=pepper,,
+bread,174924,,,slice=slice#1,,
+baguette,172675,,,piece=250,yes,"Source slice is a whole loaf; 250 g is a typical baguette, hand-set"
+toast_bread,174924,,,slice=slice#1,,White bread
+bread_rolls,172793,,,piece=55,yes,"Source rolls are US dinner rolls; 55 g is a typical Brötchen, hand-set"
+tortillas,167535,,,piece=40,yes,"Source has no portion; 40 g is a typical small wrap, hand-set"
+pita,174915,,,"piece=pita, large (6-1/2"" dia)",,
+chicken_breast,2646170,,,piece=180,yes,"Source piece is a US breast half (272 g); 180 g is a typical European fillet, hand-set"
+chicken_thighs,2646171,,,piece=120,yes,"Boneless skinless thigh, hand-set"
+ground_beef,2514744,,,,,80% lean
+beef,2646173,,,,,Top round stands for beef
+pork,2646169,,,,,Tenderloin stands for pork
+bacon,168277,,,slice=slice raw;pack=150,yes,Pack hand-set (typical 150 g)
+ham,167875,,,,,"Whole cured ham, unheated"
+sausage,171631,,,piece=link,,"Italian pork sausage, raw"
+salmon,175167,,,piece=150,yes,Fillet hand-set (source fillet is 396 g)
+tuna,175159,,,,,"Fresh yellowfin, raw"
+shrimp,174210,,,piece=medium,,
+milk,322892,171265,cup,,,Foundation nutrients; density from the SR Legacy row
+butter,173410,,cup,pack=250,yes,Pack hand-set (EU 250 g block)
+cream,170859,,"cup, fluid (yields 2 cups whipped)",,,Heavy whipping cream
+sour_cream,2346387,171257,cup,,,
+yogurt,2259793,171284,cup (8 fl oz),,,Whole-milk plain yogurt
+cheese,328637,173414,,slice=slice (1 oz),,Cheddar stands for cheese
+parmesan,170848,,,,,
+mozzarella,170845,,,pack=125,yes,"Fresh ball, pack hand-set"
+feta,2259796,173420,,pack=200,yes,Pack hand-set
+cream_cheese,173418,,cup,pack=200,yes,Pack hand-set
+eggs,171287,,,piece=large,,
+tofu,172475,,,pack=200,yes,Firm tofu; pack hand-set
+hummus,174289,,cup,,,Generic commercial hummus
+oat_milk,2257046,,=1.03,,yes,Density hand-set: oat drink weighs about the same as milk
+frozen_peas,170016,,cup,,,
+frozen_spinach,169287,,cup,,,
+frozen_berries,,,,,,A mixture without a single USDA equivalent
+ice_cream,167575,,,,,Vanilla
+flour,789890,168894,cup,,,"Foundation nutrients, SR Legacy portion"
+whole_wheat_flour,168893,,cup,,,
+sugar,334247,,cup,,,
+brown_sugar,168833,,cup packed,,,
+powdered_sugar,169656,,cup unsifted,,,
+baking_powder,172804,,tsp#1,,,
+baking_soda,175040,,tsp#1,,,
+yeast,175043,,tsp,pack=packet,,
+salt,173468,,tsp,,,
+black_pepper,170931,,"tsp, ground",,,
+paprika_powder,171329,,tsp,,,
+cumin,170923,,"tsp, whole",,,
+cinnamon,171320,,tsp,,,
+nutmeg,171326,,tsp,,,
+oregano,171328,,"tsp, leaves",,,
+turmeric,172231,,tsp,,,
+curry_powder,170924,,tsp,,,
+vanilla,173471,,tsp,,,Vanilla extract
+rice,2512381,169756,cup,,,"White long grain, raw"
+basmati_rice,2512381,169756,cup,,,"No basmati row in the source; white long grain, raw"
+pasta,169736,,,,,Dry spaghetti stands for dry pasta; no density because it varies by shape
+spaghetti,169736,,,,,
+oats,2346396,173904,cup#1,,,Rolled oats
+couscous,169699,,cup,,,
+lentils,172420,,cup,,,Dry
+chickpeas,173756,,cup,,,Dry
+kidney_beans,173744,,cup,,,Dry
+canned_tomatoes,170501,,cup,can=400,yes,"Can is the common 400 g pack, hand-set"
+tomato_paste,170459,,cup#1,,,
+coconut_milk,170173,,cup,can=400,yes,"Canned; can is the common 400 g pack, hand-set"
+olive_oil,171413,,tablespoon,,,
+vegetable_oil,172336,,cup,,,Canola oil stands for vegetable oil
+vinegar,172237,,cup,,,Distilled
+balsamic_vinegar,172241,,cup,,,
+soy_sauce,174277,,cup,,,
+honey,169640,,cup,,,
+maple_syrup,169661,,cup,,,
+mustard,326698,172234,cup,,,
+ketchup,168556,,cup,,,
+mayonnaise,171009,,cup,,,
+peanut_butter,324860,,cup,,,
+jam,169641,,tbsp,,,
+chocolate,170272,,,,,"Dark, 60-69% cacao"
+almonds,2346393,170567,,,,"Whole, raw"
+walnuts,2346394,170187,,,,
+vegetable_stock,,,,,,No raw USDA equivalent (SR Legacy has only home-prepared meat stocks and canned soups)
+coffee,,,,,,Ground coffee or brewed coffee depending on the recipe; no sensible raw equivalent
+tea,,,,,,Dry leaves or brewed tea depending on the recipe; no sensible raw equivalent
+orange_juice,2003597,169098,cup,,,
+water,173647,,liter,,,Tap water
+beer,168746,,fl oz,,,
+wine,173190,,fl oz,,,Red table wine
+dish_soap,,,,,,Not a food
+laundry_detergent,,,,,,Not a food
+toilet_paper,,,,,,Not a food
+paper_towels,,,,,,Not a food
+trash_bags,,,,,,Not a food
+sponges,,,,,,Not a food

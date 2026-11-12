@@ -90,8 +90,8 @@ func TestRecipeEstimate(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db *store.DB) {
 		ctx := t.Context()
 		e := newEnv(t, db, "home")
-		rec := e.recipe(t, "Sticky tofu", 2, "400 g tofu", "3 tbsp soy sauce", "3 cloves garlic", "1 thumb ginger")
-		tofu, soy, garlic := e.item["tofu"], e.item["soy sauce"], e.item["garlic"]
+		rec := e.recipe(t, "Sticky tempeh", 2, "400 g tempeh", "3 tbsp dark miso", "3 cloves wild garlic", "1 thumb ginger")
+		tempeh, soy, garlic := e.item["tempeh"], e.item["dark miso"], e.item["wild garlic"]
 
 		r, err := e.s.Recipe(ctx, e.sc, lines(rec), rec.Servings)
 		if err != nil {
@@ -107,7 +107,7 @@ func TestRecipeEstimate(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		save(tofu, Input{Kcal: 144, Protein: ptr(17.3), Fat: ptr(8.7), Carbs: ptr(2.8)})
+		save(tempeh, Input{Kcal: 144, Protein: ptr(17.3), Fat: ptr(8.7), Carbs: ptr(2.8)})
 		save(soy, Input{Kcal: 53, Protein: ptr(8.1), Density: ptr(1.15), SaltG: ptr(13.7)})
 		save(garlic, Input{Kcal: 149, Weights: map[string]float64{"clove": 4}})
 
@@ -128,10 +128,10 @@ func TestRecipeEstimate(t *testing.T) {
 			t.Fatal(err)
 		}
 		if !it.Set || it.Facts.SodiumMg == nil || *it.Facts.SodiumMg != 13.7*400 || it.Facts.Density == nil || *it.Facts.Density != 1.15 {
-			t.Errorf("soy sauce = %+v", it)
+			t.Errorf("dark miso = %+v", it)
 		}
 		if it.Recipes != 1 {
-			t.Errorf("recipes using soy sauce = %d, want 1", it.Recipes)
+			t.Errorf("recipes using dark miso = %d, want 1", it.Recipes)
 		}
 	})
 }
@@ -140,10 +140,10 @@ func TestSaveReplacesAndPublishes(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db *store.DB) {
 		ctx := t.Context()
 		e := newEnv(t, db, "home")
-		a := e.recipe(t, "A", 2, "2 cloves garlic")
-		b := e.recipe(t, "B", 2, "1 clove garlic")
+		a := e.recipe(t, "A", 2, "2 cloves wild garlic")
+		b := e.recipe(t, "B", 2, "1 clove wild garlic")
 		_ = e.recipe(t, "C", 2, "1 onion")
-		garlic := e.item["garlic"]
+		garlic := e.item["wild garlic"]
 
 		if err := e.s.Save(ctx, e.sc, e.by, garlic, Input{Kcal: 149, Weights: map[string]float64{"clove": 4, "piece": 40}}); err != nil {
 			t.Fatal(err)
