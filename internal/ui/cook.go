@@ -7,7 +7,10 @@ import (
 
 // CookView is cook mode: a recipe's method one step per screen.
 type CookView struct {
-	ID   string
+	ID string
+	// Slug is the recipe's address, for links to its pages (see
+	// recipes.Slugify); actions keep the ID.
+	Slug string
 	Name string
 	// Servings is what the detail page was scaled to; Base what the recipe
 	// makes. Mentioned amounts are at Servings.
@@ -36,7 +39,7 @@ func (v CookView) servingsQuery() string {
 
 // RecipeBack is the detail page at the same servings.
 func (v CookView) RecipeBack() string {
-	return withQuery(RecipeHref(v.ID), v.servingsQuery())
+	return withQuery(RecipeHref(v.Slug), v.servingsQuery())
 }
 
 // StepHref is cook mode at step i (0-based), for links without
@@ -46,11 +49,11 @@ func (v CookView) StepHref(i int) string {
 	if s := v.servingsQuery(); s != "" {
 		q = s + "&" + q
 	}
-	return CookHref(v.ID) + "?" + q
+	return CookHref(v.Slug) + "?" + q
 }
 
 // CookHref is a recipe's cook mode.
-func CookHref(id string) string { return RecipeHref(id) + "/cook" }
+func CookHref(slug string) string { return RecipeHref(slug) + "/cook" }
 
 // Clock formats a duration in seconds as m:ss, or h:mm:ss from an hour.
 func Clock(seconds int) string {

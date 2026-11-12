@@ -163,7 +163,7 @@ templ NutritionSheetBody(v NutritionSheetView, modal bool) {
 		if modal {
 			<button type="button" class="btn btn--primary btn--block btn--tall" data-on:click="el.closest('dialog').close()">{ i18n.T(ctx, "nutrition.sheet.done") }</button>
 		} else {
-			<a class="btn btn--primary btn--block btn--tall" href={ templ.SafeURL(RecipeHref(v.ID)) }>{ i18n.T(ctx, "nutrition.sheet.done") }</a>
+			<a class="btn btn--primary btn--block btn--tall" href={ templ.SafeURL(RecipeHref(v.Slug)) }>{ i18n.T(ctx, "nutrition.sheet.done") }</a>
 		}
 	</div>
 }

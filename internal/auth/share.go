@@ -17,7 +17,7 @@ import (
 var ErrShareInvalid = errors.New("auth: share link invalid")
 
 // maxShareTokenLen bounds tokens before they reach the database; issued
-// tokens are 43 characters (internal/recipes).
+// tokens are 22 characters, older ones 43 (internal/recipes).
 const maxShareTokenLen = 64
 
 // Share is what a public recipe link grants: reading one recipe of one

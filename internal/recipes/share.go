@@ -21,9 +21,10 @@ type Share struct {
 	CreatedAt time.Time
 }
 
-// shareTokenBytes is the token's entropy: 256 bits, so links cannot be
-// guessed or enumerated.
-const shareTokenBytes = 32
+// shareTokenBytes is the token's entropy: 128 bits, so links cannot be
+// guessed or enumerated, in 22 characters. Links issued before were 32
+// bytes (43 characters) and still work.
+const shareTokenBytes = 16
 
 func newShareToken() string {
 	b := make([]byte, shareTokenBytes)

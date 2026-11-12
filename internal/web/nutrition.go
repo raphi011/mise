@@ -8,8 +8,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/google/uuid"
-
 	"github.com/raphi011/mise/internal/catalog"
 	"github.com/raphi011/mise/internal/groceries"
 	"github.com/raphi011/mise/internal/i18n"
@@ -46,7 +44,7 @@ func grams(ctx context.Context, v float64) string {
 //
 // amounts are the lines' amounts as the viewer reads them, in the unit
 // system they chose; the missing list shows them.
-func nutritionBlock(ctx context.Context, recipeID uuid.UUID, res nutrition.Result, amounts []string, public bool) *ui.NutritionView {
+func nutritionBlock(ctx context.Context, slug string, res nutrition.Result, amounts []string, public bool) *ui.NutritionView {
 	if res.Of == 0 || (public && !res.Show()) {
 		return nil
 	}
@@ -101,7 +99,7 @@ func nutritionBlock(ctx context.Context, recipeID uuid.UUID, res nutrition.Resul
 	if res.OpenAmounts > 0 {
 		n.OpenAmounts = pluralKey(ctx, res.OpenAmounts, "nutrition.openAmountsOne", "nutrition.openAmounts")
 	}
-	next := url.QueryEscape("/recipes/" + recipeID.String())
+	next := url.QueryEscape(ui.RecipeHref(slug))
 	for _, m := range res.Missing {
 		row := ui.NutritionMissing{Name: m.Name, Amount: amounts[m.Index]}
 		item := "/items/" + m.ItemID.String() + "/nutrition?next=" + next
@@ -114,7 +112,7 @@ func nutritionBlock(ctx context.Context, recipeID uuid.UUID, res nutrition.Resul
 			row.Why, row.Href, row.Action = i18n.T(ctx, "nutrition.why.noWeight"), item, i18n.T(ctx, "nutrition.action.addWeight")
 		default:
 			row.Why = i18n.T(ctx, "nutrition.why.freeText")
-			row.Href, row.Action = "/recipes/"+recipeID.String()+"/edit", i18n.T(ctx, "nutrition.action.editRecipe")
+			row.Href, row.Action = ui.RecipeEditHref(slug), i18n.T(ctx, "nutrition.action.editRecipe")
 		}
 		n.Missing = append(n.Missing, row)
 	}

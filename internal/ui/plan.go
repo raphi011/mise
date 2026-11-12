@@ -271,10 +271,11 @@ func (v PlanPickView) moreAction() string {
 
 // MealMenuView is the menu of a planned meal.
 type MealMenuView struct {
-	ID       string
-	RecipeID string
-	Name     string
-	Photo    string
+	ID         string
+	RecipeID   string
+	RecipeSlug string
+	Name       string
+	Photo      string
 	// DayLabel is the translated "Monday, 9 Nov"; Day the weekday alone.
 	DayLabel string
 	Day      string
@@ -363,9 +364,10 @@ func (v MealMenuView) replaceAction(recipeID string) string {
 
 // TonightCard is the library's "Suggested for tonight".
 type TonightCard struct {
-	RecipeID string
-	Name     string
-	Photo    string
+	RecipeID   string
+	RecipeSlug string
+	Name       string
+	Photo      string
 	// Meta is the translated second line.
 	Meta string
 }

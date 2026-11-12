@@ -28,7 +28,9 @@ type Meal struct {
 
 // Recipe is a planned recipe as the plan shows it.
 type Recipe struct {
-	ID       uuid.UUID
+	ID uuid.UUID
+	// Slug is the recipe's address, see recipes.Slugify.
+	Slug     string
 	Name     string
 	Photo    string
 	TotalMin *int
@@ -64,6 +66,7 @@ type mealRow struct {
 	Position       int
 	Servings       int
 	RecipeID       uuid.UUID
+	RecipeSlug     string
 	Name           string
 	Photo          *string
 	PrepMin        *int
@@ -73,7 +76,7 @@ type mealRow struct {
 
 func (r mealRow) meal() Meal {
 	m := Meal{ID: r.ID, Date: r.Date, Position: r.Position, Servings: r.Servings,
-		Recipe: Recipe{ID: r.RecipeID, Name: r.Name, TotalMin: totalMin(r.PrepMin, r.CookMin), Servings: r.RecipeServings}}
+		Recipe: Recipe{ID: r.RecipeID, Slug: r.RecipeSlug, Name: r.Name, TotalMin: totalMin(r.PrepMin, r.CookMin), Servings: r.RecipeServings}}
 	if r.Photo != nil {
 		m.Recipe.Photo = *r.Photo
 	}
@@ -97,7 +100,7 @@ func totalMin(prep, cook *int) *int {
 // mealSelect selects mealRow columns of live meals whose recipe is live:
 // a meal of a deleted recipe is hidden until the recipe is restored. Its
 // first argument is the household; callers append conditions on pm.
-const mealSelect = `SELECT pm.id, pm.date, pm.position, pm.servings, r.id AS recipe_id, r.name, r.photo,
+const mealSelect = `SELECT pm.id, pm.date, pm.position, pm.servings, r.id AS recipe_id, r.slug AS recipe_slug, r.name, r.photo,
 		r.prep_min, r.cook_min, r.servings AS recipe_servings
 	FROM planned_meals pm JOIN recipes r ON r.household_id = pm.household_id AND r.id = pm.recipe_id
 	WHERE pm.household_id = ? AND pm.deleted_at IS NULL AND r.deleted_at IS NULL`

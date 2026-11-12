@@ -322,6 +322,13 @@ func (s *Server) recipeEditView(ctx context.Context, sc store.Scoped, id string,
 		f.Values[name] = st.vals.Get(name)
 	}
 	v := ui.RecipeEditView{ID: id, Form: f, Photo: st.vals.Get("photo"), Rows: st.rows, Steps: st.steps}
+	if id != "" {
+		_, slug, err := s.recipes.Resolve(ctx, sc, id)
+		if err != nil {
+			return ui.RecipeEditView{}, err
+		}
+		v.Slug = slug
+	}
 	if id == "" {
 		if imp, err := uuid.Parse(st.vals.Get("import")); err == nil {
 			v.Import = imp.String()
@@ -470,7 +477,7 @@ func importEditorState(ctx context.Context, job ai.Job) editorState {
 }
 
 func (s *Server) editRecipePage(w http.ResponseWriter, r *http.Request) {
-	recipeID, sc, ok := s.recipeTarget(w, r)
+	recipeID, sc, ok := s.recipePageTarget(w, r)
 	if !ok {
 		return
 	}
@@ -523,7 +530,7 @@ func (s *Server) createRecipe(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) updateRecipe(w http.ResponseWriter, r *http.Request) {
-	recipeID, sc, ok := s.recipeTarget(w, r)
+	recipeID, _, sc, ok := s.recipeTarget(w, r)
 	if !ok {
 		return
 	}
@@ -632,7 +639,7 @@ func (s *Server) saveRecipe(w http.ResponseWriter, r *http.Request, sc store.Sco
 	if photoFailed {
 		s.setImportedFlash(w, r, recipeID)
 	}
-	seeOther(w, r, ui.RecipeHref(recipeID.String()))
+	seeOther(w, r, s.recipeHref(ctx, sc, recipeID))
 }
 
 // editorErrors re-renders the editor with its messages, putting each

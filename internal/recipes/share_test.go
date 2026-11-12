@@ -32,7 +32,7 @@ func TestShare(t *testing.T) {
 			t.Fatal(err)
 		}
 		raw, err := base64.RawURLEncoding.DecodeString(sh.Token)
-		if err != nil || len(raw) < 16 {
+		if err != nil || len(raw) != shareTokenBytes || len(sh.Token) != 22 {
 			t.Errorf("token %q: %d bytes, %v", sh.Token, len(raw), err)
 		}
 		if sh.CreatedBy.ID != e.hh.Member || !sh.CreatedAt.Equal(e.clk.Now()) {

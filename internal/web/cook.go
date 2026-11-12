@@ -11,18 +11,25 @@ import (
 
 	"github.com/raphi011/mise/internal/i18n"
 	"github.com/raphi011/mise/internal/recipes"
+	"github.com/raphi011/mise/internal/store"
 	"github.com/raphi011/mise/internal/ui"
 )
 
 // cookedCookie carries the cook event a plain form post just recorded to
 // the recipe page, which shows its Undo toast once. Cook mode's Done is
-// such a post: it leaves the page.
+// such a post: it leaves the page. Its value is "<recipe ID>.<event ID>" and
+// its path /recipes, since the page's address is its slug, which may differ
+// from the address the post came from.
 const cookedCookie = "mise_cooked"
+
+// flashPath is the path of the cookies a recipe page reads once; their
+// value names the recipe they are for.
+const flashPath = "/recipes"
 
 // cookPage is cook mode: the method one step per screen at the servings
 // the detail page showed.
 func (s *Server) cookPage(w http.ResponseWriter, r *http.Request) {
-	recipeID, sc, ok := s.recipeTarget(w, r)
+	recipeID, sc, ok := s.recipePageTarget(w, r)
 	if !ok {
 		return
 	}
@@ -37,7 +44,7 @@ func (s *Server) cookPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	servings := clampServings(servingsParam(r, "servings"), rec.Servings)
-	v := ui.CookView{ID: rec.ID.String(), Name: rec.Name, Servings: servings, Base: rec.Servings}
+	v := ui.CookView{ID: rec.ID.String(), Slug: rec.Slug, Name: rec.Name, Servings: servings, Base: rec.Servings}
 	if len(rec.Steps) == 0 {
 		http.Redirect(w, r, v.RecipeBack(), http.StatusFound)
 		return
@@ -58,10 +65,24 @@ func (s *Server) cookPage(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, http.StatusOK, ui.CookPage(p, v))
 }
 
-// isRecipePage reports whether path is the recipe's detail page.
-func isRecipePage(path string, recipeID uuid.UUID) bool {
-	rest, ok := strings.CutPrefix(path, ui.RecipeHref(recipeID.String()))
-	return ok && (rest == "" || rest[0] == '?' || rest[0] == '#')
+// isRecipePage reports whether path is the recipe's detail page, at any of
+// its addresses (see recipes.Resolve).
+func (s *Server) isRecipePage(ctx context.Context, sc store.Scoped, path string, recipeID uuid.UUID) (bool, error) {
+	handle, ok := strings.CutPrefix(path, ui.RecipeHref(""))
+	if !ok {
+		return false, nil
+	}
+	if i := strings.IndexAny(handle, "?#"); i >= 0 {
+		handle = handle[:i]
+	}
+	if strings.Contains(handle, "/") {
+		return false, nil
+	}
+	id, _, err := s.recipes.Resolve(ctx, sc, handle)
+	if errors.Is(err, recipes.ErrNotFound) {
+		return false, nil
+	}
+	return err == nil && id == recipeID, err
 }
 
 // cookedToast is the Undo toast of a recorded cook event.
@@ -77,22 +98,31 @@ func cookedToast(ctx context.Context, recipeID, event uuid.UUID, back string) ui
 // setCookedFlash remembers a cook event for the recipe page's Undo toast.
 func (s *Server) setCookedFlash(w http.ResponseWriter, r *http.Request, recipeID, event uuid.UUID) {
 	http.SetCookie(w, &http.Cookie{
-		Name: cookedCookie, Value: event.String(), Path: ui.RecipeHref(recipeID.String()), MaxAge: 60,
+		Name: cookedCookie, Value: recipeID.String() + "." + event.String(), Path: flashPath, MaxAge: 60,
 		HttpOnly: true, Secure: s.secureCookie(r), SameSite: http.SameSiteLaxMode,
 	})
 }
 
 // takeCookedFlash returns and clears the cook event remembered for the
-// recipe page, if any.
+// recipe page, if any. A cookie for another recipe stays.
 func (s *Server) takeCookedFlash(w http.ResponseWriter, r *http.Request, recipeID uuid.UUID) (uuid.UUID, bool) {
 	c, err := r.Cookie(cookedCookie)
 	if err != nil {
 		return uuid.Nil, false
 	}
+	recipe, rawEvent, _ := strings.Cut(c.Value, ".")
+	if recipe != recipeID.String() {
+		return uuid.Nil, false
+	}
+	s.clearFlash(w, r, cookedCookie)
+	event, err := uuid.Parse(rawEvent)
+	return event, err == nil
+}
+
+// clearFlash deletes a recipe page's one-time cookie.
+func (s *Server) clearFlash(w http.ResponseWriter, r *http.Request, name string) {
 	http.SetCookie(w, &http.Cookie{
-		Name: cookedCookie, Path: ui.RecipeHref(recipeID.String()), MaxAge: -1,
+		Name: name, Path: flashPath, MaxAge: -1,
 		HttpOnly: true, Secure: s.secureCookie(r), SameSite: http.SameSiteLaxMode,
 	})
-	event, err := uuid.Parse(c.Value)
-	return event, err == nil
 }

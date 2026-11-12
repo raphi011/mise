@@ -407,7 +407,7 @@ func (s *Server) saveImport(w http.ResponseWriter, r *http.Request) {
 	if photoFailed {
 		s.setImportedFlash(w, r, recipeID)
 	}
-	seeOther(w, r, ui.RecipeHref(recipeID.String()))
+	seeOther(w, r, s.recipeHref(ctx, sc, recipeID))
 }
 
 // importPhoto downloads a draft's photo through the safe fetcher and
@@ -430,7 +430,7 @@ func (s *Server) importPhoto(ctx context.Context, sc store.Scoped, job ai.Job) (
 
 func (s *Server) setImportedFlash(w http.ResponseWriter, r *http.Request, recipeID uuid.UUID) {
 	http.SetCookie(w, &http.Cookie{
-		Name: importedCookie, Value: "nophoto", Path: ui.RecipeHref(recipeID.String()), MaxAge: 60,
+		Name: importedCookie, Value: recipeID.String(), Path: flashPath, MaxAge: 60,
 		HttpOnly: true, Secure: s.secureCookie(r), SameSite: http.SameSiteLaxMode,
 	})
 }
@@ -438,13 +438,10 @@ func (s *Server) setImportedFlash(w http.ResponseWriter, r *http.Request, recipe
 // takeImportedFlash reports and clears the note that a saved import's
 // photo could not be downloaded.
 func (s *Server) takeImportedFlash(w http.ResponseWriter, r *http.Request, recipeID uuid.UUID) bool {
-	if _, err := r.Cookie(importedCookie); err != nil {
+	if c, err := r.Cookie(importedCookie); err != nil || c.Value != recipeID.String() {
 		return false
 	}
-	http.SetCookie(w, &http.Cookie{
-		Name: importedCookie, Path: ui.RecipeHref(recipeID.String()), MaxAge: -1,
-		HttpOnly: true, Secure: s.secureCookie(r), SameSite: http.SameSiteLaxMode,
-	})
+	s.clearFlash(w, r, importedCookie)
 	return true
 }
 

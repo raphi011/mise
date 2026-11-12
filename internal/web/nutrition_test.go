@@ -38,7 +38,7 @@ func TestNutrition(t *testing.T) {
 		_, srv := startTimedServer(t, db)
 		anna, ben := household(t, srv)
 		id := createRecipe(t, anna, noCatalogue())
-		page := "/recipes/" + id
+		page := anna.recipePath(id)
 
 		// Nothing is known yet: the tile says so, the popup explains and
 		// offers a way to add values. Without JavaScript the popup is a page,
@@ -195,10 +195,10 @@ func TestNutrition(t *testing.T) {
 
 		// A recipe without ingredients has no tile and no popup.
 		empty := createRecipe(t, anna, url.Values{"name": {"Water"}, "servings": {"1"}})
-		if body := anna.get("/recipes/" + empty).body; strings.Contains(body, "nutri-tile") {
+		if body := anna.open("/recipes/" + empty).body; strings.Contains(body, "nutri-tile") {
 			t.Error("tile shown without ingredients")
 		}
-		anna.get("/recipes/"+empty+"/nutrition").expect(t, "empty popup", http.StatusSeeOther, "/recipes/"+empty)
+		anna.get("/recipes/"+empty+"/nutrition").expect(t, "empty popup", http.StatusSeeOther, "/recipes/water")
 		anna.get("/recipes/"+uuid.NewString()+"/nutrition").expect(t, "unknown recipe popup", http.StatusNotFound)
 
 		// Unknown and malformed items are not found; the entry sheet links in.

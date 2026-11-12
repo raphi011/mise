@@ -261,10 +261,10 @@ func TestCookedAndDeleteConfirm(t *testing.T) {
 		contains(t, "recipe menu", anna.get("/recipes/"+tofu+"/menu").body, "I made this")
 		res := anna.datastar(http.MethodPost, "/recipes/"+tofu+"/cooked", url.Values{}).expect(t, "cooked", http.StatusOK)
 		contains(t, "cooked response", res.body, "Marked as cooked today", "/cooked/")
-		contains(t, "recipe page", anna.get("/recipes/"+tofu).body, "Once")
+		contains(t, "recipe page", anna.open("/recipes/"+tofu).body, "Once")
 		undo := regexp.MustCompile(`/recipes/[0-9a-f-]{36}/cooked/[0-9a-f-]{36}/undo`).FindString(res.body)
-		anna.post(undo, nil).expect(t, "undo cooked", http.StatusSeeOther, "/recipes/"+tofu)
-		contains(t, "recipe page after undo", anna.get("/recipes/"+tofu).body, "Not yet")
+		anna.post(undo, nil).expect(t, "undo cooked", http.StatusSeeOther, "/recipes/sticky-tofu")
+		contains(t, "recipe page after undo", anna.open("/recipes/"+tofu).body, "Not yet")
 		// Never cooked and not planned: tonight suggests it.
 		contains(t, "library", anna.get("/recipes").body, "Suggested for tonight", "Never cooked")
 
@@ -400,9 +400,9 @@ func TestLinkedRecipes(t *testing.T) {
 		curry["link"] = []string{riceID}
 		curryID := createRecipe(t, anna, curry)
 
-		contains(t, "curry page", anna.get("/recipes/"+curryID).body, "Goes well with", "Jasmine rice")
-		contains(t, "rice page", anna.get("/recipes/"+riceID).body, "Goes well with", "Green curry")
-		contains(t, "curry editor", anna.get("/recipes/"+curryID+"/edit").body, `name="link" value="`+riceID+`" checked`)
+		contains(t, "curry page", anna.open("/recipes/"+curryID).body, "Goes well with", "Jasmine rice")
+		contains(t, "rice page", anna.open("/recipes/"+riceID).body, "Goes well with", "Green curry")
+		contains(t, "curry editor", anna.open("/recipes/"+curryID+"/edit").body, `name="link" value="`+riceID+`" checked`)
 
 		sheet := anna.get("/plan/add?recipe="+curryID).expect(t, "add sheet", http.StatusOK)
 		contains(t, "add sheet", sheet.body, "Plan with it", `name="also" value="`+riceID+`"`)
@@ -423,7 +423,7 @@ func TestLinkedRecipes(t *testing.T) {
 		// Unticking the box unlinks both ways.
 		curry["link"] = nil
 		anna.post("/recipes/"+curryID+"/edit", curry).expect(t, "unlink", http.StatusSeeOther)
-		if strings.Contains(anna.get("/recipes/"+riceID).body, "Goes well with") {
+		if strings.Contains(anna.open("/recipes/"+riceID).body, "Goes well with") {
 			t.Error("rice still lists the curry")
 		}
 	})
@@ -510,7 +510,7 @@ func TestRecipePairings(t *testing.T) {
 		page := func(n int) string {
 			main["link"] = ids[:n]
 			id := createRecipe(t, anna, main)
-			return anna.get("/recipes/"+id).expect(t, "recipe", http.StatusOK).body
+			return anna.open("/recipes/"+id).expect(t, "recipe", http.StatusOK).body
 		}
 
 		if body := page(0); strings.Contains(body, "pairs__label") {

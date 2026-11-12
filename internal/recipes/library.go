@@ -16,7 +16,9 @@ import (
 
 // Card is a recipe as the library and search list it.
 type Card struct {
-	ID           uuid.UUID
+	ID uuid.UUID
+	// Slug is the recipe's address, see Slugify.
+	Slug         string
 	Name         string
 	Photo        string
 	TotalMin     *int
@@ -74,6 +76,7 @@ func (f Filter) IsZero() bool {
 
 type cardRow struct {
 	ID           uuid.UUID
+	Slug         string
 	Name         string
 	NameKey      string
 	Photo        *string
@@ -91,7 +94,7 @@ type cardRow struct {
 
 func (r cardRow) card() Card {
 	return Card{
-		ID: r.ID, Name: r.Name, Photo: deref(r.Photo), TotalMin: totalMin(r.PrepMin, r.CookMin), Servings: r.Servings,
+		ID: r.ID, Slug: r.Slug, Name: r.Name, Photo: deref(r.Photo), TotalMin: totalMin(r.PrepMin, r.CookMin), Servings: r.Servings,
 		Favourite: r.Favourite,
 		CreatedBy: Person{ID: r.CreatedBy, Name: r.CreatedName, Color: r.CreatedColor},
 		CreatedAt: r.CreatedAt.Time, TimesCooked: r.TimesCooked, LastCookedAt: timePtr(r.LastCookedAt),
@@ -101,7 +104,7 @@ func (r cardRow) card() Card {
 // cardSelect selects cardRow columns of live, non-draft recipes. Its
 // arguments are the viewer, the household and false (for draft); callers
 // append conditions on r.
-const cardSelect = `SELECT r.id, r.name, r.name_key, r.photo, r.prep_min, r.cook_min, r.servings,
+const cardSelect = `SELECT r.id, r.slug, r.name, r.name_key, r.photo, r.prep_min, r.cook_min, r.servings,
 		EXISTS (SELECT 1 FROM favourites f WHERE f.household_id = r.household_id AND f.recipe_id = r.id AND f.user_id = ?) AS favourite,
 		r.created_by, u.name AS created_name, u.avatar_color AS created_color, r.created_at,
 		(SELECT count(*) FROM cook_events ce WHERE ce.household_id = r.household_id AND ce.recipe_id = r.id) AS times_cooked,

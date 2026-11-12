@@ -24,24 +24,24 @@ func TestCookMode(t *testing.T) {
 		id := createRecipe(t, anna, stickyTofu())
 
 		// The editor shows the saved timer in minutes.
-		edit := anna.get("/recipes/"+id+"/edit").expect(t, "editor", http.StatusOK)
+		edit := anna.open("/recipes/"+id+"/edit").expect(t, "editor", http.StatusOK)
 		if !strings.Contains(edit.body, `name="step_timer" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" value="10"`) {
 			t.Errorf("editor lost the timer:\n%.6000s", edit.body)
 		}
 
-		page := anna.get("/recipes/"+id+"?servings=4").expect(t, "recipe", http.StatusOK)
-		if !strings.Contains(page.body, `href="/recipes/`+id+`/cook?servings=4"`) {
+		page := anna.open("/recipes/"+id+"?servings=4").expect(t, "recipe", http.StatusOK)
+		if !strings.Contains(page.body, `href="/recipes/sticky-tofu/cook?servings=4"`) {
 			t.Fatalf("recipe page has no cook mode link at its servings:\n%.4000s", page.body)
 		}
 
-		cook := anna.get("/recipes/"+id+"/cook?servings=4").expect(t, "cook mode", http.StatusOK)
+		cook := anna.open("/recipes/"+id+"/cook?servings=4").expect(t, "cook mode", http.StatusOK)
 		for _, want := range []string{
 			`data-theme="dark"`,
 			"Step 1 of 2", "Step 2 of 2",
 			`data-seconds="600"`, "Start 10:00 timer",
 			"800 g", // the tofu at 4 servings, highlighted in step 1
-			`href="/recipes/` + id + `/cook?servings=4&amp;step=2"`,
-			`name="back" value="/recipes/` + id + `?servings=4"`,
+			`href="/recipes/sticky-tofu/cook?servings=4&amp;step=2"`,
+			`name="back" value="/recipes/sticky-tofu?servings=4"`,
 		} {
 			if !strings.Contains(cook.body, want) {
 				t.Errorf("cook mode has no %q", want)
@@ -50,11 +50,11 @@ func TestCookMode(t *testing.T) {
 		if strings.Count(cook.body, "cook__step--off") != 1 || !strings.Contains(cook.body, `class="cook__step" id="cook-step-0"`) {
 			t.Errorf("cook mode does not start at step 1:\n%.4000s", cook.body)
 		}
-		second := anna.get("/recipes/"+id+"/cook?step=2").expect(t, "step 2", http.StatusOK)
+		second := anna.open("/recipes/"+id+"/cook?step=2").expect(t, "step 2", http.StatusOK)
 		if !strings.Contains(second.body, `class="cook__step" id="cook-step-1"`) {
 			t.Error("?step=2 does not show the second step")
 		}
-		if over := anna.get("/recipes/"+id+"/cook?step=99").expect(t, "step 99", http.StatusOK); !strings.Contains(over.body, `class="cook__step" id="cook-step-1"`) {
+		if over := anna.open("/recipes/"+id+"/cook?step=99").expect(t, "step 99", http.StatusOK); !strings.Contains(over.body, `class="cook__step" id="cook-step-1"`) {
 			t.Error("a step past the end does not show the last one")
 		}
 
@@ -62,11 +62,11 @@ func TestCookMode(t *testing.T) {
 		// the Undo toast.
 		anna.post("/recipes/"+id+"/cooked", map[string][]string{"back": {"/recipes/" + id + "?servings=4"}}).
 			expect(t, "done", http.StatusSeeOther, "/recipes/"+id+"?servings=4")
-		page = anna.get("/recipes/"+id+"?servings=4").expect(t, "recipe after done", http.StatusOK)
+		page = anna.open("/recipes/"+id+"?servings=4").expect(t, "recipe after done", http.StatusOK)
 		if !strings.Contains(page.body, "<dd>Once</dd>") || !strings.Contains(page.body, "/cooked/") || !strings.Contains(page.body, "toast__undo") {
 			t.Errorf("recipe after done has no cook count or Undo: once=%v cooked=%v undo=%v", strings.Contains(page.body, "<dd>Once</dd>"), strings.Contains(page.body, "/cooked/"), strings.Contains(page.body, "toast__undo"))
 		}
-		page = anna.get("/recipes/"+id).expect(t, "recipe again", http.StatusOK)
+		page = anna.open("/recipes/"+id).expect(t, "recipe again", http.StatusOK)
 		if strings.Contains(page.body, "toast__undo") {
 			t.Error("the Undo toast shows again")
 		}
@@ -75,10 +75,11 @@ func TestCookMode(t *testing.T) {
 		bare := stickyTofu()
 		bare["step"], bare["step_timer"] = nil, nil
 		bareID := createRecipe(t, anna, bare)
-		if strings.Contains(anna.get("/recipes/"+bareID).body, "/cook") {
+		if strings.Contains(anna.open("/recipes/"+bareID).body, "/cook") {
 			t.Error("recipe without steps links cook mode")
 		}
-		anna.get("/recipes/"+bareID+"/cook").expect(t, "cook without steps", http.StatusFound, "/recipes/"+bareID)
+		// The second "Sticky tofu" gets the next free slug.
+		anna.get("/recipes/sticky-tofu-2/cook").expect(t, "cook without steps", http.StatusFound, "/recipes/sticky-tofu-2")
 	})
 }
 

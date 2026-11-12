@@ -115,6 +115,30 @@ func (b *browser) get(path string) page {
 	return b.do(req)
 }
 
+// open gets a recipe page by any of its addresses, following the redirects
+// from an ID or an old slug to the current slug.
+func (b *browser) open(path string) page {
+	b.t.Helper()
+	p := b.get(path)
+	for range 3 {
+		if p.status != http.StatusFound || !strings.HasPrefix(p.location, "/recipes/") {
+			break
+		}
+		p = b.get(p.location)
+	}
+	return p
+}
+
+// recipePath is the current address of the recipe with id: its slug.
+func (b *browser) recipePath(id string) string {
+	b.t.Helper()
+	p := b.get("/recipes/" + id)
+	if p.status != http.StatusFound {
+		b.t.Fatalf("recipe %s: status %d, want a redirect to its slug", id, p.status)
+	}
+	return p.location
+}
+
 func (b *browser) post(path string, form url.Values) page {
 	b.t.Helper()
 	req, err := http.NewRequestWithContext(b.t.Context(), http.MethodPost, b.url(path), strings.NewReader(form.Encode()))

@@ -96,7 +96,7 @@ func (s *Server) recipeView(ctx context.Context, sc store.Scoped, id *auth.Ident
 	loc := location(id)
 	servings = clampServings(servings, rec.Servings)
 	v := ui.RecipeView{
-		ID: rec.ID.String(), Name: rec.Name, Description: rec.Description, Photo: rec.Photo,
+		ID: rec.ID.String(), Slug: rec.Slug, Name: rec.Name, Description: rec.Description, Photo: rec.Photo,
 		Prep: minutes(ctx, rec.PrepMin), Cook: minutes(ctx, rec.CookMin),
 		Servings: servings, Base: rec.Servings,
 		By:     ui.Viewer{Name: rec.CreatedBy.Name, Color: rec.CreatedBy.Color},
@@ -105,7 +105,7 @@ func (s *Server) recipeView(ctx context.Context, sc store.Scoped, id *auth.Ident
 	}
 	v.SourceURL, v.SourceHost = sourceLink(rec.SourceURL)
 	for _, l := range rec.Links {
-		v.Links = append(v.Links, ui.LinkView{ID: l.ID.String(), Name: l.Name, Photo: l.Photo, Meta: minutes(ctx, l.TotalMin)})
+		v.Links = append(v.Links, ui.LinkView{ID: l.ID.String(), Slug: l.Slug, Name: l.Name, Photo: l.Photo, Meta: minutes(ctx, l.TotalMin)})
 	}
 	for _, t := range rec.Tags {
 		v.Tags = append(v.Tags, t.Name)
@@ -132,7 +132,7 @@ func (s *Server) recipeView(ctx context.Context, sc store.Scoped, id *auth.Ident
 		return ui.RecipeView{}, err
 	}
 	sys := unitSystem(id)
-	v.Nutrition = nutritionBlock(ctx, rec.ID, est, scaledAmounts(ctx, rec, rec.Servings, sys), false)
+	v.Nutrition = nutritionBlock(ctx, rec.Slug, est, scaledAmounts(ctx, rec, rec.Servings, sys), false)
 
 	amounts := scaledAmounts(ctx, rec, servings, sys)
 	for i, ing := range rec.Ingredients {
@@ -197,9 +197,54 @@ func stepParts(rec recipes.Recipe, amounts []string, sys groceries.System, scope
 	return out
 }
 
-// recipeTarget parses the {id} path value and the scope.
-func (s *Server) recipeTarget(w http.ResponseWriter, r *http.Request) (uuid.UUID, store.Scoped, bool) {
-	return s.groceriesTarget(w, r)
+// recipeTarget resolves the {id} path value (a recipe's slug, a slug it had
+// before, or its ID; see recipes.Resolve) to the recipe's ID and current
+// slug, and returns the scope.
+func (s *Server) recipeTarget(w http.ResponseWriter, r *http.Request) (uuid.UUID, string, store.Scoped, bool) {
+	sc, err := s.db.Scope(r.Context())
+	if err != nil {
+		s.serverError(w, r, err)
+		return uuid.Nil, "", store.Scoped{}, false
+	}
+	id, slug, err := s.recipes.Resolve(r.Context(), sc, r.PathValue("id"))
+	if errors.Is(err, recipes.ErrNotFound) {
+		s.recipeGone(w, r)
+		return uuid.Nil, "", store.Scoped{}, false
+	}
+	if err != nil {
+		s.serverError(w, r, err)
+		return uuid.Nil, "", store.Scoped{}, false
+	}
+	return id, slug, sc, true
+}
+
+// recipeHref is the detail page of a recipe known by ID, for redirects
+// after a write. It falls back to the ID address, which redirects again.
+func (s *Server) recipeHref(ctx context.Context, sc store.Scoped, id uuid.UUID) string {
+	if _, slug, err := s.recipes.Resolve(ctx, sc, id.String()); err == nil {
+		return ui.RecipeHref(slug)
+	}
+	return ui.RecipeHref(id.String())
+}
+
+// recipePageTarget is recipeTarget for a recipe's pages: one opened by an
+// old slug or by ID is redirected to the same page at the current slug.
+func (s *Server) recipePageTarget(w http.ResponseWriter, r *http.Request) (uuid.UUID, store.Scoped, bool) {
+	id, slug, sc, ok := s.recipeTarget(w, r)
+	if !ok {
+		return uuid.Nil, store.Scoped{}, false
+	}
+	handle := r.PathValue("id")
+	if handle == slug {
+		return id, sc, true
+	}
+	target := ui.RecipeHref(slug) + strings.TrimPrefix(r.URL.Path, ui.RecipeHref(handle))
+	if r.URL.RawQuery != "" {
+		target += "?" + r.URL.RawQuery
+	}
+	// Not permanent: the old slug can pass to another recipe later.
+	http.Redirect(w, r, target, http.StatusFound)
+	return uuid.Nil, store.Scoped{}, false
 }
 
 func servingsParam(r *http.Request, name string) int {
@@ -215,7 +260,7 @@ func servingsParam(r *http.Request, name string) int {
 }
 
 func (s *Server) recipePage(w http.ResponseWriter, r *http.Request) {
-	recipeID, sc, ok := s.recipeTarget(w, r)
+	recipeID, sc, ok := s.recipePageTarget(w, r)
 	if !ok {
 		return
 	}
@@ -278,7 +323,7 @@ func (s *Server) recipeGone(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) toggleIngredient(w http.ResponseWriter, r *http.Request) {
-	recipeID, sc, ok := s.recipeTarget(w, r)
+	recipeID, _, sc, ok := s.recipeTarget(w, r)
 	if !ok {
 		return
 	}
@@ -323,7 +368,7 @@ func (s *Server) toggleIngredient(w http.ResponseWriter, r *http.Request) {
 
 // restoreIngredients is the Undo of taking an ingredient off the list.
 func (s *Server) restoreIngredients(w http.ResponseWriter, r *http.Request) {
-	recipeID, sc, ok := s.recipeTarget(w, r)
+	recipeID, _, sc, ok := s.recipeTarget(w, r)
 	if !ok {
 		return
 	}
@@ -345,7 +390,7 @@ func (s *Server) restoreIngredients(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) setFavourite(w http.ResponseWriter, r *http.Request) {
-	recipeID, sc, ok := s.recipeTarget(w, r)
+	recipeID, slug, sc, ok := s.recipeTarget(w, r)
 	if !ok {
 		return
 	}
@@ -364,27 +409,27 @@ func (s *Server) setFavourite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !isDatastar(r) {
-		seeOther(w, r, ui.RecipeHref(recipeID.String()))
+		seeOther(w, r, ui.RecipeHref(slug))
 		return
 	}
-	s.sendPatches(w, r, patchTempl(ui.RecipeFavourite(ui.RecipeView{ID: recipeID.String(), Favourite: on})))
+	s.sendPatches(w, r, patchTempl(ui.RecipeFavourite(ui.RecipeView{ID: recipeID.String(), Slug: slug, Favourite: on})))
 }
 
 // shareURL is the recipe's address for people signed in to this server.
-func (s *Server) shareURL(r *http.Request, recipeID uuid.UUID) string {
+func (s *Server) shareURL(r *http.Request, slug string) string {
 	base := s.BaseURL()
 	if base == nil {
 		u, err := url.Parse(requestOrigin(r, s.cfg.TrustedProxies))
 		if err != nil {
-			return ui.RecipeHref(recipeID.String())
+			return ui.RecipeHref(slug)
 		}
 		base = u
 	}
-	return base.JoinPath("recipes", recipeID.String()).String()
+	return base.JoinPath("recipes", slug).String()
 }
 
 func (s *Server) recipeMenu(w http.ResponseWriter, r *http.Request) {
-	recipeID, sc, ok := s.recipeTarget(w, r)
+	recipeID, _, sc, ok := s.recipeTarget(w, r)
 	if !ok {
 		return
 	}
@@ -409,7 +454,7 @@ func (s *Server) recipeMenu(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p := s.page(r, rec.Name, ui.NavRecipes)
-	p.BackHref, p.BackLabel = ui.RecipeHref(v.ID), i18n.T(ctx, "recipes.backToRecipe")
+	p.BackHref, p.BackLabel = ui.RecipeHref(v.Slug), i18n.T(ctx, "recipes.backToRecipe")
 	s.render(w, r, http.StatusOK, ui.RecipeMenuPage(p, v))
 }
 
@@ -424,17 +469,17 @@ func (s *Server) nutritionSheetView(ctx context.Context, sc store.Scoped, id *au
 	if err != nil {
 		return nil, err
 	}
-	n := nutritionBlock(ctx, rec.ID, est, scaledAmounts(ctx, rec, rec.Servings, unitSystem(id)), false)
+	n := nutritionBlock(ctx, rec.Slug, est, scaledAmounts(ctx, rec, rec.Servings, unitSystem(id)), false)
 	if n == nil {
 		return nil, nil
 	}
-	return &ui.NutritionSheetView{ID: rec.ID.String(), Nutrition: *n}, nil
+	return &ui.NutritionSheetView{ID: rec.ID.String(), Slug: rec.Slug, Nutrition: *n}, nil
 }
 
 // recipeNutrition is the nutrition popup: a dialog for Datastar, a page
 // without JavaScript.
 func (s *Server) recipeNutrition(w http.ResponseWriter, r *http.Request) {
-	recipeID, sc, ok := s.recipeTarget(w, r)
+	recipeID, slug, sc, ok := s.recipeTarget(w, r)
 	if !ok {
 		return
 	}
@@ -453,7 +498,7 @@ func (s *Server) recipeNutrition(w http.ResponseWriter, r *http.Request) {
 			s.sendPatches(w, r, patchTempl(ui.EmptySheet()))
 			return
 		}
-		seeOther(w, r, ui.RecipeHref(recipeID.String()))
+		seeOther(w, r, ui.RecipeHref(slug))
 		return
 	}
 	if isDatastar(r) {
@@ -461,12 +506,12 @@ func (s *Server) recipeNutrition(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p := s.page(r, i18n.T(ctx, "nutrition.title"), ui.NavRecipes)
-	p.BackHref, p.BackLabel = ui.RecipeHref(v.ID), i18n.T(ctx, "recipes.backToRecipe")
+	p.BackHref, p.BackLabel = ui.RecipeHref(v.Slug), i18n.T(ctx, "recipes.backToRecipe")
 	s.render(w, r, http.StatusOK, ui.NutritionPage(p, *v))
 }
 
 func (s *Server) deleteRecipePage(w http.ResponseWriter, r *http.Request) {
-	recipeID, sc, ok := s.recipeTarget(w, r)
+	recipeID, slug, sc, ok := s.recipeTarget(w, r)
 	if !ok {
 		return
 	}
@@ -504,13 +549,13 @@ func (s *Server) deleteRecipePage(w http.ResponseWriter, r *http.Request) {
 		body = append(body, i18n.T(ctx, "recipes.delete.others", joinNames(ctx, names)))
 	}
 	body = append(body, i18n.T(ctx, "recipes.delete.listStays"))
-	v := ui.DeleteRecipeView{ID: recipeID.String(), Name: info.Name, Body: strings.Join(body, " ")}
+	v := ui.DeleteRecipeView{ID: recipeID.String(), Slug: slug, Name: info.Name, Body: strings.Join(body, " ")}
 	if isDatastar(r) {
 		s.sendPatches(w, r, patchTempl(ui.DeleteRecipeDialog(v)))
 		return
 	}
 	p := s.page(r, i18n.T(ctx, "recipes.delete.pageTitle"), ui.NavRecipes)
-	p.BackHref, p.BackLabel = ui.RecipeHref(v.ID), i18n.T(ctx, "recipes.backToRecipe")
+	p.BackHref, p.BackLabel = ui.RecipeHref(v.Slug), i18n.T(ctx, "recipes.backToRecipe")
 	s.render(w, r, http.StatusOK, ui.DeleteRecipePage(p, v))
 }
 
@@ -543,7 +588,7 @@ func (s *Server) redirect(w http.ResponseWriter, r *http.Request, target string)
 }
 
 func (s *Server) deleteRecipe(w http.ResponseWriter, r *http.Request) {
-	recipeID, sc, ok := s.recipeTarget(w, r)
+	recipeID, _, sc, ok := s.recipeTarget(w, r)
 	if !ok {
 		return
 	}
@@ -560,7 +605,7 @@ func (s *Server) deleteRecipe(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) restoreRecipe(w http.ResponseWriter, r *http.Request) {
-	recipeID, sc, ok := s.recipeTarget(w, r)
+	recipeID, slug, sc, ok := s.recipeTarget(w, r)
 	if !ok {
 		return
 	}
@@ -573,7 +618,7 @@ func (s *Server) restoreRecipe(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	s.redirect(w, r, ui.RecipeHref(recipeID.String()))
+	s.redirect(w, r, ui.RecipeHref(slug))
 }
 
 // nutritionPatch keeps an open nutrition popup current: its body is
@@ -590,7 +635,7 @@ func nutritionPatch(sse *datastar.ServerSentEventGenerator, v ui.RecipeView, ope
 		}
 		return sse.PatchElementTempl(ui.EmptySheet())
 	}
-	return sse.PatchElementTempl(ui.NutritionSheetBody(ui.NutritionSheetView{ID: v.ID, Nutrition: *v.Nutrition}, true))
+	return sse.PatchElementTempl(ui.NutritionSheetBody(ui.NutritionSheetView{ID: v.ID, Slug: v.Slug, Nutrition: *v.Nutrition}, true))
 }
 
 // recipeLive re-renders a recipe page at the viewer's servings (a signal

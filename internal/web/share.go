@@ -47,7 +47,7 @@ func (s *Server) menuView(r *http.Request, sc store.Scoped, rec recipes.Recipe) 
 	ctx := r.Context()
 	id := identity(r)
 	v := ui.RecipeMenuView{
-		ID: rec.ID.String(), Name: rec.Name, ByLabel: personLabel(ctx, rec.CreatedBy, id.UserID), ShareURL: s.shareURL(r, rec.ID),
+		ID: rec.ID.String(), Slug: rec.Slug, Name: rec.Name, ByLabel: personLabel(ctx, rec.CreatedBy, id.UserID), ShareURL: s.shareURL(r, rec.Slug),
 	}
 	sh, ok, err := s.recipes.Share(ctx, sc, rec.ID)
 	if err != nil {
@@ -61,7 +61,7 @@ func (s *Server) menuView(r *http.Request, sc store.Scoped, rec recipes.Recipe) 
 }
 
 func (s *Server) createShare(w http.ResponseWriter, r *http.Request) {
-	recipeID, sc, ok := s.recipeTarget(w, r)
+	recipeID, _, sc, ok := s.recipeTarget(w, r)
 	if !ok {
 		return
 	}
@@ -70,7 +70,7 @@ func (s *Server) createShare(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) revokeShare(w http.ResponseWriter, r *http.Request) {
-	recipeID, sc, ok := s.recipeTarget(w, r)
+	recipeID, _, sc, ok := s.recipeTarget(w, r)
 	if !ok {
 		return
 	}
@@ -187,7 +187,7 @@ func (s *Server) sharedRecipePage(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	v.Nutrition = nutritionBlock(ctx, rec.ID, est, nil, true)
+	v.Nutrition = nutritionBlock(ctx, "", est, nil, true)
 	page := ui.Page{Title: rec.Name, Public: true, Description: ui.SharedSummary(ctx, rec.Description, v)}
 	if v.PhotoURL != "" {
 		page.Image = s.publicOrigin(r) + v.PhotoURL

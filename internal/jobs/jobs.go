@@ -14,6 +14,7 @@ import (
 	"github.com/raphi011/mise/internal/ai"
 	"github.com/raphi011/mise/internal/groceries"
 	"github.com/raphi011/mise/internal/images"
+	"github.com/raphi011/mise/internal/recipes"
 	"github.com/raphi011/mise/internal/store"
 )
 
@@ -273,4 +274,23 @@ func SplitIngredientAmounts(ctx context.Context, db *store.DB) (int, error) {
 		return nil
 	})
 	return changed, err
+}
+
+// SlugRecipes gives every recipe from before slugs, whose slug is still its
+// ID, a slug made from its name (see recipes.Slugify). It is idempotent and
+// returns how many recipes it changed.
+func SlugRecipes(ctx context.Context, db *store.DB, r *recipes.Service) (int, error) {
+	var households []uuid.UUID
+	if err := db.System().Read().Select(ctx, &households, `SELECT DISTINCT household_id FROM recipes`); err != nil {
+		return 0, err
+	}
+	total := 0
+	for _, hh := range households {
+		n, err := r.SlugMissing(ctx, db.ScopeFor(hh))
+		if err != nil {
+			return total, fmt.Errorf("slug recipes of household %s: %w", hh, err)
+		}
+		total += n
+	}
+	return total, nil
 }
