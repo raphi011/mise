@@ -386,11 +386,39 @@ func ParseIngredientAmount(input string, lang language.Tag) (Amount, string) {
 	if !ok {
 		return Amount{Text: s}, ""
 	}
+	if w, after, ok := parentheticalWeight(a, rest, lang); ok {
+		// "1 Dose (400 g)": the weight is the amount; the count is not
+		// kept, since it would not scale with it.
+		a, rest = w, after
+	}
 	note := rest
 	if tail != "" {
 		note = strings.Join(slicesNonEmpty(rest, tail), ", ")
 	}
 	return a, note
+}
+
+// parentheticalWeight reads a weight or volume in brackets after a count
+// ("1 Dose (400 g)", "1 (ca. 1,5 kg)"): a count alone cannot be weighed, the
+// bracket says how much it is. It returns that amount and what follows the
+// bracket.
+func parentheticalWeight(a Amount, rest string, lang language.Tag) (Amount, string, bool) {
+	if _, kind, ok := BaseAmount(a); !ok || kind != KindCount || !strings.HasPrefix(rest, "(") {
+		return Amount{}, "", false
+	}
+	end := strings.IndexByte(rest, ')')
+	if end < 0 {
+		return Amount{}, "", false
+	}
+	inner := strings.TrimSpace(rest[1:end])
+	w, _, ok := leadingIngredientAmount(inner, lang)
+	if !ok || w.Quantity == nil {
+		return Amount{}, "", false
+	}
+	if _, kind, _ := BaseAmount(w); kind == KindCount {
+		return Amount{}, "", false
+	}
+	return w, strings.TrimSpace(rest[end+1:]), true
 }
 
 func slicesNonEmpty(parts ...string) []string {
