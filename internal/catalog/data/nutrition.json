@@ -1049,6 +1049,19 @@
    "piece": 150
   }
  },
+ "cooking_cream": {
+  "fdc_id": 170857,
+  "kcal": 195,
+  "protein_g": 2.96,
+  "fat_g": 19.1,
+  "saturated_fat_g": 10.18,
+  "carbs_g": 3.66,
+  "sugars_g": 3.67,
+  "fibre_g": 0,
+  "sodium_mg": 72,
+  "density_g_ml": 1.014,
+  "weights": null
+ },
  "coriander_seed": {
   "fdc_id": 170922,
   "kcal": 298,
@@ -1591,16 +1604,16 @@
   "weights": null
  },
  "half_and_half": {
-  "fdc_id": 170858,
-  "kcal": 292,
-  "protein_g": 2.17,
-  "fat_g": 30.91,
-  "saturated_fat_g": 19.34,
-  "carbs_g": 2.96,
-  "sugars_g": 2.96,
+  "fdc_id": 171255,
+  "kcal": 131,
+  "protein_g": 3.13,
+  "fat_g": 11.5,
+  "saturated_fat_g": 7.03,
+  "carbs_g": 4.3,
+  "sugars_g": 4.13,
   "fibre_g": 0,
-  "sodium_mg": 34,
-  "density_g_ml": 1.01,
+  "sodium_mg": 61,
+  "density_g_ml": 1.023,
   "weights": null
  },
  "ham": {

@@ -246,7 +246,8 @@ goat_cheese,173435,,,,,
 cottage_cheese,172179,,"cup, large curd (not packed)",,,
 buttermilk,170874,,cup,,,
 greek_yogurt,170894,,=1.05,,yes,Density hand-set
-half_and_half,170858,,"cup, fluid (yields 2 cups whipped)",,,
+half_and_half,171255,,cup,,,
+cooking_cream,170857,,cup,,,Light (coffee) cream; closest USDA food to 15% Kochsahne
 soy_milk,172446,,cup,,,
 almond_milk,2257045,,=1.01,,yes,Density hand-set: almond drink weighs about the same as milk
 egg_white,172183,,,piece=33,yes,"One large egg white, hand-set"

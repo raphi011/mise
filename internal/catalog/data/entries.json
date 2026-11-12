@@ -1240,6 +1240,11 @@
   "icon": "milk"
  },
  {
+  "key": "cooking_cream",
+  "category": "fridge",
+  "icon": "milk"
+ },
+ {
   "key": "soy_milk",
   "category": "fridge",
   "icon": "milk"
