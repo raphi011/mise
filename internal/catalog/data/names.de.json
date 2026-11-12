@@ -110,13 +110,15 @@
   "name": "Kirschtomaten",
   "aliases": [
    "kirschtomate",
-   "cherrytomaten"
+   "cherrytomaten",
+   "kirschparadeiser"
   ]
  },
  "potato": {
   "name": "Kartoffel",
   "aliases": [
-   "kartoffeln"
+   "kartoffeln",
+   "erdäpfel"
   ]
  },
  "sweet_potato": {
@@ -180,7 +182,8 @@
  "spinach": {
   "name": "Spinat",
   "aliases": [
-   "blattspinat"
+   "blattspinat",
+   "babyspinat"
   ]
  },
  "lettuce": {
@@ -336,14 +339,17 @@
  "chicken_thighs": {
   "name": "Hähnchenschenkel",
   "aliases": [
-   "hühnerschenkel"
+   "hühnerschenkel",
+   "hendlkeule",
+   "hendlkeulen"
   ]
  },
  "ground_beef": {
   "name": "Rinderhack",
   "aliases": [
    "hackfleisch",
-   "faschiertes"
+   "faschiertes",
+   "rindsfaschiertes"
   ]
  },
  "beef": {
@@ -405,7 +411,9 @@
   "aliases": [
    "schlagsahne",
    "obers",
-   "rahm"
+   "rahm",
+   "schlagobers",
+   "kochobers"
   ]
  },
  "sour_cream": {
@@ -512,7 +520,10 @@
   ]
  },
  "salt": {
-  "name": "Salz"
+  "name": "Salz",
+  "aliases": [
+   "meersalz"
+  ]
  },
  "black_pepper": {
   "name": "Pfeffer",
@@ -524,7 +535,10 @@
   "name": "Paprikapulver",
   "aliases": [
    "edelsüß",
-   "paprika edelsüß"
+   "paprika edelsüß",
+   "paprikagewürz",
+   "smoked paprika",
+   "paprika geräuchert"
   ]
  },
  "cumin": {
@@ -561,15 +575,24 @@
   ]
  },
  "rice": {
-  "name": "Reis"
+  "name": "Reis",
+  "aliases": [
+   "jasminreis"
+  ]
  },
  "basmati_rice": {
-  "name": "Basmatireis"
+  "name": "Basmatireis",
+  "aliases": [
+   "basmati-reis"
+  ]
  },
  "pasta": {
   "name": "Nudeln",
   "aliases": [
-   "pasta"
+   "pasta",
+   "penne",
+   "lasagne platten",
+   "lasagneplatten"
   ]
  },
  "spaghetti": {
@@ -597,14 +620,23 @@
   "name": "Dosentomaten",
   "aliases": [
    "tomaten aus der dose",
-   "gehackte tomaten"
+   "gehackte tomaten",
+   "passierte paradeiser",
+   "gehackte paradeiser"
   ]
  },
  "tomato_paste": {
-  "name": "Tomatenmark"
+  "name": "Tomatenmark",
+  "aliases": [
+   "paradeismark"
+  ]
  },
  "coconut_milk": {
-  "name": "Kokosmilch"
+  "name": "Kokosmilch",
+  "aliases": [
+   "kokosnussmilch",
+   "kokosnuss-milch"
+  ]
  },
  "olive_oil": {
   "name": "Olivenöl"
@@ -614,7 +646,8 @@
   "aliases": [
    "sonnenblumenöl",
    "speiseöl",
-   "rapsöl"
+   "rapsöl",
+   "neutrales öl"
   ]
  },
  "vinegar": {
@@ -639,7 +672,10 @@
   "name": "Ahornsirup"
  },
  "mustard": {
-  "name": "Senf"
+  "name": "Senf",
+  "aliases": [
+   "dijonsenf"
+  ]
  },
  "ketchup": {
   "name": "Ketchup"
@@ -656,7 +692,8 @@
  "jam": {
   "name": "Marmelade",
   "aliases": [
-   "konfitüre"
+   "konfitüre",
+   "marillenmarmelade"
   ]
  },
  "chocolate": {
@@ -674,7 +711,9 @@
  "vegetable_stock": {
   "name": "Gemüsebrühe",
   "aliases": [
-   "gemüsefond"
+   "gemüsefond",
+   "gemüsesuppenwürfel",
+   "gemüsesuppe"
   ]
  },
  "coffee": {

@@ -195,6 +195,22 @@ func (c *Catalog) Lookup(phrase string) (Entry, bool) {
 	return c.entries[i], true
 }
 
+// LookupAny returns the entry whose name or alias is phrase in lang's
+// catalogue, else in any other language's. Keys do not depend on the
+// language, so a household whose default language differs from the one its
+// item names are typed in ("en" with "Zwiebel") still links to the entry.
+func LookupAny(lang, phrase string) (Entry, bool) {
+	if e, ok := For(lang).Lookup(phrase); ok {
+		return e, true
+	}
+	for _, l := range Languages {
+		if e, ok := For(l).Lookup(phrase); ok {
+			return e, true
+		}
+	}
+	return Entry{}, false
+}
+
 // Within returns the entry whose name or alias appears as whole words in
 // text ("Tofu" in "extra-firm tofu"), the longest one first.
 func (c *Catalog) Within(text string) (Entry, bool) {

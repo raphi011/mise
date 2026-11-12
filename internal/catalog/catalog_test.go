@@ -111,6 +111,32 @@ func TestLookup(t *testing.T) {
 	}
 }
 
+// TestLookupAny: names typed in another language than the household's still
+// find their entry, and no name means different entries in two languages
+// except the listed ones, where the household's language decides.
+func TestLookupAny(t *testing.T) {
+	for phrase, want := range map[string]string{"Zwiebel": "onion", "Erdäpfel": "potato", "Penne": "pasta", "Onion": "onion"} {
+		if e, ok := LookupAny("en", phrase); !ok || e.Key != want {
+			t.Errorf("LookupAny(en, %q) = %+v %v, want %s", phrase, e, ok, want)
+		}
+	}
+	if _, ok := LookupAny("en", "unobtainium"); ok {
+		t.Error("unknown name matched")
+	}
+	ambiguous := map[string]bool{"paprika": true}
+	for _, a := range Languages {
+		for _, b := range Languages {
+			for _, e := range For(a).Entries() {
+				for _, s := range append([]string{e.Name}, e.Aliases...) {
+					if o, ok := For(b).Lookup(s); ok && o.Key != e.Key && !ambiguous[NameKey(s)] {
+						t.Errorf("%q is %s in %s but %s in %s", s, e.Key, a, o.Key, b)
+					}
+				}
+			}
+		}
+	}
+}
+
 func TestSearch(t *testing.T) {
 	got := For("en").Search("lem", 5, nil)
 	if len(got) == 0 || got[0].Entry.Key != "lemon" || got[0].Match != MatchPrefix {

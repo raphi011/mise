@@ -212,6 +212,14 @@ func TestLinkCatalog(t *testing.T) {
 			t.Fatal(err)
 		}
 		e.add(t, l.ID, "Kumquats")
+		// Typed in German in an English household.
+		garlic := e.add(t, l.ID, "Knoblauch").Entry
+		if err := e.sc.Tx(ctx, func(ctx context.Context, q store.Querier) error {
+			_, err := q.Exec(ctx, `UPDATE items SET catalog_key = NULL WHERE household_id = ?`, e.sc.HouseholdID())
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
 		if err := e.s.LinkCatalog(ctx, e.sc, catalogDefaults); err != nil {
 			t.Fatal(err)
 		}
@@ -226,6 +234,9 @@ func TestLinkCatalog(t *testing.T) {
 		got, _ := e.s.Entry(ctx, e.sc, onion.ID)
 		if got.ItemIcon != "onion" {
 			t.Errorf("onion not linked: %+v", got)
+		}
+		if got, _ := e.s.Entry(ctx, e.sc, garlic.ID); got.ItemIcon != "garlic" {
+			t.Errorf("German name not linked in an English household: %+v", got)
 		}
 		e.rec.take()
 		if err := e.s.LinkCatalog(ctx, e.sc, catalogDefaults); err != nil {
