@@ -1313,5 +1313,25 @@
   "key": "apple_juice",
   "category": "drinks",
   "icon": "bottle"
+ },
+ {
+  "key": "marjoram",
+  "category": "spices",
+  "icon": "herb"
+ },
+ {
+  "key": "dried_basil",
+  "category": "spices",
+  "icon": "herb"
+ },
+ {
+  "key": "chicken_stock",
+  "category": "pantry",
+  "icon": "broth"
+ },
+ {
+  "key": "beef_stock",
+  "category": "pantry",
+  "icon": "broth"
  }
 ]

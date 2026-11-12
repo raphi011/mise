@@ -324,6 +324,19 @@
   "density_g_ml": null,
   "weights": null
  },
+ "beef_stock": {
+  "fdc_id": 172883,
+  "kcal": 13,
+  "protein_g": 1.97,
+  "fat_g": 0.09,
+  "saturated_fat_g": 0.04,
+  "carbs_g": 1.2,
+  "sugars_g": 0.54,
+  "fibre_g": 0,
+  "sodium_mg": 198,
+  "density_g_ml": 1.014,
+  "weights": null
+ },
  "beer": {
   "fdc_id": 168746,
   "kcal": 43,
@@ -816,6 +829,19 @@
    "piece": 100
   }
  },
+ "chicken_stock": {
+  "fdc_id": 172884,
+  "kcal": 36,
+  "protein_g": 2.52,
+  "fat_g": 1.2,
+  "saturated_fat_g": 0.32,
+  "carbs_g": 3.53,
+  "sugars_g": 1.58,
+  "fibre_g": 0,
+  "sodium_mg": 143,
+  "density_g_ml": 1.014,
+  "weights": null
+ },
  "chicken_thighs": {
   "fdc_id": 2646171,
   "kcal": 144.07,
@@ -1212,6 +1238,19 @@
   "weights": {
    "bunch": 30
   }
+ },
+ "dried_basil": {
+  "fdc_id": 171317,
+  "kcal": 233,
+  "protein_g": 22.98,
+  "fat_g": 4.07,
+  "saturated_fat_g": 2.16,
+  "carbs_g": 10.05,
+  "sugars_g": 1.71,
+  "fibre_g": 37.7,
+  "sodium_mg": 76,
+  "density_g_ml": 0.142,
+  "weights": null
  },
  "egg_noodles": {
   "fdc_id": 169731,
@@ -1910,6 +1949,19 @@
   "fibre_g": 0,
   "sodium_mg": 12,
   "density_g_ml": 1.331,
+  "weights": null
+ },
+ "marjoram": {
+  "fdc_id": 170928,
+  "kcal": 271,
+  "protein_g": 12.66,
+  "fat_g": 7.04,
+  "saturated_fat_g": 0.53,
+  "carbs_g": 20.26,
+  "sugars_g": 4.09,
+  "fibre_g": 40.3,
+  "sodium_mg": 77,
+  "density_g_ml": 0.122,
   "weights": null
  },
  "mayonnaise": {

@@ -193,7 +193,7 @@ func TestPageDraft(t *testing.T) {
 			unit  string
 			name  string
 			match ai.Match
-		}{{1.5, "kg", "Potato", ai.MatchCatalog}, {2, "tbsp", "Öl", ai.MatchNew}, {0.5, "tsp", "Salt", ai.MatchCatalog}}
+		}{{1.5, "kg", "Potato", ai.MatchCatalog}, {2, "tbsp", "Vegetable oil", ai.MatchCatalog}, {0.5, "tsp", "Salt", ai.MatchCatalog}}
 		if len(d.Ingredients) != len(amounts) {
 			t.Fatalf("ingredients %+v", d.Ingredients)
 		}

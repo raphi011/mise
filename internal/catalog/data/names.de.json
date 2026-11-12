@@ -313,7 +313,8 @@
   "aliases": [
    "semmel",
    "semmeln",
-   "weckerl"
+   "weckerl",
+   "semmelwürfel"
   ]
  },
  "tortillas": {
@@ -496,10 +497,16 @@
   "name": "Vollkornmehl"
  },
  "sugar": {
-  "name": "Zucker"
+  "name": "Zucker",
+  "aliases": [
+   "vanillezucker"
+  ]
  },
  "brown_sugar": {
-  "name": "Brauner Zucker"
+  "name": "Brauner Zucker",
+  "aliases": [
+   "kokosblütenzucker"
+  ]
  },
  "powdered_sugar": {
   "name": "Puderzucker",
@@ -639,7 +646,8 @@
   "name": "Pflanzenöl",
   "aliases": [
    "speiseöl",
-   "neutrales öl"
+   "neutrales öl",
+   "öl"
   ]
  },
  "vinegar": {
@@ -1482,5 +1490,31 @@
  },
  "apple_juice": {
   "name": "Apfelsaft"
+ },
+ "marjoram": {
+  "name": "Majoran"
+ },
+ "dried_basil": {
+  "name": "Getrocknetes Basilikum",
+  "aliases": [
+   "basilikum getrocknet"
+  ]
+ },
+ "chicken_stock": {
+  "name": "Hühnerbrühe",
+  "aliases": [
+   "hühnersuppe",
+   "hendlsuppe",
+   "hühnerfond"
+  ]
+ },
+ "beef_stock": {
+  "name": "Rinderbrühe",
+  "aliases": [
+   "rindsuppe",
+   "rinderfond",
+   "rindsbrühe",
+   "rindssuppe"
+  ]
  }
 }
