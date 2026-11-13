@@ -7,12 +7,13 @@ import (
 )
 
 // PlanWeek is the week page. Its region re-renders over the live stream;
-// meals and suggestions drag onto days ($_drag holds "m:<meal>" or
-// "r:<recipe>", $_over the day under the pointer).
+// meals and suggestions drag onto days, alone or selected together (see
+// planAttrs).
 templ PlanWeek(p Page, v PlanWeekView) {
 	@Layout(p) {
-		<div class="plan" data-signals="{_drag: '', _over: ''}" data-init={ planLive("week=" + v.Week) }>
+		<div class="plan" { planAttrs()... } data-class:plan--selbar="$_sel.length > 0 || $_selmode" data-init={ planLive("week=" + v.Week) }>
 			@PlanWeekRegion(v)
+			@planSelectionBar()
 			@EmptyToast()
 			@EmptySheet()
 		</div>
@@ -24,7 +25,7 @@ templ PlanWeekRegion(v PlanWeekView) {
 	<div id="plan-live" class="plan__live">
 		<p class="list-meta">{ v.Summary }</p>
 		@planToolbar(false, "/plan?week="+v.Week, v.MonthHref, v.PrevHref, v.TodayHref, v.NextHref, v.Current,
-			i18n.T(ctx, "plan.prevWeek"), i18n.T(ctx, "plan.nextWeek"))
+			i18n.T(ctx, "plan.prevWeek"), i18n.T(ctx, "plan.nextWeek"), v.HasMeals())
 		if v.HasMeals() {
 			<p class="muted plan__hint">
 				<span class="only-phone">{ i18n.T(ctx, "plan.hint.phone") }</span>
@@ -51,11 +52,8 @@ templ PlanWeekRegion(v PlanWeekView) {
 								<a
 									class="plan-suggest__item"
 									href={ templ.SafeURL(s.AddHref) }
-									data-on:click__prevent={ getAction(s.AddHref) }
-									draggable="true"
-									data-on:dragstart={ dragStart("r:" + s.RecipeID) }
-									data-on:dragend="$_drag = ''; $_over = ''"
-									aria-label={ i18n.T(ctx, "plan.stale.add", s.Name) }
+									{ selectable("r:"+s.RecipeID, s.AddHref, i18n.T(ctx, "plan.stale.add", s.Name), i18n.T(ctx, "plan.select.selected"))... }
+									data-class={ "{'plan-suggest__item--dragging': " + dragging("r:"+s.RecipeID) + "}" }
 								>
 									<span class="plan-suggest__name">{ s.Name }</span>
 									<span class="plan-suggest__last only-wide">{ s.Last }</span>
@@ -77,9 +75,21 @@ templ PlanWeekRegion(v PlanWeekView) {
 	</div>
 }
 
-// planToolbar switches between week and month and moves through them.
-templ planToolbar(month bool, weekHref, monthHref, prev, today, next string, current bool, prevLabel, nextLabel string) {
+// planToolbar switches between week and month and moves through them. On
+// phones, Select starts picking meals to remove together.
+templ planToolbar(month bool, weekHref, monthHref, prev, today, next string, current bool, prevLabel, nextLabel string, selectable bool) {
 	<div class="plan-toolbar">
+		if selectable {
+			<button
+				type="button"
+				class="btn btn--secondary btn--small only-phone plan-toolbar__select"
+				data-show="true"
+				style="display: none"
+				data-attr:aria-pressed="$_selmode"
+				data-on:click="$_selmode = !$_selmode; $_sel = []"
+				data-text={ "$_selmode ? " + jsString(i18n.T(ctx, "plan.select.done")) + " : " + jsString(i18n.T(ctx, "plan.select.start")) }
+			>{ i18n.T(ctx, "plan.select.start") }</button>
+		}
 		<nav class="view-switch" aria-label={ i18n.T(ctx, "plan.view") }>
 			<a
 				class="view-switch__option"
@@ -110,6 +120,22 @@ templ planToolbar(month bool, weekHref, monthHref, prev, today, next string, cur
 	</div>
 }
 
+// planSelectionBar shows what is selected, with Remove for meals: the
+// way to remove a selection without the Delete key, and on phones in
+// select mode.
+templ planSelectionBar() {
+	<div class="plan-selbar" data-show="$_sel.length > 0 || $_selmode" style="display: none">
+		<span class="plan-selbar__count" aria-live="polite" data-text={ selectionText(ctx) }></span>
+		<button
+			type="button"
+			class="btn btn--secondary btn--small"
+			data-show="mise.plan.meals($_sel).length > 0"
+			data-on:click="@post('/plan/remove', {payload: {meal: mise.plan.meals($_sel)}}); $_sel = []; $_selmode = false"
+		>{ i18n.T(ctx, "plan.select.remove") }</button>
+		<button type="button" class="btn btn--small plan-selbar__done" data-on:click="$_sel = []; $_selmode = false">{ i18n.T(ctx, "plan.select.done") }</button>
+	</div>
+}
+
 templ weekDay(d PlanDay) {
 	<li
 		class={ "plan-day", templ.KV("plan-day--today", d.Today), templ.KV("plan-day--past", d.Past) }
@@ -126,11 +152,14 @@ templ weekDay(d PlanDay) {
 			}
 		</div>
 		if len(d.Meals) > 0 {
-			<div class="plan-day__meals">
-				@mealCard(d.Meals[0])
-				if d.More() > 0 {
-					<a class="plan-day__more" href={ templ.SafeURL(d.MoreHref) } aria-label={ moreLabel(ctx, d) }>{ "+" + itoa(d.More()) }</a>
+			<div class={ "plan-day__meals", templ.KV("plan-day__meals--several", len(d.Meals) > 1) }>
+				for _, m := range d.Meals {
+					@mealCard(m)
 				}
+				<a class="plan-day__another" href={ templ.SafeURL(d.AddHref) } data-on:click__prevent={ getAction(d.AddHref) } aria-label={ i18n.T(ctx, "plan.addOn", d.Label) }>
+					@iconPlus(14)
+					<span data-text={ "$_over === '" + d.Date + "' ? " + jsString(i18n.T(ctx, "plan.dropHere")) + " : " + jsString(i18n.T(ctx, "plan.add")) }>{ i18n.T(ctx, "plan.add") }</span>
+				</a>
 			</div>
 		} else {
 			<a class="plan-day__add" href={ templ.SafeURL(d.AddHref) } data-on:click__prevent={ getAction(d.AddHref) } aria-label={ i18n.T(ctx, "plan.addOn", d.Label) }>
@@ -141,18 +170,18 @@ templ weekDay(d PlanDay) {
 	</li>
 }
 
-// mealCard is a planned meal: a link to its menu that drags to other days.
+// mealCard is a planned meal: a link to its menu that drags to other days
+// and can be selected.
 templ mealCard(m PlanMeal) {
 	<a
 		class="meal-card"
 		href={ templ.SafeURL(m.MenuHref()) }
-		data-on:click__prevent={ getAction(m.MenuHref()) }
-		draggable="true"
-		data-on:dragstart={ dragStart("m:" + m.ID) }
-		data-on:dragend="$_drag = ''; $_over = ''"
-		data-class:meal-card--dragging={ "$_drag === 'm:" + m.ID + "'" }
-		aria-label={ m.Label }
+		{ selectable("m:"+m.ID, m.MenuHref(), m.Label, i18n.T(ctx, "plan.select.selected"))... }
+		data-class:meal-card--dragging={ dragging("m:" + m.ID) }
 	>
+		<span class="sel-check" aria-hidden="true">
+			@iconCheck(14)
+		</span>
 		<span class={ "meal-card__media avatar--" + Tint(m.RecipeID) }>
 			if m.Photo != "" {
 				<img src={ ImageURL(m.Photo, "thumb") } alt=""/>
@@ -179,8 +208,9 @@ templ mealCard(m PlanMeal) {
 // a grid of meals on wider screens.
 templ PlanMonth(p Page, v PlanMonthView) {
 	@Layout(p) {
-		<div class="plan" data-signals="{_drag: '', _over: ''}" data-init={ planLive("month=" + v.Month + "&date=" + v.Selected.Date) }>
+		<div class="plan" { planAttrs()... } data-class:plan--selbar="$_sel.length > 0 || $_selmode" data-init={ planLive("month=" + v.Month + "&date=" + v.Selected.Date) }>
 			@PlanMonthRegion(v)
+			@planSelectionBar()
 			@EmptyToast()
 			@EmptySheet()
 		</div>
@@ -192,7 +222,7 @@ templ PlanMonthRegion(v PlanMonthView) {
 	<div id="plan-live" class="plan__live">
 		<p class="list-meta">{ v.Summary }</p>
 		@planToolbar(true, v.WeekHref, "/plan/month?month="+v.Month, v.PrevHref, v.TodayHref, v.NextHref, v.Current,
-			i18n.T(ctx, "plan.prevMonth"), i18n.T(ctx, "plan.nextMonth"))
+			i18n.T(ctx, "plan.prevMonth"), i18n.T(ctx, "plan.nextMonth"), len(v.Selected.Meals) > 0)
 		<div class="month-cal only-phone">
 			<div class="month-cal__head" aria-hidden="true">
 				for _, w := range v.Initials {
@@ -246,7 +276,7 @@ templ PlanMonthRegion(v PlanMonthView) {
 							data-on:dragover__prevent={ dragOver(d.Date) }
 							data-on:dragleave={ dragLeave(d.Date) }
 							data-on:drop__prevent={ dropOn(d.Date) }
-							data-class:month-grid__day--over={ "$_over === '" + d.Date + "'" }
+							data-class={ "{'month-grid__day--over': $_over === '" + d.Date + "'}" }
 						>
 							<a
 								class={ "month-grid__num", templ.KV("month-grid__num--today", d.Today) }
@@ -258,12 +288,8 @@ templ PlanMonthRegion(v PlanMonthView) {
 								<a
 									class={ "meal-chip avatar--" + Tint(m.RecipeID) }
 									href={ templ.SafeURL(m.MenuHref()) }
-									data-on:click__prevent={ getAction(m.MenuHref()) }
-									draggable="true"
-									data-on:dragstart={ dragStart("m:" + m.ID) }
-									data-on:dragend="$_drag = ''; $_over = ''"
-									data-class:meal-chip--dragging={ "$_drag === 'm:" + m.ID + "'" }
-									aria-label={ m.Label }
+									{ selectable("m:"+m.ID, m.MenuHref(), m.Label, i18n.T(ctx, "plan.select.selected"))... }
+									data-class:meal-chip--dragging={ dragging("m:" + m.ID) }
 								>{ m.Name }</a>
 							}
 						</div>
@@ -294,7 +320,7 @@ templ AddPlanSheet(v AddPlanView) {
 }
 
 // AddPlanPage is the add-to-plan sheet as a page, opened directly or
-// without JavaScript.
+// without JavaScript. Its form posts natively, so planning goes back.
 templ AddPlanPage(p Page, v AddPlanView) {
 	@Layout(p) {
 		<div class="narrow sheet" data-signals={ addPlanSignals(v) }>
@@ -304,15 +330,25 @@ templ AddPlanPage(p Page, v AddPlanView) {
 }
 
 templ addPlanForm(v AddPlanView, modal bool) {
-	<form class="plan-form" method="post" action="/plan" data-on:submit={ postForm("/plan") }>
-		<input type="hidden" name="recipe" value={ v.RecipeID }/>
+	<form
+		class="plan-form"
+		method="post"
+		action="/plan"
+		if modal {
+			data-on:submit={ postForm("/plan") }
+		}
+	>
 		if v.Back != "" {
 			<input type="hidden" name="back" value={ v.Back }/>
 		}
 		<div class="sheet__head">
 			<span class="list__text">
 				<h2 class="sheet__title" id="plan-add-title">{ i18n.T(ctx, "plan.addTo.title") }</h2>
-				<span class="muted">{ joinNonEmpty(" · ", v.Name, v.Meta) }</span>
+				if v.Several() {
+					<span class="muted" data-show="$_planleft > 1" data-text={ jsString(i18n.T(ctx, "plan.addTo.several", "{n}")) + ".replace('{n}', $_planleft)" }>{ i18n.T(ctx, "plan.addTo.several", itoa(len(v.Recipes))) }</span>
+				} else if len(v.Recipes) == 1 {
+					<span class="muted">{ joinNonEmpty(" · ", v.Recipes[0].Name, v.Recipes[0].Meta) }</span>
+				}
 			</span>
 			if modal {
 				<button type="button" class="icon-btn" aria-label={ i18n.T(ctx, "groceries.edit.close") } data-on:click="el.closest('dialog').close()">
@@ -322,54 +358,11 @@ templ addPlanForm(v AddPlanView, modal bool) {
 		</div>
 		@formAlert(v.Form)
 		@AddPlanDays(v)
-		<div class="plan-form__row">
-			<span class="plan-form__label" id="plan-servings-label">{ i18n.T(ctx, "recipes.servingsLabel") }</span>
-			@planStepper("planservings", "/plan/add", v.Servings, "plan-servings-label")
-			<input type="hidden" name="servings" value={ itoa(v.Servings) } data-attr:value="$planservings"/>
+		<div class="plan-form__recipes">
+			for i, r := range v.Recipes {
+				@addPlanRecipe(v, i, r)
+			}
 		</div>
-		if len(v.Shop) > 0 || v.Already != "" {
-			<fieldset class="plan-form__group">
-				<legend class="plan-form__label">{ i18n.T(ctx, "plan.addTo.list", v.ListName) }</legend>
-				if len(v.Shop) > 0 {
-					<div class="chips">
-						for _, c := range v.Shop {
-							<label class="chip chip--check">
-								<input type="checkbox" name="ingredient" value={ c.ID } checked?={ c.Checked }/>
-								<span class="chip--check__off" aria-hidden="true">
-									@iconPlus(14)
-								</span>
-								<span class="chip--check__on" aria-hidden="true">
-									@iconCheck(14)
-								</span>
-								{ c.Name }
-							</label>
-						}
-					</div>
-				}
-				if v.Already != "" {
-					<p class="muted plan-form__note">{ v.Already }</p>
-				}
-			</fieldset>
-		}
-		if len(v.Also) > 0 {
-			<fieldset class="plan-form__group">
-				<legend class="plan-form__label">{ i18n.T(ctx, "plan.addTo.also") }</legend>
-				<div class="chips">
-					for _, c := range v.Also {
-						<label class="chip chip--check">
-							<input type="checkbox" name="also" value={ c.ID } checked?={ c.Checked }/>
-							<span class="chip--check__off" aria-hidden="true">
-								@iconPlus(14)
-							</span>
-							<span class="chip--check__on" aria-hidden="true">
-								@iconCheck(14)
-							</span>
-							{ c.Name }
-						</label>
-					}
-				</div>
-			</fieldset>
-		}
 		<div class="sheet__actions">
 			if !modal {
 				<a class="btn btn--secondary btn--tall" href={ templ.SafeURL(v.Back) }>{ i18n.T(ctx, "recipes.menu.cancel") }</a>
@@ -377,6 +370,84 @@ templ addPlanForm(v AddPlanView, modal bool) {
 			@AddPlanSubmit(v)
 		</div>
 	</form>
+}
+
+// addPlanRecipe is one recipe of the add sheet: its servings, the
+// ingredients to put on the list and linked recipes to plan with it. With
+// several recipes each gets a heading and can be taken out.
+templ addPlanRecipe(v AddPlanView, i int, r AddPlanRecipe) {
+	<section
+		class={ "plan-form__recipe", templ.KV("plan-form__recipe--several", v.Several()) }
+		if v.Several() {
+			aria-labelledby={ "plan-add-recipe-" + itoa(i) }
+		}
+	>
+		<input type="hidden" name="recipe" value={ r.ID }/>
+		if v.Several() {
+			<div class="plan-form__recipe-head">
+				<span class="list__text">
+					<h3 class="plan-form__recipe-name" id={ "plan-add-recipe-" + itoa(i) }>{ r.Name }</h3>
+					if r.Meta != "" {
+						<span class="muted">{ r.Meta }</span>
+					}
+				</span>
+				<button
+					type="submit"
+					class="icon-btn"
+					formmethod="get"
+					formaction="/plan/add"
+					formnovalidate
+					name="drop"
+					value={ r.ID }
+					aria-label={ i18n.T(ctx, "plan.addTo.drop", r.Name) }
+					data-show="$_planleft > 1"
+					data-on:click__prevent="$_planleft > 1 && (el.closest('section').remove(), $_planleft--)"
+				>
+					@iconClose()
+				</button>
+			</div>
+		}
+		<div class="plan-form__row">
+			<span class="plan-form__label" id={ "plan-servings-label-" + itoa(i) }>{ i18n.T(ctx, "recipes.servingsLabel") }</span>
+			@planStepper(servingsSignal(i), "/plan/add", AddSetServingsField(r.ID), r.Servings, "plan-servings-label-"+itoa(i))
+			<input type="hidden" name={ AddServingsField(r.ID) } value={ itoa(r.Servings) } data-attr:value={ "$" + servingsSignal(i) }/>
+		</div>
+		if len(r.Shop) > 0 || r.Already != "" {
+			<fieldset class="plan-form__group">
+				<legend class="plan-form__label">{ i18n.T(ctx, "plan.addTo.list", v.ListName) }</legend>
+				if len(r.Shop) > 0 {
+					@checkChips(AddIngredientField(r.ID), r.Shop)
+				}
+				if r.Already != "" {
+					<p class="muted plan-form__note">{ r.Already }</p>
+				}
+			</fieldset>
+		}
+		if len(r.Also) > 0 {
+			<fieldset class="plan-form__group">
+				<legend class="plan-form__label">{ i18n.T(ctx, "plan.addTo.also") }</legend>
+				@checkChips(AddAlsoField(r.ID), r.Also)
+			</fieldset>
+		}
+	</section>
+}
+
+// checkChips are checkboxes named name, shown as chips.
+templ checkChips(name string, chips []ShopChip) {
+	<div class="chips">
+		for _, c := range chips {
+			<label class="chip chip--check">
+				<input type="checkbox" name={ name } value={ c.ID } checked?={ c.Checked }/>
+				<span class="chip--check__off" aria-hidden="true">
+					@iconPlus(14)
+				</span>
+				<span class="chip--check__on" aria-hidden="true">
+					@iconCheck(14)
+				</span>
+				{ c.Name }
+			</label>
+		}
+	</div>
 }
 
 // AddPlanDays is the add sheet's day picker, patched when the week
@@ -396,7 +467,7 @@ templ AddPlanDays(v AddPlanView) {
 					name="week"
 					value={ v.Days.Prev }
 					aria-label={ i18n.T(ctx, "plan.prevWeek") }
-					data-on:click__prevent={ addDaysAction(v.RecipeID, v.Days.Prev) }
+					data-on:click__prevent={ addDaysAction(v.recipeIDs(), v.Days.Prev) }
 				>
 					@iconChevron(true)
 				</button>
@@ -410,7 +481,7 @@ templ AddPlanDays(v AddPlanView) {
 					name="week"
 					value={ v.Days.Next }
 					aria-label={ i18n.T(ctx, "plan.nextWeek") }
-					data-on:click__prevent={ addDaysAction(v.RecipeID, v.Days.Next) }
+					data-on:click__prevent={ addDaysAction(v.recipeIDs(), v.Days.Next) }
 				>
 					@iconChevron(false)
 				</button>
@@ -454,8 +525,8 @@ templ pickDay(d PickDay, chosen, signal string, disabled bool) {
 }
 
 // planStepper changes servings held in signal. Without JavaScript its
-// buttons reload the sheet at the other value.
-templ planStepper(signal, reload string, n int, labelledBy string) {
+// buttons reload the sheet with the other value in name.
+templ planStepper(signal, reload, name string, n int, labelledBy string) {
 	<div class="stepper" role="group" aria-labelledby={ labelledBy }>
 		<button
 			type="submit"
@@ -463,7 +534,7 @@ templ planStepper(signal, reload string, n int, labelledBy string) {
 			formmethod="get"
 			formaction={ templ.SafeURL(reload) }
 			formnovalidate
-			name="set_servings"
+			name={ name }
 			value={ itoa(max(n-1, 1)) }
 			aria-label={ i18n.T(ctx, "recipes.servingsLess") }
 			data-on:click__prevent={ "$" + signal + " = Math.max(1, $" + signal + " - 1)" }
@@ -477,7 +548,7 @@ templ planStepper(signal, reload string, n int, labelledBy string) {
 			formmethod="get"
 			formaction={ templ.SafeURL(reload) }
 			formnovalidate
-			name="set_servings"
+			name={ name }
 			value={ itoa(min(n+1, MaxServings)) }
 			aria-label={ i18n.T(ctx, "recipes.servingsMore") }
 			data-on:click__prevent={ "$" + signal + " = Math.min(" + itoa(MaxServings) + ", $" + signal + " + 1)" }
@@ -506,7 +577,7 @@ templ PlanPickSheet(v PlanPickView) {
 }
 
 // PlanPickPage picks a recipe as a page, opened directly or without
-// JavaScript.
+// JavaScript. Its rows and "Plan" open the add sheet as a page.
 templ PlanPickPage(p Page, v PlanPickView) {
 	@Layout(p) {
 		<div class="narrow sheet" data-signals={ planPickSignals(v) }>
@@ -527,7 +598,7 @@ templ planPick(v PlanPickView, modal bool) {
 			</button>
 		}
 	</div>
-	<form class="search-link search-link--field" method="get" action="/plan/pick" role="search" data-on:submit__prevent={ v.resultsAction() }>
+	<form class="search-link search-link--field" method="get" action="/plan/pick" role="search" data-on:submit__prevent={ v.resultsAction(modal) }>
 		@iconSearch(20)
 		<input type="hidden" name="date" value={ v.Date }/>
 		if v.Back != "" {
@@ -543,22 +614,45 @@ templ planPick(v PlanPickView, modal bool) {
 			placeholder={ i18n.T(ctx, "plan.pick.search") }
 			autocomplete="off"
 			data-bind:pickq
-			data-on:input__debounce.200ms={ v.resultsAction() }
+			data-on:input__debounce.200ms={ v.resultsAction(modal) }
 		/>
 	</form>
-	@PlanPickResults(v)
+	<form class="plan-pick-form" method="get" action="/plan/add" data-on:submit__prevent={ v.pickPlanAction(modal) }>
+		<input type="hidden" name="date" value={ v.Date }/>
+		if v.Back != "" {
+			<input type="hidden" name="back" value={ v.Back }/>
+		}
+		@PlanPickResults(v, modal)
+		<div class="pick-bar">
+			<span
+				class="pick-bar__names pick-bar__names--hint"
+				data-class="{'pick-bar__names--hint': $picksel.length === 0}"
+				data-text={ "$picksel.length ? mise.pickNames($picksel) : " + jsString(i18n.T(ctx, "plan.pick.hint")) }
+			>{ i18n.T(ctx, "plan.pick.hint") }</span>
+			<span class="pick-bar__actions">
+				<button type="button" class="btn btn--secondary btn--small" data-show="$picksel.length > 0" style="display: none" data-on:click="$picksel = []">{ i18n.T(ctx, "plan.pick.clear") }</button>
+				<button
+					type="submit"
+					class="btn btn--primary pick-bar__plan"
+					data-attr:disabled="$picksel.length === 0"
+					data-text={ "$picksel.length === 0 ? " + jsString(i18n.T(ctx, "plan.pick.planSelected")) + " : $picksel.length === 1 ? " + jsString(i18n.T(ctx, "plan.pick.planOne")) + " : " + jsString(i18n.T(ctx, "plan.pick.planMany", "{n}")) + ".replace('{n}', $picksel.length)" }
+				>{ i18n.T(ctx, "plan.pick.planSelected") }</button>
+			</span>
+		</div>
+	</form>
 	if !modal {
 		<a class="btn btn--secondary btn--block" href={ templ.SafeURL(v.Back) }>{ i18n.T(ctx, "recipes.menu.cancel") }</a>
 	}
 }
 
-// PlanPickResults is the picker's list, patched as the search changes.
-templ PlanPickResults(v PlanPickView) {
+// PlanPickResults is the picker's list, patched as the search changes;
+// modal is false on the picker page.
+templ PlanPickResults(v PlanPickView, modal bool) {
 	<div id="plan-pick-results" class="plan-pick">
 		<p class="visually-hidden" role="status">{ v.Status }</p>
 		if len(v.Suggested) > 0 {
 			<h3 class="section-title">{ i18n.T(ctx, "plan.stale.title") }</h3>
-			@pickList(v.Suggested)
+			@pickList(v.Suggested, modal)
 		}
 		if len(v.Recipes) > 0 {
 			<h3 class="section-title">
@@ -568,24 +662,58 @@ templ PlanPickResults(v PlanPickView) {
 					{ i18n.T(ctx, "plan.pick.all") }
 				}
 			</h3>
-			@pickList(v.Recipes)
-			@pickMore(len(v.Recipes), v.Matched, v.MoreHref(), v.moreAction())
+			@pickList(v.Recipes, modal)
+			@pickMore(len(v.Recipes), v.Matched, v.MoreHref(), v.moreAction(modal))
 		} else if v.Query != "" {
 			<p class="muted">{ i18n.T(ctx, "plan.pick.none", v.Query) }</p>
 		}
 	</div>
 }
 
-templ pickList(rs []PickRecipe) {
+// pickList lists recipes to plan: a row opens the add sheet for it, its
+// tile picks it to plan with others (a checkbox, so without JavaScript the
+// form plans the ticked ones). While some are picked, a row picks too.
+templ pickList(rs []PickRecipe, modal bool) {
 	<ul class="list pick-list" role="list">
 		for _, r := range rs {
-			<li>
-				<a class="list__link pick-row" href={ templ.SafeURL(r.Href) } data-on:click__prevent={ getAction(r.Href) }>
+			<li class="pick-item" data-class:pick-item--on={ "$picksel.includes(" + jsString(r.ID) + ")" }>
+				<label class="pick-check">
+					<input
+						class="pick-check__box"
+						type="checkbox"
+						name="recipe"
+						value={ r.ID }
+						data-pick-name={ r.Name }
+						data-on:change={ pickToggle(r.ID) }
+						data-effect={ "el.checked = $picksel.includes(" + jsString(r.ID) + ")" }
+					/>
 					@pickTile(r)
+					<span class="pick-check__mark" aria-hidden="true">
+						@iconCheck(14)
+					</span>
+					<span class="visually-hidden">{ i18n.T(ctx, "plan.pick.select", r.Name) }</span>
+				</label>
+				<a
+					class="list__link pick-row"
+					href={ templ.SafeURL(r.Href) }
+					if modal {
+						data-on:click__prevent={ pickRowAction(r, true) }
+					} else {
+						data-on:click={ pickRowAction(r, false) }
+					}
+				>
 					<span class="list__text">
 						<span class="pick-row__name">{ r.Name }</span>
-						if r.Meta != "" {
-							<span class="muted pick-row__meta">{ r.Meta }</span>
+						if r.Meta != "" || r.Planned {
+							<span class="muted pick-row__meta">
+								if r.Planned {
+									<span class="pick-row__planned">{ i18n.T(ctx, "plan.pick.planned") }</span>
+									if r.Meta != "" {
+										{ " · " }
+									}
+								}
+								{ r.Meta }
+							</span>
 						}
 					</span>
 					@chevron()
@@ -625,7 +753,8 @@ templ MealMenuSheet(v MealMenuView) {
 }
 
 // MealMenuPage is the menu as a page, opened directly or without
-// JavaScript.
+// JavaScript. Its views are links and its forms post natively, so a
+// change goes back.
 templ MealMenuPage(p Page, v MealMenuView) {
 	@Layout(p) {
 		<div class="narrow sheet" data-signals={ mealMenuSignals(v) }>
@@ -712,7 +841,13 @@ templ mealMenu(v MealMenuView, modal bool) {
 		@menuLink(v, modal, "swap", i18n.T(ctx, "plan.menu.swap"), "", iconSwap())
 		if v.Cooked {
 			<li>
-				<form method="post" action={ templ.SafeURL("/recipes/" + v.RecipeID + "/cooked") } data-on:submit={ postForm("/recipes/" + v.RecipeID + "/cooked") }>
+				<form
+					method="post"
+					action={ templ.SafeURL("/recipes/" + v.RecipeID + "/cooked") }
+					if modal {
+						data-on:submit={ postForm("/recipes/" + v.RecipeID + "/cooked") }
+					}
+				>
 					@backField(v.Back)
 					<button type="submit" class="menu__item">
 						<span class="menu__icon">
@@ -724,7 +859,13 @@ templ mealMenu(v MealMenuView, modal bool) {
 			</li>
 		}
 	</ul>
-	<form method="post" action={ templ.SafeURL("/plan/meals/" + v.ID + "/remove") } data-on:submit={ postForm("/plan/meals/" + v.ID + "/remove") }>
+	<form
+		method="post"
+		action={ templ.SafeURL("/plan/meals/" + v.ID + "/remove") }
+		if modal {
+			data-on:submit={ postForm("/plan/meals/" + v.ID + "/remove") }
+		}
+	>
 		@backField(v.Back)
 		<button type="submit" class="btn btn--destructive btn--block meal-menu__remove">
 			@iconTrash()
@@ -761,7 +902,14 @@ templ menuLink(v MealMenuView, modal bool, view, label, value string, icon templ
 }
 
 templ mealMove(v MealMenuView, modal bool) {
-	<form class="plan-form" method="post" action={ templ.SafeURL("/plan/meals/" + v.ID + "/move") } data-on:submit={ postForm("/plan/meals/" + v.ID + "/move") }>
+	<form
+		class="plan-form"
+		method="post"
+		action={ templ.SafeURL("/plan/meals/" + v.ID + "/move") }
+		if modal {
+			data-on:submit={ postForm("/plan/meals/" + v.ID + "/move") }
+		}
+	>
 		@backField(v.Back)
 		<input type="hidden" name="view" value="move"/>
 		@mealSubhead(v, modal, i18n.T(ctx, "plan.menu.move"), "")
@@ -818,13 +966,20 @@ templ mealMove(v MealMenuView, modal bool) {
 }
 
 templ mealServings(v MealMenuView, modal bool) {
-	<form class="plan-form" method="post" action={ templ.SafeURL("/plan/meals/" + v.ID + "/servings") } data-on:submit={ postForm("/plan/meals/" + v.ID + "/servings") }>
+	<form
+		class="plan-form"
+		method="post"
+		action={ templ.SafeURL("/plan/meals/" + v.ID + "/servings") }
+		if modal {
+			data-on:submit={ postForm("/plan/meals/" + v.ID + "/servings") }
+		}
+	>
 		@backField(v.Back)
 		<input type="hidden" name="view" value="servings"/>
 		@mealSubhead(v, modal, i18n.T(ctx, "plan.menu.servings"), "")
 		<div class="plan-form__row plan-form__row--center">
 			<span class="visually-hidden" id="meal-servings-label">{ i18n.T(ctx, "recipes.servingsLabel") }</span>
-			@planStepper("mealservings", "/plan/meals/"+v.ID, v.Servings, "meal-servings-label")
+			@planStepper("mealservings", "/plan/meals/"+v.ID, "set_servings", v.Servings, "meal-servings-label")
 			<input type="hidden" name="servings" value={ itoa(v.Servings) } data-attr:value="$mealservings"/>
 		</div>
 		<p class="muted plan-form__note">{ i18n.T(ctx, "plan.servings.note", v.Day, plural(ctx, v.Base, "recipes.servingsOne", "recipes.servings")) }</p>
@@ -834,7 +989,7 @@ templ mealServings(v MealMenuView, modal bool) {
 
 templ mealSwap(v MealMenuView, modal bool) {
 	@mealSubhead(v, modal, i18n.T(ctx, "plan.menu.swap"), i18n.T(ctx, "plan.swap.keeps", v.Day))
-	<form class="search-link search-link--field" method="get" action={ templ.SafeURL("/plan/meals/" + v.ID) } role="search" data-on:submit__prevent={ v.swapResultsAction() }>
+	<form class="search-link search-link--field" method="get" action={ templ.SafeURL("/plan/meals/" + v.ID) } role="search" data-on:submit__prevent={ v.swapResultsAction(modal) }>
 		@iconSearch(20)
 		<input type="hidden" name="view" value="swap"/>
 		@backField(v.Back)
@@ -848,14 +1003,15 @@ templ mealSwap(v MealMenuView, modal bool) {
 			placeholder={ i18n.T(ctx, "plan.pick.search") }
 			autocomplete="off"
 			data-bind:swapq
-			data-on:input__debounce.200ms={ v.swapResultsAction() }
+			data-on:input__debounce.200ms={ v.swapResultsAction(modal) }
 		/>
 	</form>
-	@MealSwapResults(v)
+	@MealSwapResults(v, modal)
 }
 
-// MealSwapResults lists recipes to swap in; each swaps when chosen.
-templ MealSwapResults(v MealMenuView) {
+// MealSwapResults lists recipes to swap in; each swaps when chosen. On
+// the menu page (modal false) choosing one posts the form natively.
+templ MealSwapResults(v MealMenuView, modal bool) {
 	<form id="meal-swap-results" method="post" action={ templ.SafeURL("/plan/meals/" + v.ID + "/replace") }>
 		@backField(v.Back)
 		if len(v.Swap) == 0 {
@@ -864,7 +1020,15 @@ templ MealSwapResults(v MealMenuView) {
 			<ul class="list pick-list" role="list">
 				for _, r := range v.Swap {
 					<li>
-						<button type="submit" name="recipe" value={ r.ID } class="list__link pick-row" data-on:click__prevent={ v.replaceAction(r.ID) }>
+						<button
+							type="submit"
+							name="recipe"
+							value={ r.ID }
+							class="list__link pick-row"
+							if modal {
+								data-on:click__prevent={ v.replaceAction(r.ID) }
+							}
+						>
 							@pickTile(r)
 							<span class="list__text">
 								<span class="pick-row__name">{ r.Name }</span>
@@ -877,7 +1041,7 @@ templ MealSwapResults(v MealMenuView) {
 					</li>
 				}
 			</ul>
-			@pickMore(len(v.Swap), v.SwapMatched, v.SwapMoreHref(), v.swapMoreAction())
+			@pickMore(len(v.Swap), v.SwapMatched, v.SwapMoreHref(), v.swapMoreAction(modal))
 		}
 	</form>
 }
@@ -966,12 +1130,4 @@ func dayCellLabel(ctx context.Context, d PlanDay) string {
 		return i18n.T(ctx, "plan.cell.one", label, d.Meals[0].Name)
 	}
 	return i18n.T(ctx, "plan.cell.many", label, len(d.Meals))
-}
-
-// moreLabel names the "+N" marker of a day.
-func moreLabel(ctx context.Context, d PlanDay) string {
-	if d.More() == 1 {
-		return i18n.T(ctx, "plan.moreOne", d.Label)
-	}
-	return i18n.T(ctx, "plan.more", d.More(), d.Label)
 }

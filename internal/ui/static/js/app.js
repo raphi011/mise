@@ -410,8 +410,6 @@ function installHint(dialog) {
   dialog.showModal();
 }
 
-window.mise = { installHint };
-
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
   navigator.serviceWorker.register("/sw.js").catch(() => {
@@ -419,6 +417,156 @@ function registerServiceWorker() {
     // works the same.
   });
 }
+
+// ---- Meal plan: selection ----
+
+// The plan keeps its selection in Datastar signals ($_sel holds "m:<meal>"
+// or "r:<recipe>" keys, never both kinds); these helpers work out what a
+// click selects, what a drag carries and what the Delete key removes.
+// Selectable items carry their key in data-sel. Without JavaScript none of
+// this exists: every meal has its menu, every suggestion its add sheet.
+
+// selAnchor is the item a Shift-click selects a range from.
+let selAnchor = null;
+
+function shown(el) {
+  return el.getClientRects().length > 0;
+}
+
+// editing reports whether a key press belongs to a field or an open dialog.
+function editing(e) {
+  if (e.target.closest?.("input, textarea, select, [contenteditable]")) return true;
+  return document.querySelector("dialog[open]") !== null;
+}
+
+// dragImage shows a dragged selection as the grabbed item with a count.
+// The copy loses its data attributes so Datastar leaves it alone.
+function dragImage(e, el, count) {
+  const ghost = el.cloneNode(true);
+  for (const node of [ghost, ...ghost.querySelectorAll("*")]) {
+    for (const a of [...node.attributes]) {
+      if (a.name.startsWith("data-") || a.name === "id") node.removeAttribute(a.name);
+    }
+  }
+  ghost.classList.add("drag-ghost");
+  ghost.style.width = `${el.offsetWidth}px`;
+  const badge = document.createElement("span");
+  badge.className = "drag-ghost__count";
+  badge.textContent = String(count);
+  ghost.append(badge);
+  document.body.append(ghost);
+  e.dataTransfer.setDragImage(ghost, e.offsetX, e.offsetY);
+  setTimeout(() => ghost.remove(), 0);
+}
+
+const plan = {
+  // selecting reports whether a click selects rather than opens: with
+  // Ctrl, Cmd or Shift, or any tap on a meal in select mode.
+  selecting(e, el, mode) {
+    if (mode) return el.dataset.sel.startsWith("m:");
+    return e.metaKey || e.ctrlKey || e.shiftKey;
+  },
+
+  // select returns the selection after a click on el: Shift adds the range
+  // from the last clicked item, in the order the page shows them; otherwise
+  // the item is toggled. Selecting another kind starts over.
+  select(e, el, sel) {
+    const key = el.dataset.sel;
+    const kind = key[0];
+    const next = sel.filter((k) => k[0] === kind);
+    if (e.shiftKey && selAnchor && selAnchor[0] === kind) {
+      const keys = [...new Set([...document.querySelectorAll(`[data-sel^="${kind}:"]`)].filter(shown).map((n) => n.dataset.sel))];
+      const a = keys.indexOf(selAnchor);
+      const b = keys.indexOf(key);
+      if (a >= 0 && b >= 0) {
+        for (const k of keys.slice(Math.min(a, b), Math.max(a, b) + 1)) {
+          if (!next.includes(k)) next.push(k);
+        }
+        return next;
+      }
+    }
+    selAnchor = key;
+    return next.includes(key) ? next.filter((k) => k !== key) : [...next, key];
+  },
+
+  // outside reports whether a click landed away from anything that acts
+  // on the selection.
+  outside(e) {
+    return !e.target.closest("[data-sel], .plan-selbar, dialog, #toast, #sheet");
+  },
+
+  // prune drops keys whose items are no longer on the page.
+  prune(sel) {
+    if (sel.length === 0) return sel;
+    const present = new Set([...document.querySelectorAll("[data-sel]")].map((n) => n.dataset.sel));
+    const next = sel.filter((k) => present.has(k));
+    return next.length === sel.length ? sel : next;
+  },
+
+  // meals returns the IDs of the selected meals.
+  meals(sel) {
+    return sel.filter((k) => k.startsWith("m:")).map((k) => k.slice(2));
+  },
+
+  // ids returns the IDs a drag carries.
+  ids(drag) {
+    return drag ? drag.slice(2).split(",") : [];
+  },
+
+  dragging(drag, key) {
+    return drag !== "" && drag[0] === key[0] && drag.slice(2).split(",").includes(key.slice(2));
+  },
+
+  // dragStart returns what a drag from el carries: the selection of its
+  // kind when el is in it, else el alone.
+  dragStart(e, el, sel) {
+    const key = el.dataset.sel;
+    const kind = key[0];
+    const group = sel.includes(key) ? sel.filter((k) => k[0] === kind) : [key];
+    const drag = `${kind}:${group.map((k) => k.slice(2)).join(",")}`;
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", drag);
+    if (group.length > 1) dragImage(e, el, group.length);
+    return drag;
+  },
+
+  // isDelete is Delete or Backspace (Mac keyboards label it delete) outside
+  // fields and dialogs.
+  isDelete(e) {
+    return (e.key === "Delete" || e.key === "Backspace") && !e.altKey && !e.ctrlKey && !editing(e);
+  },
+
+  // deleteIDs are the meals the Delete key removes: the selected ones, or
+  // the focused meal when none is selected.
+  deleteIDs(e, sel) {
+    const ids = plan.meals(plan.prune(sel));
+    if (ids.length > 0) return ids;
+    const card = e.target.closest?.('[data-sel^="m:"]');
+    return card ? [card.dataset.sel.slice(2)] : [];
+  },
+
+  isEscape(e) {
+    return e.key === "Escape" && !editing(e);
+  },
+};
+
+// ---- Meal plan: recipe picker ----
+
+// pickNames names the picked recipes for the picker's bar. Names are kept
+// once seen, so recipes a search hides still have theirs.
+const pickedNames = new Map();
+
+function pickNames(ids) {
+  for (const box of document.querySelectorAll("[data-pick-name]")) pickedNames.set(box.value, box.dataset.pickName);
+  const names = ids.map((id) => pickedNames.get(id)).filter(Boolean);
+  try {
+    return new Intl.ListFormat(document.documentElement.lang || undefined, { type: "conjunction" }).format(names);
+  } catch {
+    return names.join(", ");
+  }
+}
+
+window.mise = { installHint, plan, pickNames };
 
 // ---- Delegated handlers ----
 
@@ -484,6 +632,16 @@ document.addEventListener("submit", (e) => {
 
 document.addEventListener("input", (e) => {
   if (e.target.id === "search-input") renderRecent();
+});
+
+// Ctrl+Z or Cmd+Z presses the Undo of the toast on screen, outside fields.
+document.addEventListener("keydown", (e) => {
+  if (e.key.toLowerCase() !== "z" || !(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return;
+  if (e.target.closest?.("input, textarea, select, [contenteditable]")) return;
+  const undo = document.querySelector("#toast .toast__undo");
+  if (!undo || getComputedStyle(undo.closest(".toast")).visibility === "hidden") return;
+  e.preventDefault();
+  undo.click();
 });
 
 // Panels marked data-open-wide (the import's activity) start collapsed

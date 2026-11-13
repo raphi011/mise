@@ -3,6 +3,7 @@ package web
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -17,7 +18,7 @@ import (
 
 var (
 	mealHrefRe   = regexp.MustCompile(`/plan/meals/([0-9a-f-]{36})\?`)
-	ingredientRe = regexp.MustCompile(`name="ingredient" value="([0-9a-f-]{36})"`)
+	ingredientRe = regexp.MustCompile(`name="ingredient\.[0-9a-f-]{36}" value="([0-9a-f-]{36})"`)
 	placementsRe = regexp.MustCompile(`name="placements" value="([^"]+)"`)
 )
 
@@ -26,7 +27,7 @@ var planClock = time.Date(2026, 11, 9, 11, 0, 0, 0, time.UTC)
 
 // datastarJSON posts a JSON payload the way a Datastar action without a
 // form does (drops, swap picks).
-func (b *browser) datastarJSON(path string, payload map[string]string) page {
+func (b *browser) datastarJSON(path string, payload any) page {
 	b.t.Helper()
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -96,7 +97,7 @@ func TestPlanWeekByTap(t *testing.T) {
 		contains(t, "add sheet", add.body, "Add to plan", "Also put on Shopping list", "Firm tofu", "Soy sauce",
 			`value="2026-11-09" required checked`,
 			// Datastar runs on the page too, so it declares the sheet's signals.
-			"planservings: 2}")
+			"planservings0: 2, _planleft: 1}")
 		ings := ingredientRe.FindAllStringSubmatch(add.body, -1)
 		if len(ings) != 2 {
 			t.Fatalf("ingredient chips: %v", ings)
@@ -106,14 +107,14 @@ func TestPlanWeekByTap(t *testing.T) {
 		// with the picks.
 		reload := anna.get("/plan/add?"+url.Values{
 			"recipe": {tofu}, "date": {"2026-11-10"}, "week": {"2026-11-16"},
-			"servings": {"2"}, "set_servings": {"4"}, "ingredient": {ings[0][1]},
+			"servings." + tofu: {"2"}, "set_servings." + tofu: {"4"}, "ingredient." + tofu: {ings[0][1]},
 		}.Encode()).expect(t, "add sheet reload", http.StatusOK)
 		contains(t, "add sheet reload", reload.body, "16 – 22 Nov", `value="2026-11-17" required checked`,
-			`name="servings" value="4"`, `value="`+ings[0][1]+`" checked`)
+			`name="servings.`+tofu+`" value="4"`, `value="`+ings[0][1]+`" checked`)
 
 		// Plan it for Tuesday for 4 with the tofu on the list.
 		anna.post("/plan", url.Values{
-			"recipe": {tofu}, "date": {"2026-11-10"}, "servings": {"4"}, "ingredient": {ings[0][1]}, "back": {"/plan?week=2026-11-09"},
+			"recipe": {tofu}, "date": {"2026-11-10"}, "servings." + tofu: {"4"}, "ingredient." + tofu: {ings[0][1]}, "back": {"/plan?week=2026-11-09"},
 		}).expect(t, "plan meal", http.StatusSeeOther, "/plan?week=2026-11-09")
 		week = anna.get("/plan?week=2026-11-09").expect(t, "plan", http.StatusOK)
 		contains(t, "plan", week.body, "1 of 7 days planned", "Sticky tofu on Tuesday, 10 November", "4 servings")
@@ -214,10 +215,10 @@ func TestPlanByDrag(t *testing.T) {
 		benWeek.next("ben sees the undo", liveDeadline, "Sticky tofu on Tuesday, 10 November", "Red lentil dal on Wednesday, 11 November")
 
 		// "Keep both" adds the meal after the day's meals: the week shows
-		// the first and +1.
+		// both.
 		anna.datastar(http.MethodPost, "/plan/meals/"+tofuMeal+"/move", url.Values{"date": {"2026-11-11"}, "mode": {"move"}}).
 			expect(t, "keep both", http.StatusOK)
-		benWeek.next("ben sees +1", liveDeadline, "Red lentil dal on Wednesday, 11 November", "+1")
+		benWeek.next("ben sees both", liveDeadline, "Red lentil dal on Wednesday, 11 November", "Sticky tofu on Wednesday, 11 November")
 
 		// Swap the recipe from the menu, with Undo.
 		menu := anna.datastarGet("/plan/meals/"+tofuMeal+"?view=swap&part=body").expect(t, "swap view", http.StatusOK)
@@ -230,7 +231,7 @@ func TestPlanByDrag(t *testing.T) {
 		list := firstList(t, anna)
 		ings := ingredientRe.FindAllStringSubmatch(anna.get("/plan/add?recipe="+dal).body, -1)
 		res = anna.datastar(http.MethodPost, "/plan", url.Values{
-			"recipe": {dal}, "date": {"2026-11-14"}, "servings": {"2"}, "ingredient": {ings[0][1], ings[1][1]},
+			"recipe": {dal}, "date": {"2026-11-14"}, "servings." + dal: {"2"}, "ingredient." + dal: {ings[0][1], ings[1][1]},
 		}).expect(t, "plan with shopping", http.StatusOK)
 		contains(t, "plan with shopping", res.body, "Red lentil dal planned for Sat 14 Nov · 2 items on Shopping list", `name="entries"`)
 		entries := regexp.MustCompile(`name="entries" value="([^"]+)"`).FindStringSubmatch(res.body)
@@ -316,7 +317,7 @@ func TestLocalPath(t *testing.T) {
 }
 
 // TestPlanUndoAndLinks covers what the toasts' Undo leaves open, the links
-// of a week other than this one, and plurals of the "+N" marker and the
+// of a week other than this one, a day with two meals and plurals of the
 // delete confirmation.
 func TestPlanUndoAndLinks(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db *store.DB) {
@@ -340,10 +341,16 @@ func TestPlanUndoAndLinks(t *testing.T) {
 		add := anna.get("/plan/add?recipe="+tofu+"&week=2026-11-30").expect(t, "add sheet in next weeks", http.StatusOK)
 		contains(t, "add sheet in next weeks", add.body, `value="2026-11-30" required checked`)
 
-		// Two meals on a day: "+1" names one more meal.
+		// Two meals on a day: the week shows both, in order, and still
+		// offers to add another.
 		anna.post("/plan", url.Values{"recipe": {tofu}, "date": {"2026-11-10"}}).expect(t, "plan tofu", http.StatusSeeOther)
 		anna.post("/plan", url.Values{"recipe": {dal}, "date": {"2026-11-10"}}).expect(t, "plan dal", http.StatusSeeOther)
-		contains(t, "week with +1", anna.get("/plan?week=2026-11-09").body, "1 more meal on Tuesday, 10 November")
+		two := anna.get("/plan?week=2026-11-09").body
+		contains(t, "week with two meals", two, "Sticky tofu on Tuesday, 10 November", "Red lentil dal on Tuesday, 10 November",
+			"plan-day__meals--several", "Plan a meal on Tuesday, 10 November")
+		if strings.Index(two, "Sticky tofu on Tuesday") > strings.Index(two, "Red lentil dal on Tuesday") {
+			t.Error("the week shows a day's meals out of order")
+		}
 
 		// Undo clears the toast and leaves a sheet opened since alone.
 		meal := mealIDs(t, anna.get("/plan?week=2026-11-09").body)[0]
@@ -409,18 +416,22 @@ func TestLinkedRecipes(t *testing.T) {
 		contains(t, "curry editor", anna.open("/recipes/"+curryID+"/edit").body, `name="link" value="`+riceID+`" checked`)
 
 		sheet := anna.get("/plan/add?recipe="+curryID).expect(t, "add sheet", http.StatusOK)
-		contains(t, "add sheet", sheet.body, "Plan with it", `name="also" value="`+riceID+`"`)
+		contains(t, "add sheet", sheet.body, "Plan with it", `name="also.`+curryID+`" value="`+riceID+`"`)
+		// With the rice in the sheet itself, it is not offered as a side.
+		both := anna.get("/plan/add?recipe="+curryID+"&recipe="+riceID).expect(t, "add sheet with both", http.StatusOK)
+		if strings.Contains(both.body, `name="also.`+curryID+`"`) {
+			t.Error("the add sheet offers a recipe it plans already as a side")
+		}
 		res = anna.datastar(http.MethodPost, "/plan", url.Values{
-			"recipe": {curryID}, "date": {"2026-11-12"}, "servings": {"3"}, "also": {riceID},
+			"recipe": {curryID}, "date": {"2026-11-12"}, "servings." + curryID: {"3"}, "also." + curryID: {riceID},
 		}).expect(t, "plan with rice", http.StatusOK)
 		contains(t, "plan with rice", res.body, "Green curry planned for Thu 12 Nov · with Jasmine rice", `name="also"`)
-		// The week shows the first meal of the day and "+1".
-		contains(t, "week", anna.get("/plan").body, "Green curry on Thursday, 12 November", "+1")
+		contains(t, "week", anna.get("/plan").body, "Green curry on Thursday, 12 November", "Jasmine rice on Thursday, 12 November")
 
 		also := regexp.MustCompile(`name="also" value="([^"]+)"`).FindStringSubmatch(res.body)
 		unplan := regexp.MustCompile(`/plan/meals/([0-9a-f-]{36})/unplan`).FindString(res.body)
 		anna.datastar(http.MethodPost, unplan, url.Values{"also": {also[1]}}).expect(t, "unplan", http.StatusOK)
-		if week := anna.get("/plan").body; strings.Contains(week, "Green curry on Thursday") || strings.Contains(week, "+1") {
+		if week := anna.get("/plan").body; strings.Contains(week, "Green curry on Thursday") || strings.Contains(week, "Jasmine rice on Thursday") {
 			t.Error("Undo left meals planned")
 		}
 
@@ -475,7 +486,7 @@ func TestPlanPickerPaging(t *testing.T) {
 		}
 
 		// The swap list leaves out the meal's recipe from the count.
-		anna.post("/plan", url.Values{"recipe": {ids[0]}, "date": {"2026-11-10"}, "servings": {"2"}}).
+		anna.post("/plan", url.Values{"recipe": {ids[0]}, "date": {"2026-11-10"}, "servings." + ids[0]: {"2"}}).
 			expect(t, "plan meal", http.StatusSeeOther)
 		meal := mealIDs(t, anna.get("/plan?week=2026-11-09").body)[0]
 		swap := anna.get("/plan/meals/"+meal+"?view=swap").expect(t, "swap", http.StatusOK)
@@ -536,6 +547,251 @@ func TestRecipePairings(t *testing.T) {
 		contains(t, "5 links", body, "+3 more", "Show less", "pairs__list", "Roasted carrots", `type="checkbox" id="pairs-toggle"`)
 		if got := strings.Count(body, `class="pairs__row"`); got != 5 {
 			t.Errorf("expanded list has %d rows, want 5", got)
+		}
+	})
+}
+
+// TestPlanSeveral plans several recipes at once from the picker, with and
+// without JavaScript, and moves and removes several meals at once, each
+// with one Undo.
+func TestPlanSeveral(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		s, srv := startTimedServer(t, db)
+		s.clock = func() time.Time { return planClock }
+		anna, ben := household(t, srv)
+		list := firstList(t, anna)
+		tofu := createRecipe(t, anna, stickyTofu())
+		dalForm := stickyTofu()
+		dalForm.Set("name", "Red lentil dal")
+		dal := createRecipe(t, anna, dalForm)
+		soupForm := stickyTofu()
+		soupForm.Set("name", "Miso soup")
+		soup := createRecipe(t, anna, soupForm)
+
+		// The picker's rows are checkboxes in a form to the add sheet.
+		pick := anna.get("/plan/pick?date=2026-11-10").expect(t, "picker", http.StatusOK)
+		contains(t, "picker", pick.body, `action="/plan/add"`, `name="recipe" value="`+tofu+`"`, "picksel: []", "Plan selected",
+			"Tap a photo to plan several recipes at once.")
+		// Without a recipe ticked, "Plan selected" goes back to the picker.
+		anna.get("/plan/add?date=2026-11-10&back=%2Fplan").expect(t, "plan none", http.StatusSeeOther, "/plan/pick?back=%2Fplan&date=2026-11-10")
+
+		// The sheet for two recipes: one block each, in the order picked.
+		q := url.Values{"date": {"2026-11-10"}, "recipe": {dal, tofu}}
+		sheet := anna.get("/plan/add?"+q.Encode()).expect(t, "add sheet for two", http.StatusOK)
+		contains(t, "add sheet for two", sheet.body, "2 recipes", "planservings0: 2, planservings1: 2, _planleft: 2}",
+			`name="servings.`+dal+`"`, `name="servings.`+tofu+`"`, "Don’t plan Sticky tofu")
+		if strings.Index(sheet.body, "Red lentil dal") > strings.Index(sheet.body, "Sticky tofu") {
+			t.Error("the add sheet does not keep the picked order")
+		}
+		// Taking one out without JavaScript reloads with the other alone.
+		q.Set("drop", tofu)
+		one := anna.get("/plan/add?"+q.Encode()).expect(t, "drop one", http.StatusOK)
+		if strings.Contains(one.body, `name="recipe" value="`+tofu+`"`) || strings.Contains(one.body, "2 recipes") {
+			t.Error("the dropped recipe is still in the sheet")
+		}
+
+		// Planned as a form post: each recipe with its servings and shopping.
+		dalIngs := regexp.MustCompile(`name="ingredient\.`+dal+`" value="([0-9a-f-]{36})"`).FindAllStringSubmatch(sheet.body, -1)
+		anna.post("/plan", url.Values{
+			"recipe": {dal, tofu}, "date": {"2026-11-10"}, "servings." + dal: {"4"}, "servings." + tofu: {"3"},
+			"ingredient." + dal: {dalIngs[0][1]}, "back": {"/plan?week=2026-11-09"},
+		}).expect(t, "plan two", http.StatusSeeOther, "/plan?week=2026-11-09")
+		week := anna.get("/plan?week=2026-11-09").body
+		contains(t, "week after plan two", week, "Red lentil dal on Tuesday, 10 November", "Sticky tofu on Tuesday, 10 November",
+			"4 servings", "3 servings")
+		contains(t, "list after plan two", anna.get("/groceries/lists/"+list).body, "Firm tofu")
+		// The picker marks them as planned that day.
+		contains(t, "picker after plan", anna.get("/plan/pick?date=2026-11-10").body, "Planned that day")
+
+		// Suggestions dropped together on a day, with one Undo for both.
+		benWeek := ben.openLive("page=plan&week=2026-11-09")
+		benWeek.next("ben week initial", liveDeadline, `id="plan-live"`)
+		res := anna.datastarJSON("/plan", map[string]any{"recipe": []string{soup, tofu}, "date": "2026-11-12"}).
+			expect(t, "drop two", http.StatusOK)
+		contains(t, "drop two", res.body, "Miso soup and Sticky tofu planned for Thu 12 Nov", `name="also"`)
+		benWeek.next("ben sees both", liveDeadline, "Miso soup on Thursday, 12 November", "Sticky tofu on Thursday, 12 November")
+		unplan := regexp.MustCompile(`/plan/meals/[0-9a-f-]{36}/unplan`).FindString(res.body)
+		also := regexp.MustCompile(`name="also" value="([^"]+)"`).FindStringSubmatch(res.body)
+		anna.datastar(http.MethodPost, unplan, url.Values{"also": {also[1]}}).expect(t, "undo drop two", http.StatusOK)
+		if w := anna.get("/plan?week=2026-11-09").body; strings.Contains(w, "Miso soup on Thursday") || strings.Contains(w, "Sticky tofu on Thursday") {
+			t.Error("Undo left a dropped recipe planned")
+		}
+
+		// Two selected meals dropped on another day go after its meals.
+		anna.post("/plan", url.Values{"recipe": {soup}, "date": {"2026-11-13"}}).expect(t, "plan soup", http.StatusSeeOther)
+		ids := mealIDs(t, anna.get("/plan?week=2026-11-09").body)
+		if len(ids) != 3 {
+			t.Fatalf("meals: %v", ids)
+		}
+		res = anna.datastarJSON("/plan/move", map[string]any{"meal": ids[:2], "date": "2026-11-13"}).expect(t, "move two", http.StatusOK)
+		contains(t, "move two", res.body, "Red lentil dal and Sticky tofu moved to Fri 13 Nov", "/plan/place")
+		week = anna.get("/plan?week=2026-11-09").body
+		if i, j := strings.Index(week, "Miso soup on Friday"), strings.Index(week, "Red lentil dal on Friday"); i < 0 || j < i {
+			t.Errorf("moved meals not after Friday's soup: %d, %d", i, j)
+		}
+		undo := placementsRe.FindStringSubmatch(res.body)
+		anna.datastar(http.MethodPost, "/plan/place", url.Values{"placements": {undo[1]}}).expect(t, "undo move two", http.StatusOK)
+		contains(t, "week after undo move", anna.get("/plan?week=2026-11-09").body, "Red lentil dal on Tuesday", "Sticky tofu on Tuesday")
+
+		// The Delete key removes the selection, with one Undo.
+		res = anna.datastarJSON("/plan/remove", map[string]any{"meal": ids}).expect(t, "remove three", http.StatusOK)
+		contains(t, "remove three", res.body, "Red lentil dal, Sticky tofu and Miso soup taken off the plan", "/plan/restore")
+		benWeek.next("ben sees the removal", liveDeadline, "0 of 7 days planned")
+		meals := regexp.MustCompile(`name="meals" value="([^"]+)"`).FindStringSubmatch(res.body)
+		anna.datastar(http.MethodPost, "/plan/restore", url.Values{"meals": {meals[1]}}).expect(t, "restore three", http.StatusOK)
+		contains(t, "week after restore", anna.get("/plan?week=2026-11-09").body, "Red lentil dal on Tuesday", "Miso soup on Friday")
+		// Meals of one day name the day.
+		res = anna.datastarJSON("/plan/remove", map[string]any{"meal": ids[:2]}).expect(t, "remove two", http.StatusOK)
+		contains(t, "remove two", res.body, "Red lentil dal and Sticky tofu taken off Tue 10 Nov")
+
+		// Without meals there is nothing to do.
+		anna.datastarJSON("/plan/remove", map[string]any{"meal": []string{}}).expect(t, "remove none", http.StatusBadRequest)
+		res = anna.datastarJSON("/plan/remove", map[string]any{"meal": ids[:2]}).expect(t, "remove gone", http.StatusOK)
+		contains(t, "remove gone", res.body, "That meal is no longer on the plan.")
+	})
+}
+
+var (
+	getActionRe  = regexp.MustCompile(`@get\('([^']+)'[,)]`)
+	patchedTopRe = regexp.MustCompile(`(?m)^data: elements <[a-z]+[^>]*?\sid="([^"]+)"`)
+)
+
+// patchedIDs are the IDs of the elements an SSE body patches: the top
+// element of each patch.
+func patchedIDs(body string) []string {
+	var ids []string
+	for ev := range strings.SplitSeq(body, "\n\n") {
+		if !strings.Contains(ev, "event: datastar-patch-elements") {
+			continue
+		}
+		// Only an event's first elements line opens its top element.
+		i := strings.Index(ev, "data: elements ")
+		if i < 0 {
+			continue
+		}
+		line, _, _ := strings.Cut(ev[i:], "\n")
+		if m := patchedTopRe.FindStringSubmatch(line); m != nil {
+			ids = append(ids, m[1])
+		}
+	}
+	return ids
+}
+
+// pageActionsLand checks a plan sheet opened as a page with JavaScript:
+// it posts nothing with Datastar (its forms post natively and go back),
+// and every Datastar load it makes patches only elements the page has.
+// The modal sheets patch #sheet and #toast, which only the week and month
+// pages have.
+func pageActionsLand(t *testing.T, b *browser, what, body string) {
+	t.Helper()
+	body = html.UnescapeString(body)
+	if strings.Contains(body, "@post(") {
+		t.Errorf("%s posts with Datastar:\n%s", what, regexp.MustCompile(`(?s).{0,80}@post\(.{0,80}`).FindString(body))
+	}
+	for _, m := range getActionRe.FindAllStringSubmatch(body, -1) {
+		action := m[1]
+		sep := "?"
+		if strings.Contains(action, "?") {
+			sep = "&"
+		}
+		res := b.datastarGet(action + sep + "datastar=" + url.QueryEscape("{}"))
+		if res.status != http.StatusOK {
+			t.Errorf("%s: %s: status %d", what, action, res.status)
+			continue
+		}
+		for _, id := range patchedIDs(res.body) {
+			if !strings.Contains(body, `id="`+id+`"`) {
+				t.Errorf("%s: %s patches #%s, which the page does not have", what, action, id)
+			}
+		}
+		// A list the page reloads renders for the page too.
+		if strings.Contains(html.UnescapeString(res.body), "@post(") {
+			t.Errorf("%s: %s reloads a list that posts with Datastar", what, action)
+		}
+	}
+}
+
+// TestPlanSheetsAsPages: the picker, the add sheet and the meal menu
+// opened directly (a reload, a shared link) work with JavaScript: their
+// taps and forms navigate like the plain HTML path, since the page has no
+// #sheet or #toast for the modal answers.
+func TestPlanSheetsAsPages(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		s, srv := startTimedServer(t, db)
+		s.clock = func() time.Time { return planClock }
+		anna, _ := household(t, srv)
+		tofu := createRecipe(t, anna, stickyTofu())
+		dalForm := stickyTofu()
+		dalForm.Set("name", "Red lentil dal")
+		dal := createRecipe(t, anna, dalForm)
+		back := "/plan?week=2026-11-09"
+
+		// The picker: a row follows its link unless recipes are picked,
+		// "Plan" opens the add sheet as a page.
+		pickPath := "/plan/pick?" + url.Values{"date": {"2026-11-10"}, "back": {back}}.Encode()
+		pick := anna.get(pickPath).expect(t, "picker page", http.StatusOK)
+		pageActionsLand(t, anna, "picker page", pick.body)
+		contains(t, "picker page", html.UnescapeString(pick.body),
+			`data-on:click="$picksel.length && (evt.preventDefault(), `, "window.location.assign('/plan/add?", "page=1")
+		pick = anna.get(pickPath+"&q=dal").expect(t, "picker search page", http.StatusOK)
+		pageActionsLand(t, anna, "picker search page", pick.body)
+		// The modal picker keeps patching the page it opens on.
+		sheet := anna.datastarGet(pickPath).expect(t, "picker sheet", http.StatusOK)
+		contains(t, "picker sheet", html.UnescapeString(sheet.body), `id="sheet"`, "@get('/plan/add?", "$picksel.length ? (")
+		if strings.Contains(sheet.body, "page=1") {
+			t.Error("the modal picker asks for its list as a page")
+		}
+
+		// The add sheet posts natively and goes back.
+		addPath := "/plan/add?" + url.Values{"recipe": {dal, tofu}, "date": {"2026-11-10"}, "back": {back}}.Encode()
+		add := anna.get(addPath).expect(t, "add page", http.StatusOK)
+		pageActionsLand(t, anna, "add page", add.body)
+		contains(t, "add page", add.body, `action="/plan"`, `name="back" value="`+html.EscapeString(back)+`"`)
+		contains(t, "add sheet", html.UnescapeString(anna.datastarGet(addPath).body), "@post('/plan'")
+		anna.post("/plan", url.Values{
+			"recipe": {dal, tofu}, "date": {"2026-11-10"}, "servings." + dal: {"2"}, "servings." + tofu: {"2"}, "back": {back},
+		}).expect(t, "plan from page", http.StatusSeeOther, back)
+		meal := mealIDs(t, anna.get(back).body)[0]
+
+		// The meal menu and its views: links between them, native posts.
+		menuPath := "/plan/meals/" + meal + "?back=" + url.QueryEscape(back)
+		for _, view := range []string{"", "move", "servings", "swap"} {
+			p := anna.get(menuPath+"&view="+view).expect(t, "menu page "+view, http.StatusOK)
+			pageActionsLand(t, anna, "menu page "+view, p.body)
+		}
+		menuSheet := html.UnescapeString(anna.datastarGet(menuPath).body)
+		contains(t, "menu sheet", menuSheet, "/remove', {contentType: 'form'})", "part=body")
+		swapSheet := html.UnescapeString(anna.datastarGet(menuPath + "&view=swap&part=body").body)
+		contains(t, "swap sheet", swapSheet, "/replace', {payload:")
+
+		// Swapping from the page's list, reloaded by its search, goes back.
+		res := anna.datastar(http.MethodGet, "/plan/meals/"+meal+"?view=swap&part=results&page=1&back="+url.QueryEscape(back)+
+			"&datastar="+url.QueryEscape(`{"swapq":"tofu"}`), nil).expect(t, "swap page results", http.StatusOK)
+		contains(t, "swap page results", res.body, `id="meal-swap-results"`, `name="back" value="`+html.EscapeString(back)+`"`,
+			`name="recipe" value="`+tofu+`"`)
+		anna.post("/plan/meals/"+meal+"/replace", url.Values{"recipe": {tofu}, "back": {back}}).
+			expect(t, "swap from page", http.StatusSeeOther, back)
+		anna.post("/plan/meals/"+meal+"/remove", url.Values{"back": {back}}).
+			expect(t, "remove from page", http.StatusSeeOther, back)
+	})
+}
+
+// TestAddPlanDaysWeek: another week in the add sheet keeps the weekday.
+// The days are patched before the plandate signal, since the signal's
+// bind checks the radio with its value, which only the new days have.
+func TestAddPlanDaysWeek(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		s, srv := startTimedServer(t, db)
+		s.clock = func() time.Time { return planClock }
+		anna, _ := household(t, srv)
+		tofu := createRecipe(t, anna, stickyTofu())
+
+		res := anna.datastarGet("/plan/add/days?recipe="+tofu+"&week=2026-11-16&datastar="+url.QueryEscape(`{"plandate":"2026-11-10"}`)).
+			expect(t, "next week", http.StatusOK)
+		contains(t, "next week", res.body, "16 – 22 Nov", `value="2026-11-17" required checked`, `"plandate":"2026-11-17"`, "Add to Tuesday")
+		days, signal := strings.Index(res.body, `id="plan-add-days"`), strings.Index(res.body, "event: datastar-patch-signals")
+		if signal < days {
+			t.Errorf("plandate is patched before the days (%d < %d)", signal, days)
 		}
 	})
 }

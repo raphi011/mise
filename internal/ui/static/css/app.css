@@ -1526,6 +1526,7 @@ a.list__link:hover, summary.list__link:hover { color: var(--ink); background: va
 
 @media (min-width: 1200px) {
   .toast-region { left: 240px; }
+  .plan-selbar { left: 240px; }
   .groceries { max-width: 760px; }
 }
 
@@ -2254,29 +2255,28 @@ a.menu__item:hover { color: var(--ink); background: var(--surface-2); }
 .plan-day__dow { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
 .plan-day__num { font-size: 20px; font-weight: 600; }
 .plan-day--today .plan-day__dow, .plan-day--today .plan-day__num { color: var(--herb); }
-.plan-day__meals { position: relative; display: flex; flex-direction: column; min-width: 0; }
+.plan-day__meals { position: relative; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 
-.plan-day__more {
-  position: absolute;
-  right: 12px;
-  bottom: -8px;
-  min-width: var(--target);
-  min-height: 28px;
-  padding: 0 8px;
-  display: inline-flex;
+/* "Add" under a day's meals: quiet until hovered or dropped on. */
+.plan-day__another {
+  position: relative;
+  min-height: 32px;
+  display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 14px;
-  background: var(--strong);
-  color: var(--on-strong);
+  gap: 6px;
+  border-radius: 12px;
+  border: 1.5px dashed transparent;
+  color: var(--muted);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   text-decoration: none;
 }
 
-/* The pill stays small; its hit area grows to the tap target. */
-.plan-day__more::before { content: ""; position: absolute; inset: -8px 0; }
-.plan-day__more:hover { color: var(--on-strong); }
+/* The link stays small; its hit area grows to the tap target. */
+.plan-day__another::before { content: ""; position: absolute; inset: -6px 0; }
+.plan-day__another:hover, .plan-day--over .plan-day__another { color: var(--ink); border-color: var(--check-line); }
+.plan-day--past .plan-day__another { opacity: 0.7; }
 
 .plan-day__add {
   min-height: 72px;
@@ -2311,6 +2311,80 @@ a.menu__item:hover { color: var(--ink); background: var(--surface-2); }
 
 .meal-card:hover { color: var(--ink); border-color: var(--line-strong); }
 .meal-card--dragging { opacity: 0.4; }
+
+/* Selected meals and suggestions: an outline and a check. In the phones'
+   select mode every meal shows an empty check to tap. */
+.meal-card { position: relative; }
+.meal-card.is-selected, .meal-card.is-selected:hover { border-color: var(--herb); box-shadow: 0 0 0 1.5px var(--herb); }
+
+.sel-check {
+  position: absolute;
+  z-index: 1;
+  top: 6px;
+  left: 6px;
+  width: 22px;
+  height: 22px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 11px;
+  background: var(--herb);
+  color: var(--on-herb);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+.is-selected > .sel-check { display: flex; }
+.plan--selecting .sel-check { display: flex; background: var(--surface); color: transparent; box-shadow: inset 0 0 0 2px var(--line-strong); }
+.plan--selecting .is-selected > .sel-check { background: var(--herb); color: var(--on-herb); box-shadow: 0 0 0 2px var(--surface); }
+.plan--selecting .meal-card { cursor: pointer; }
+
+/* A dragged selection: a copy of the grabbed item, off screen, with the
+   number of items it carries. */
+.drag-ghost { position: fixed; top: -1000px; left: -1000px; pointer-events: none; }
+
+.drag-ghost__count {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 13px;
+  background: var(--herb);
+  color: var(--on-herb);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* What is selected, with Remove: above the bottom bar on phones, low in
+   the content on wider screens. */
+.plan-selbar {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(var(--nav-height) + 16px);
+  z-index: 15;
+  max-width: 440px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 56px;
+  padding: 6px 6px 6px 16px;
+  border-radius: 18px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-pop);
+}
+
+.plan-selbar__count { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; }
+.plan-selbar__done { background: transparent; }
+body:has(.plan--selbar) .toast-region { bottom: calc(var(--nav-height) + 84px); }
+/* Room to scroll the last meals clear of the bar. */
+.plan--selbar { padding-bottom: 88px; }
 /* On iOS a long press on a link opens the link preview and context menu before
    a drag can start. Turning the callout off lets the press lift the card. */
 a[draggable="true"], [draggable="true"] a, [draggable="true"] img {
@@ -2381,6 +2455,8 @@ a[draggable="true"] { transform: translate(0, 0); }
 }
 
 .plan-suggest__item:hover { color: var(--ink); background: var(--ground); }
+.plan-suggest__item.is-selected { box-shadow: inset 0 0 0 2px var(--herb); background: var(--surface); }
+.plan-suggest__item--dragging { opacity: 0.4; }
 .plan-suggest__last { font-size: 12px; font-weight: 400; color: var(--muted); }
 
 @media (min-width: 900px) {
@@ -2415,9 +2491,14 @@ a[draggable="true"] { transform: translate(0, 0); }
     background: var(--surface);
     color: var(--muted);
   }
-  .meal-card { position: relative; }
   .plan-day__add { min-height: 240px; flex-direction: column; border-radius: 18px; }
-  .plan-day__more { bottom: auto; top: 84px; right: 8px; }
+  /* Several meals on a day: shorter cards, so a week stays in view. */
+  .plan-day__meals--several .meal-card { min-height: 0; }
+  .plan-day__meals--several .meal-card__media { height: 72px; }
+  .plan-day__meals--several .meal-card__initial { font-size: 30px; }
+  .plan-day__meals--several .meal-card__text { padding: 10px; gap: 4px; }
+  .plan-day__meals--several .meal-card__time { display: none; }
+  .plan-selbar { left: 88px; right: 24px; bottom: 24px; }
   .plan-aside { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); align-items: start; }
   .plan-suggest__list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .plan-suggest__item { min-height: 0; padding: 12px; border-radius: 14px; font-weight: 600; }
@@ -2523,6 +2604,7 @@ a[draggable="true"] { transform: translate(0, 0); }
 .meal-chip:hover { color: var(--av-fg, var(--ink-2)); filter: brightness(0.97); }
 .month-grid__day--past .meal-chip { opacity: 0.6; }
 .meal-chip--dragging { opacity: 0.4; }
+.meal-chip.is-selected { box-shadow: inset 0 0 0 2px var(--herb); }
 
 /* Add to plan, move, servings, recipe picker. */
 .plan-form { display: flex; flex-direction: column; gap: 18px; }
@@ -2578,6 +2660,60 @@ a[draggable="true"] { transform: translate(0, 0); }
 .sheet__actions--stack { flex-direction: column; }
 .plan-pick { display: flex; flex-direction: column; gap: 10px; }
 .pick-list .list__link { min-height: 64px; }
+
+/* A picker row: the tile picks the recipe (a checkbox), the rest opens it. */
+.pick-item { display: flex; align-items: center; border-radius: 16px; }
+.pick-check { position: relative; display: flex; padding: 8px 0 8px 14px; cursor: pointer; }
+.pick-check__box { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+.pick-check:has(.pick-check__box:focus-visible) .pick-row__tile { outline: 2px solid var(--herb); outline-offset: 2px; }
+.pick-item .list__link { padding-left: 12px; }
+
+.pick-check__mark {
+  position: absolute;
+  right: -6px;
+  bottom: 2px;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 11px;
+  background: var(--surface);
+  color: transparent;
+  box-shadow: inset 0 0 0 2px var(--line-strong), 0 0 0 2px var(--surface);
+}
+
+.pick-check:has(.pick-check__box:checked) .pick-check__mark { background: var(--herb); color: var(--on-herb); box-shadow: 0 0 0 2px var(--surface); }
+.pick-item--on, .pick-item--on .list__link:hover { background: var(--herb-soft); }
+.pick-row__planned { color: var(--herb-strong); font-weight: 500; }
+
+/* "Plan 3 recipes" stays in reach at the bottom of the picker. */
+.pick-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin: 8px -4px 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px 12px;
+  padding: 12px 4px;
+  background: var(--surface);
+  border-top: 1px solid var(--line-soft);
+}
+
+.pick-bar__names { flex: 1 1 160px; min-width: 0; font-size: 14px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pick-bar__names--hint { font-size: 13px; color: var(--muted); white-space: normal; }
+.pick-bar__actions { display: flex; gap: 8px; }
+.pick-bar__plan:disabled { opacity: 0.45; cursor: default; }
+
+/* Several recipes in the add sheet: one block each. */
+.plan-form__recipes { display: flex; flex-direction: column; gap: 18px; }
+.plan-form__recipe { display: flex; flex-direction: column; gap: 18px; }
+.plan-form__recipe--several { gap: 14px; padding: 14px; border-radius: 18px; border: 1px solid var(--line-soft); }
+.plan-form__recipe-head { display: flex; align-items: flex-start; gap: 8px; margin: -4px -6px 0 0; }
+.plan-form__recipe-name { margin: 0; font-size: 16px; font-weight: 600; }
 button.pick-row { width: 100%; border: none; background: transparent; font: inherit; text-align: left; cursor: pointer; }
 .pick-row__tile { overflow: hidden; }
 .pick-row__tile img { width: 100%; height: 100%; object-fit: cover; }

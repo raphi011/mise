@@ -90,7 +90,7 @@ func (s *Server) apiAddMeal(w http.ResponseWriter, r *http.Request) {
 		s.apiErr(w, r, err)
 		return
 	}
-	add := plan.AddInput{RecipeID: in.RecipeID, Date: date, Servings: in.Servings, By: id.UserID, Lang: i18n.Locale(ctx)}
+	meal := plan.MealInput{RecipeID: in.RecipeID, Servings: in.Servings}
 	if in.AddToList {
 		rec, err := s.recipes.Get(ctx, sc, in.RecipeID, id.UserID)
 		if err != nil {
@@ -99,16 +99,16 @@ func (s *Server) apiAddMeal(w http.ResponseWriter, r *http.Request) {
 		}
 		for _, ing := range rec.Ingredients {
 			if !ing.Optional {
-				add.Ingredients = append(add.Ingredients, ing.ID)
+				meal.Ingredients = append(meal.Ingredients, ing.ID)
 			}
 		}
 	}
-	added, err := s.plan.Add(ctx, sc, add)
+	added, err := s.plan.Add(ctx, sc, plan.AddInput{Date: date, Meals: []plan.MealInput{meal}, By: id.UserID, Lang: i18n.Locale(ctx)})
 	if err != nil {
 		s.apiErr(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, mealToJSON(added.Meal))
+	writeJSON(w, http.StatusCreated, mealToJSON(added.Meals[0]))
 }
 
 func (s *Server) apiRemoveMeal(w http.ResponseWriter, r *http.Request) {

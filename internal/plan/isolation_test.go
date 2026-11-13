@@ -33,12 +33,12 @@ func TestHouseholdIsolation(t *testing.T) {
 		setup := func(name string) fixture {
 			e := newEnv(t, db, name)
 			f := fixture{env: e, recipe: e.recipe(t, "Dal", "250 g red lentils")}
-			added, err := e.s.Add(ctx, e.sc, AddInput{RecipeID: f.recipe.ID, Date: date("2026-11-10"), By: e.hh.Admin,
-				Ingredients: []uuid.UUID{f.recipe.Ingredients[0].ID}, Lang: language.English})
+			added, err := e.s.Add(ctx, e.sc, AddInput{Date: date("2026-11-10"), By: e.hh.Admin, Lang: language.English,
+				Meals: []MealInput{{RecipeID: f.recipe.ID, Ingredients: []uuid.UUID{f.recipe.Ingredients[0].ID}}}})
 			if err != nil {
 				t.Fatal(err)
 			}
-			f.meal, f.entry = added.Meal, added.Shopping.Added[0].ID
+			f.meal, f.entry = added.Meals[0], added.Shopping.Added[0].ID
 			f.removed = e.add(t, f.recipe, "2026-11-11")
 			if _, err := e.s.Remove(ctx, e.sc, f.removed.ID); err != nil {
 				t.Fatal(err)
@@ -88,10 +88,10 @@ func TestHouseholdIsolation(t *testing.T) {
 			notFound("get other's meal", err)
 
 			// Writes to the other's rows fail and leave them alone.
-			_, err = s.Add(ctx, sc, AddInput{RecipeID: other.recipe.ID, Date: day, By: me, Lang: language.English})
+			_, err = s.Add(ctx, sc, AddInput{Date: day, Meals: []MealInput{{RecipeID: other.recipe.ID}}, By: me, Lang: language.English})
 			notFound("plan other's recipe", err)
-			_, err = s.Add(ctx, sc, AddInput{RecipeID: own.recipe.ID, Date: day, By: me, Lang: language.English,
-				Ingredients: []uuid.UUID{other.recipe.Ingredients[0].ID}})
+			_, err = s.Add(ctx, sc, AddInput{Date: day, By: me, Lang: language.English,
+				Meals: []MealInput{{RecipeID: own.recipe.ID, Ingredients: []uuid.UUID{other.recipe.Ingredients[0].ID}}}})
 			notFound("put other's ingredient on the list", err)
 			_, err = s.Move(ctx, sc, other.meal.ID, day.AddDays(1))
 			notFound("move", err)
@@ -107,6 +107,23 @@ func TestHouseholdIsolation(t *testing.T) {
 			_, err = s.Remove(ctx, sc, other.meal.ID)
 			notFound("remove", err)
 			notFound("restore", s.Restore(ctx, sc, other.removed.ID))
+			_, err = s.MoveAll(ctx, sc, []uuid.UUID{other.meal.ID}, day.AddDays(2))
+			notFound("move all", err)
+			_, err = s.RemoveAll(ctx, sc, []uuid.UUID{other.meal.ID})
+			notFound("remove all", err)
+			notFound("restore all", s.RestoreAll(ctx, sc, []uuid.UUID{other.removed.ID}))
+			// With an own meal among them, only the own one changes.
+			if mv, err := s.MoveAll(ctx, sc, []uuid.UUID{other.meal.ID, own.meal.ID}, day.AddDays(2)); err != nil || len(mv.Meals) != 1 {
+				t.Errorf("move all with own meal: %+v, %v", mv, err)
+			} else if err := s.Place(ctx, sc, mv.Undo); err != nil {
+				t.Fatal(err)
+			}
+			if rm, err := s.RemoveAll(ctx, sc, []uuid.UUID{other.meal.ID, own.meal.ID}); err != nil || len(rm) != 1 {
+				t.Errorf("remove all with own meal: %+v, %v", rm, err)
+			}
+			if err := s.RestoreAll(ctx, sc, []uuid.UUID{other.removed.ID, own.meal.ID}); err != nil {
+				t.Errorf("restore all with own meal: %v", err)
+			}
 			_, err = s.Unplan(ctx, sc, other.meal.ID, nil, nil)
 			notFound("unplan other's meal", err)
 			// Undo of planning an own meal leaves the other's entry alone.

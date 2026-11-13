@@ -1,10 +1,15 @@
 package ui
 
 import (
+	"context"
 	"maps"
 	"net/url"
 	"slices"
 	"strings"
+
+	"github.com/a-h/templ"
+
+	"github.com/raphi011/mise/internal/i18n"
 )
 
 // ---- Week and month ----
@@ -57,16 +62,6 @@ type PlanDay struct {
 	Meals      []PlanMeal
 	// AddHref plans a meal on the day.
 	AddHref string
-	// MoreHref shows every meal of the day (the "+N" marker).
-	MoreHref string
-}
-
-// More is how many meals the week view leaves out.
-func (d PlanDay) More() int {
-	if len(d.Meals) < 2 {
-		return 0
-	}
-	return len(d.Meals) - 1
 }
 
 // PlanMeal is a planned meal on a card or chip.
@@ -126,27 +121,64 @@ func planLive(query string) string {
 
 // ---- Add to plan ----
 
-// AddPlanView is the add-to-plan sheet.
+// AddPlanView is the add-to-plan sheet: one or more recipes to plan on a
+// day.
 type AddPlanView struct {
-	RecipeID string
-	Name     string
+	// Recipes are planned in this order.
+	Recipes  []AddPlanRecipe
+	Days     PlanPicker
+	ListName string
+	// Back is where Cancel and a plain form post lead.
+	Back string
+	Form Form
+}
+
+// Several is true when the sheet plans more than one recipe.
+func (v AddPlanView) Several() bool { return len(v.Recipes) > 1 }
+
+// recipeIDs are the sheet's recipes, in order.
+func (v AddPlanView) recipeIDs() []string {
+	ids := make([]string, len(v.Recipes))
+	for i, r := range v.Recipes {
+		ids[i] = r.ID
+	}
+	return ids
+}
+
+// AddPlanRecipe is one recipe of the add sheet.
+type AddPlanRecipe struct {
+	ID   string
+	Name string
 	// Meta is the translated "35 min" line, or "".
 	Meta string
-	Days PlanPicker
 	// Servings is the stepper's value, Base the recipe's own.
 	Servings int
 	Base     int
-	ListName string
 	// Shop are the ingredients not on the list, offered as chips.
 	Shop []ShopChip
 	// Already is the translated "Already on it: …" line, or "".
 	Already string
 	// Also are the recipe's linked recipes, offered to plan on the same day.
 	Also []ShopChip
-	// Back is where Cancel and a plain form post lead.
-	Back string
-	Form Form
 }
+
+// The add sheet's fields are named after their recipe, so one form plans
+// several recipes.
+
+// AddServingsField is the servings field of a recipe.
+func AddServingsField(recipeID string) string { return "servings." + recipeID }
+
+// AddSetServingsField is the stepper's reload value without JavaScript.
+func AddSetServingsField(recipeID string) string { return "set_servings." + recipeID }
+
+// AddIngredientField holds the ingredients picked for the list.
+func AddIngredientField(recipeID string) string { return "ingredient." + recipeID }
+
+// AddAlsoField holds the linked recipes picked to plan too.
+func AddAlsoField(recipeID string) string { return "also." + recipeID }
+
+// servingsSignal is the stepper signal of the sheet's i-th recipe.
+func servingsSignal(i int) string { return "planservings" + itoa(i) }
 
 // ShopChip is an ingredient offered for the list.
 type ShopChip struct {
@@ -218,8 +250,8 @@ func (p PlanPicker) plannedExpr(signal string) string {
 }
 
 // addDaysAction loads another week into the add sheet's day picker.
-func addDaysAction(recipeID, week string) string {
-	q := url.Values{"recipe": {recipeID}, "week": {week}}
+func addDaysAction(recipeIDs []string, week string) string {
+	q := url.Values{"recipe": recipeIDs, "week": {week}}
 	return "@get('/plan/add/days?" + q.Encode() + "', {filterSignals: {include: /^plandate$/}})"
 }
 
@@ -249,10 +281,17 @@ type PickRecipe struct {
 	Meta  string
 	// Href opens the add-to-plan sheet for it.
 	Href string
+	// Planned is set when the recipe is on the picker's day already.
+	Planned bool
 }
 
+// PageParam marks a request for part of a sheet that is open as a page
+// (opened directly), not as a modal dialog: the part is rendered for the
+// page, whose writes and links navigate instead of patching the sheet.
+const PageParam = "page"
+
 // pickQuery is the picker's date and back, plus shown when it is set.
-func (v PlanPickView) pickQuery(shown int) string {
+func (v PlanPickView) pickQuery(shown int) url.Values {
 	q := url.Values{"date": {v.Date}}
 	if v.Back != "" {
 		q.Set("back", v.Back)
@@ -260,21 +299,33 @@ func (v PlanPickView) pickQuery(shown int) string {
 	if shown > 0 {
 		q.Set("shown", itoa(shown))
 	}
+	return q
+}
+
+// resultsQuery is pickQuery for a request of the list, marked when the
+// picker is a page.
+func (v PlanPickView) resultsQuery(shown int, modal bool) string {
+	q := v.pickQuery(shown)
+	if !modal {
+		q.Set(PageParam, "1")
+	}
 	return q.Encode()
 }
 
 // resultsAction re-renders the picker's list for the search signal.
-func (v PlanPickView) resultsAction() string {
-	return "@get('/plan/pick/results?" + v.pickQuery(0) + "', {filterSignals: {include: /^pickq$/}})"
+func (v PlanPickView) resultsAction(modal bool) string {
+	return "@get('/plan/pick/results?" + v.resultsQuery(0, modal) + "', {filterSignals: {include: /^pickq$/}})"
 }
 
 // MoreHref is "Show more" without JavaScript: the picker page with the
 // next page of recipes.
-func (v PlanPickView) MoreHref() string { return "/plan/pick?" + v.pickQuery(v.Shown+LibraryPageSize) }
+func (v PlanPickView) MoreHref() string {
+	return "/plan/pick?" + v.pickQuery(v.Shown+LibraryPageSize).Encode()
+}
 
 // moreAction is "Show more" with JavaScript: the list with the next page.
-func (v PlanPickView) moreAction() string {
-	return "@get('/plan/pick/results?" + v.pickQuery(v.Shown+LibraryPageSize) + "', {filterSignals: {include: /^pickq$/}})"
+func (v PlanPickView) moreAction(modal bool) string {
+	return "@get('/plan/pick/results?" + v.resultsQuery(v.Shown+LibraryPageSize, modal) + "', {filterSignals: {include: /^pickq$/}})"
 }
 
 // ---- Meal menu ----
@@ -340,8 +391,15 @@ func (v MealMenuView) moveDaysAction(week string) string {
 }
 
 // swapResultsAction searches recipes to swap in.
-func (v MealMenuView) swapResultsAction() string {
-	return "@get('/plan/meals/" + v.ID + "?view=swap&part=results', {filterSignals: {include: /^swapq$/}})"
+func (v MealMenuView) swapResultsAction(modal bool) string {
+	q := url.Values{"view": {"swap"}, "part": {"results"}}
+	if v.Back != "" {
+		q.Set("back", v.Back)
+	}
+	if !modal {
+		q.Set(PageParam, "1")
+	}
+	return "@get('/plan/meals/" + v.ID + "?" + q.Encode() + "', {filterSignals: {include: /^swapq$/}})"
 }
 
 // swapMoreQuery is the swap view with the next page of recipes.
@@ -359,9 +417,12 @@ func (v MealMenuView) SwapMoreHref() string {
 }
 
 // swapMoreAction is the swap list's "Show more" with JavaScript.
-func (v MealMenuView) swapMoreAction() string {
+func (v MealMenuView) swapMoreAction(modal bool) string {
 	q := v.swapMoreQuery()
 	q.Set("part", "results")
+	if !modal {
+		q.Set(PageParam, "1")
+	}
 	return "@get('/plan/meals/" + v.ID + "?" + q.Encode() + "', {filterSignals: {include: /^swapq$/}})"
 }
 
@@ -385,11 +446,57 @@ type TonightCard struct {
 	Planned bool
 }
 
-// ---- Drag and drop ----
+// ---- Selection, drag and drop ----
 
-// dragStart starts dragging a meal ("m:<id>") or a recipe ("r:<id>").
-func dragStart(what string) string {
-	return "$_drag = '" + what + "'; evt.dataTransfer.effectAllowed = 'move'; evt.dataTransfer.setData('text/plain', '" + what + "')"
+// planAttrs declares the week and month pages' signals and keys. $_sel
+// holds the selected meals ("m:<meal>") or suggestions ("r:<recipe>"),
+// never both; $_selmode is the phones' select mode; $_drag holds what is
+// dragged ("m:<id>,<id>…" or "r:<id>,…"), $_over the day under the
+// pointer. The helpers in app.js (mise.plan) find what a click selects,
+// a drag carries and the Delete key removes.
+func planAttrs() templ.Attributes {
+	return templ.Attributes{
+		"data-signals":               "{_drag: '', _over: '', _sel: [], _selmode: false}",
+		"data-class:plan--selecting": "$_selmode",
+		// Delete or Backspace removes the selected meals, or the focused one;
+		// Escape clears the selection.
+		"data-on:keydown__window": "mise.plan.isDelete(evt) && mise.plan.deleteIDs(evt, $_sel).length && " +
+			"(@post('/plan/remove', {payload: {meal: mise.plan.deleteIDs(evt, $_sel)}}), $_sel = [], $_selmode = false);" +
+			" mise.plan.isEscape(evt) && ($_sel = [], $_selmode = false)",
+		// A click on the page outside the selectable items clears the
+		// selection (not in select mode, where taps add to it).
+		"data-on:click": "!$_selmode && $_sel.length && mise.plan.outside(evt) && ($_sel = [])",
+		// Live updates drop meals that are gone from the selection.
+		"data-on:datastar-fetch__window": "evt.detail.type === 'datastar-patch-elements' && ($_sel = mise.plan.prune($_sel))",
+	}
+}
+
+// selectable makes a meal or suggestion link selectable and draggable: a
+// click opens href unless it selects (Ctrl, Cmd or Shift, or select
+// mode); a drag carries the selection when the item is in it.
+func selectable(key, href, label, selected string) templ.Attributes {
+	k := jsString(key)
+	return templ.Attributes{
+		"data-sel":  key,
+		"draggable": "true",
+		"data-on:click__prevent": "mise.plan.selecting(evt, el, $_selmode) ? ($_sel = mise.plan.select(evt, el, $_sel)) : " +
+			"($_sel = [], " + getAction(href) + ")",
+		"data-on:dragstart":      "$_drag = mise.plan.dragStart(evt, el, $_sel); $_sel.includes(" + k + ") || ($_sel = [])",
+		"data-on:dragend":        "$_drag = ''; $_over = ''",
+		"data-class:is-selected": "$_sel.includes(" + k + ")",
+		"aria-label":             label,
+		"data-attr:aria-label":   "$_sel.includes(" + k + ") ? " + jsString(label+", "+selected) + " : " + jsString(label),
+	}
+}
+
+// dragging is true while key is among what is dragged.
+func dragging(key string) string { return "mise.plan.dragging($_drag, " + jsString(key) + ")" }
+
+// selectionText counts the selection for the selection bar.
+func selectionText(ctx context.Context) string {
+	return "$_sel.length === 0 ? " + jsString(i18n.T(ctx, "plan.select.hint")) +
+		" : $_sel.length === 1 ? " + jsString(i18n.T(ctx, "plan.select.one")) +
+		" : " + jsString(i18n.T(ctx, "plan.select.many", "{n}")) + ".replace('{n}', $_sel.length)"
 }
 
 // dragOver marks the day under a drag as the drop target.
@@ -402,12 +509,15 @@ func dragLeave(date string) string {
 	return "!el.contains(evt.relatedTarget) && $_over === '" + date + "' && ($_over = '')"
 }
 
-// dropOn moves or swaps the dragged meal onto the day, or plans the
-// dragged recipe on it.
+// dropOn puts what is dragged on the day: one meal swaps with the day's
+// first meal, several go after its meals; recipes are planned on it in
+// the order they were selected.
 func dropOn(date string) string {
 	d := "'" + date + "'"
-	return "$_drag.startsWith('m:') ? @post('/plan/meals/' + $_drag.slice(2) + '/move', {payload: {date: " + d + ", mode: 'swap'}})" +
-		" : $_drag.startsWith('r:') && @post('/plan', {payload: {recipe: $_drag.slice(2), date: " + d + "}});" +
+	return "$_drag.startsWith('m:') ? ($_drag.includes(',')" +
+		" ? @post('/plan/move', {payload: {meal: mise.plan.ids($_drag), date: " + d + "}})" +
+		" : @post('/plan/meals/' + $_drag.slice(2) + '/move', {payload: {date: " + d + ", mode: 'swap'}}))" +
+		" : $_drag.startsWith('r:') && (@post('/plan', {payload: {recipe: mise.plan.ids($_drag), date: " + d + "}}), $_sel = []);" +
 		" $_drag = ''; $_over = ''"
 }
 
@@ -415,10 +525,51 @@ func dropOn(date string) string {
 // stands in for it when opened directly, so Datastar has them either way.
 
 func addPlanSignals(v AddPlanView) string {
-	return "{plandate: " + jsString(v.Days.Date) + ", planservings: " + itoa(v.Servings) + "}"
+	var b strings.Builder
+	b.WriteString("{plandate: " + jsString(v.Days.Date))
+	for i, r := range v.Recipes {
+		b.WriteString(", " + servingsSignal(i) + ": " + itoa(r.Servings))
+	}
+	// _planleft counts the recipes still in the sheet as they are taken out.
+	b.WriteString(", _planleft: " + itoa(len(v.Recipes)))
+	b.WriteString("}")
+	return b.String()
 }
 
-func planPickSignals(v PlanPickView) string { return "{pickq: " + jsString(v.Query) + "}" }
+// The picker's picksel holds the IDs of the recipes picked to plan
+// together; while it is not empty, tapping a row picks it too.
+func planPickSignals(v PlanPickView) string { return "{pickq: " + jsString(v.Query) + ", picksel: []}" }
+
+// pickToggle adds a recipe to the picked ones or takes it out.
+func pickToggle(recipeID string) string {
+	id := jsString(recipeID)
+	return "$picksel = $picksel.includes(" + id + ") ? $picksel.filter(x => x !== " + id + ") : [...$picksel, " + id + "]"
+}
+
+// pickRowAction picks a row's recipe while others are picked. Otherwise
+// the row opens the add sheet for it: in the modal picker into the page,
+// on the picker page by following its link.
+func pickRowAction(r PickRecipe, modal bool) string {
+	if modal {
+		return "$picksel.length ? (" + pickToggle(r.ID) + ") : " + getAction(r.Href)
+	}
+	return "$picksel.length && (evt.preventDefault(), " + pickToggle(r.ID) + ")"
+}
+
+// pickPlanAction opens the add sheet for the picked recipes, in the order
+// they were picked: into the page from the modal picker, as a page from
+// the picker page.
+func (v PlanPickView) pickPlanAction(modal bool) string {
+	base := url.Values{"date": {v.Date}}
+	if v.Back != "" {
+		base.Set("back", v.Back)
+	}
+	href := "'/plan/add?" + base.Encode() + "&' + $picksel.map(id => 'recipe=' + id).join('&')"
+	if modal {
+		return "@get(" + href + ")"
+	}
+	return "window.location.assign(" + href + ")"
+}
 
 func mealMenuSignals(v MealMenuView) string {
 	return "{movedate: '', mealservings: " + itoa(v.Servings) + ", swapq: ''}"

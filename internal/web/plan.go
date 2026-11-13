@@ -187,8 +187,7 @@ func (s *Server) planDay(ctx context.Context, d plan.Day, today store.Date, back
 	pd := ui.PlanDay{
 		Date: d.Date.String(), Dow: i18n.T(ctx, weekdayShortKeys[d.Date.Weekday()]), Num: d.Date.Day,
 		Label: fullDate(ctx, d.Date), Today: d.Date == today, Past: d.Date.Before(today), InMonth: true,
-		AddHref:  pickHref(d.Date, back),
-		MoreHref: monthHref(d.Date.Year, d.Date.Month, d.Date),
+		AddHref: pickHref(d.Date, back),
 	}
 	for _, m := range d.Meals {
 		pd.Meals = append(pd.Meals, s.planMeal(ctx, m, back))
@@ -448,8 +447,22 @@ func (f fields) get(name string) string {
 	return f.r.PostFormValue(name)
 }
 
+// all returns every value of name: a repeated form field, or a payload
+// string or array of strings.
 func (f fields) all(name string) []string {
 	if f.payload != nil {
+		switch v := f.payload[name].(type) {
+		case string:
+			return []string{v}
+		case []any:
+			out := make([]string, 0, len(v))
+			for _, x := range v {
+				if str, ok := x.(string); ok {
+					out = append(out, str)
+				}
+			}
+			return out
+		}
 		return nil
 	}
 	if err := f.r.ParseForm(); err != nil {
@@ -522,28 +535,32 @@ func (s *Server) mealTarget(w http.ResponseWriter, r *http.Request) (uuid.UUID, 
 
 // addPlanState is what the add sheet shows.
 type addPlanState struct {
-	recipe   uuid.UUID
-	date     store.Date
-	week     store.Date
+	recipes []addRecipeState
+	date    store.Date
+	week    store.Date
+	back    string
+	form    ui.Form
+}
+
+// addRecipeState is one recipe of the add sheet and what was chosen for
+// it.
+type addRecipeState struct {
+	id       uuid.UUID
 	servings int
 	picked   map[uuid.UUID]bool
 	// also are the linked recipes picked to plan too.
 	also map[uuid.UUID]bool
-	back string
-	form ui.Form
 }
 
+// The add sheet names each recipe's fields after it, so one form plans
+// several recipes.
+func servingsField(id uuid.UUID) string   { return ui.AddServingsField(id.String()) }
+func ingredientField(id uuid.UUID) string { return ui.AddIngredientField(id.String()) }
+func alsoField(id uuid.UUID) string       { return ui.AddAlsoField(id.String()) }
+
 // addPlanView builds the add sheet. It returns recipes.ErrNotFound when
-// the recipe is gone.
+// one of its recipes is gone.
 func (s *Server) addPlanView(ctx context.Context, sc store.Scoped, id *auth.Identity, st addPlanState) (ui.AddPlanView, error) {
-	rec, err := s.recipes.Get(ctx, sc, st.recipe, id.UserID)
-	if err != nil {
-		return ui.AddPlanView{}, err
-	}
-	ls, err := s.recipes.ListStatus(ctx, sc, rec.Ingredients)
-	if err != nil {
-		return ui.AddPlanView{}, err
-	}
 	cal, err := s.plan.Calendar(ctx, sc)
 	if err != nil {
 		return ui.AddPlanView{}, err
@@ -564,28 +581,56 @@ func (s *Server) addPlanView(ctx context.Context, sc store.Scoped, id *auth.Iden
 	if err != nil {
 		return ui.AddPlanView{}, err
 	}
-	v := ui.AddPlanView{
-		RecipeID: rec.ID.String(), Name: rec.Name, Meta: minutes(ctx, rec.TotalMin()), Days: picker,
-		Servings: clampServings(st.servings, rec.Servings), Base: rec.Servings, ListName: ls.List.Name,
-		Back: localPath(st.back, ui.RecipeHref(rec.Slug)), Form: st.form,
+	v := ui.AddPlanView{Days: picker, Form: st.form}
+	inSheet := make(map[uuid.UUID]bool, len(st.recipes))
+	for _, rs := range st.recipes {
+		inSheet[rs.id] = true
 	}
-	var already []string
-	for _, ing := range rec.Ingredients {
-		if ls.On[ing.ItemID] {
-			already = append(already, ing.ItemName)
-			continue
+	fallback := "/plan"
+	for i, rs := range st.recipes {
+		rec, err := s.recipes.Get(ctx, sc, rs.id, id.UserID)
+		if err != nil {
+			return ui.AddPlanView{}, err
 		}
-		v.Shop = append(v.Shop, ui.ShopChip{ID: ing.ID.String(), Name: ing.ItemName, Checked: st.picked[ing.ID]})
+		ls, err := s.recipes.ListStatus(ctx, sc, rec.Ingredients)
+		if err != nil {
+			return ui.AddPlanView{}, err
+		}
+		if i == 0 {
+			v.ListName = ls.List.Name
+			fallback = ui.RecipeHref(rec.Slug)
+		}
+		r := ui.AddPlanRecipe{
+			ID: rec.ID.String(), Name: rec.Name, Meta: minutes(ctx, rec.TotalMin()),
+			Servings: clampServings(rs.servings, rec.Servings), Base: rec.Servings,
+		}
+		var already []string
+		for _, ing := range rec.Ingredients {
+			if ls.On[ing.ItemID] {
+				already = append(already, ing.ItemName)
+				continue
+			}
+			r.Shop = append(r.Shop, ui.ShopChip{ID: ing.ID.String(), Name: ing.ItemName, Checked: rs.picked[ing.ID]})
+		}
+		for _, l := range rec.Links {
+			// A linked recipe in the sheet already is planned as itself.
+			if inSheet[l.ID] {
+				continue
+			}
+			r.Also = append(r.Also, ui.ShopChip{ID: l.ID.String(), Name: l.Name, Checked: rs.also[l.ID]})
+		}
+		switch {
+		case len(already) > 0:
+			r.Already = i18n.T(ctx, "plan.addTo.already", joinNames(ctx, already))
+		case len(r.Shop) > 0:
+			r.Already = i18n.T(ctx, "plan.addTo.none")
+		}
+		v.Recipes = append(v.Recipes, r)
 	}
-	for _, l := range rec.Links {
-		v.Also = append(v.Also, ui.ShopChip{ID: l.ID.String(), Name: l.Name, Checked: st.also[l.ID]})
+	if len(v.Recipes) > 1 {
+		fallback = weekHref(week)
 	}
-	switch {
-	case len(already) > 0:
-		v.Already = i18n.T(ctx, "plan.addTo.already", joinNames(ctx, already))
-	case len(v.Shop) > 0:
-		v.Already = i18n.T(ctx, "plan.addTo.none")
-	}
+	v.Back = localPath(st.back, fallback)
 	return v, nil
 }
 
@@ -640,28 +685,31 @@ func dayPickLabel(ctx context.Context, d plan.Day) string {
 	return i18n.T(ctx, "plan.cell.has", fullDate(ctx, d.Date), joinNames(ctx, mealNames(d.Meals)))
 }
 
-// addPlanState reads the add sheet's query: its first load, or a reload
-// without JavaScript (stepper, week buttons) carrying what was chosen.
+// addStateFromQuery reads the add sheet's query: its first load, or a
+// reload without JavaScript (stepper, week buttons, removing a recipe)
+// carrying what was chosen.
 func addStateFromQuery(r *http.Request) (addPlanState, bool) {
 	q := r.URL.Query()
-	recipeID, err := uuid.Parse(q.Get("recipe"))
-	if err != nil {
+	ids := parseIDs(q["recipe"])
+	if drop, err := uuid.Parse(q.Get("drop")); err == nil && len(ids) > 1 {
+		ids = slices.DeleteFunc(ids, func(id uuid.UUID) bool { return id == drop })
+	}
+	if len(ids) == 0 {
 		return addPlanState{}, false
 	}
-	st := addPlanState{
-		recipe: recipeID, date: dateParam(q.Get("date")), week: dateParam(q.Get("week")),
-		servings: atoi(q.Get("servings")), back: q.Get("back"), picked: map[uuid.UUID]bool{}, also: map[uuid.UUID]bool{},
-	}
-	for _, id := range parseIDs(q["also"]) {
-		st.also[id] = true
-	}
-	if n := atoi(q.Get("set_servings")); n > 0 {
-		st.servings = n
-	}
-	for _, raw := range q["ingredient"] {
-		if id, err := uuid.Parse(raw); err == nil {
-			st.picked[id] = true
+	st := addPlanState{date: dateParam(q.Get("date")), week: dateParam(q.Get("week")), back: q.Get("back")}
+	for _, id := range ids {
+		rs := addRecipeState{id: id, servings: atoi(q.Get(servingsField(id))), picked: map[uuid.UUID]bool{}, also: map[uuid.UUID]bool{}}
+		if n := atoi(q.Get(ui.AddSetServingsField(id.String()))); n > 0 {
+			rs.servings = n
 		}
+		for _, x := range parseIDs(q[ingredientField(id)]) {
+			rs.picked[x] = true
+		}
+		for _, x := range parseIDs(q[alsoField(id)]) {
+			rs.also[x] = true
+		}
+		st.recipes = append(st.recipes, rs)
 	}
 	return st, true
 }
@@ -677,6 +725,13 @@ func atoi(s string) int {
 func (s *Server) addPlanPage(w http.ResponseWriter, r *http.Request) {
 	st, ok := addStateFromQuery(r)
 	if !ok {
+		// The picker's "Plan selected" without a recipe ticked goes back to
+		// the picker.
+		q := r.URL.Query()
+		if d := dateParam(q.Get("date")); !d.IsZero() && !isDatastar(r) {
+			seeOther(w, r, pickHref(d, localPath(q.Get("back"), "")))
+			return
+		}
 		s.notFound(w, r)
 		return
 	}
@@ -740,12 +795,14 @@ func (s *Server) addPlanDays(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	s.sendPatches(w, r, patchSignals(map[string]any{"plandate": v.Days.Date}),
-		patchTempl(ui.AddPlanDays(v)), patchTempl(ui.AddPlanSubmit(v)))
+	// The days first: the signal's bind checks the radio whose value is
+	// the date, and the morphed radios only take the new week's dates.
+	s.sendPatches(w, r, patchTempl(ui.AddPlanDays(v)), patchTempl(ui.AddPlanSubmit(v)),
+		patchSignals(map[string]any{"plandate": v.Days.Date}))
 }
 
-// addMeal plans a recipe: the add sheet's form, or a suggestion dropped
-// on a day.
+// addMeal plans recipes: the add sheet's form, or suggestions dropped on
+// a day.
 func (s *Server) addMeal(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	f, err := readFields(r)
@@ -753,57 +810,60 @@ func (s *Server) addMeal(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
-	recipeID, err := uuid.Parse(f.get("recipe"))
-	if err != nil {
+	raw := f.all("recipe")
+	if len(raw) == 0 {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
+	}
+	id := identity(r)
+	in := plan.AddInput{Date: dateParam(f.get("date")), By: id.UserID, Lang: i18n.Locale(ctx)}
+	st := addPlanState{date: in.Date, back: f.get("back")}
+	for _, v := range raw {
+		recipeID, err := uuid.Parse(v)
+		if err != nil {
+			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+			return
+		}
+		mi := plan.MealInput{RecipeID: recipeID, Servings: f.int(servingsField(recipeID))}
+		rs := addRecipeState{id: recipeID, servings: mi.Servings, picked: map[uuid.UUID]bool{}, also: map[uuid.UUID]bool{}}
+		var ok bool
+		if mi.Ingredients, ok = fieldIDs(f.all(ingredientField(recipeID))); !ok {
+			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+			return
+		}
+		if mi.Also, ok = fieldIDs(f.all(alsoField(recipeID))); !ok {
+			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+			return
+		}
+		for _, x := range mi.Ingredients {
+			rs.picked[x] = true
+		}
+		for _, x := range mi.Also {
+			rs.also[x] = true
+		}
+		in.Meals = append(in.Meals, mi)
+		st.recipes = append(st.recipes, rs)
 	}
 	sc, err := s.db.Scope(ctx)
 	if err != nil {
 		s.serverError(w, r, err)
 		return
 	}
-	id := identity(r)
-	in := plan.AddInput{
-		RecipeID: recipeID, Date: dateParam(f.get("date")), Servings: f.int("servings"), By: id.UserID, Lang: i18n.Locale(ctx),
-	}
-	picked := map[uuid.UUID]bool{}
-	for _, raw := range f.all("ingredient") {
-		ingID, err := uuid.Parse(raw)
-		if err != nil {
-			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
-			return
-		}
-		in.Ingredients = append(in.Ingredients, ingID)
-		picked[ingID] = true
-	}
-	also := map[uuid.UUID]bool{}
-	for _, raw := range f.all("also") {
-		alsoID, err := uuid.Parse(raw)
-		if err != nil {
-			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
-			return
-		}
-		in.Also = append(in.Also, alsoID)
-		also[alsoID] = true
-	}
 	added, err := s.plan.Add(ctx, sc, in)
 	var fe plan.FieldErrors
 	if errors.As(err, &fe) && !isDatastar(r) {
-		form := ui.Form{Errors: map[string]string{}}
+		st.form = ui.Form{Errors: map[string]string{}}
 		for field, key := range fe {
-			form.Errors[field] = i18n.T(ctx, key)
+			st.form.Errors[field] = i18n.T(ctx, key)
 		}
 		if _, ok := fe["date"]; ok {
-			form.Alert = i18n.T(ctx, "plan.addTo.pickDay")
+			st.form.Alert = i18n.T(ctx, "plan.addTo.pickDay")
 		}
-		s.renderAddPlan(w, r, http.StatusUnprocessableEntity, sc, addPlanState{
-			recipe: recipeID, date: in.Date, servings: in.Servings, picked: picked, also: also, back: f.get("back"), form: form,
-		})
+		s.renderAddPlan(w, r, http.StatusUnprocessableEntity, sc, st)
 		return
 	}
 	if errors.Is(err, plan.ErrNotFound) {
-		// The recipe was deleted (or an ingredient is no longer its).
+		// A recipe was deleted (or an ingredient is no longer its).
 		s.recipeGone(w, r)
 		return
 	}
@@ -815,7 +875,8 @@ func (s *Server) addMeal(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	msg := i18n.T(ctx, "plan.toast.planned", added.Meal.Recipe.Name, shortDate(ctx, added.Meal.Date))
+	first := added.Meals[0]
+	msg := i18n.T(ctx, "plan.toast.planned", joinNames(ctx, mealNames(added.Meals)), shortDate(ctx, first.Date))
 	if len(added.Also) > 0 {
 		msg += " · " + i18n.T(ctx, "plan.toast.also", joinNames(ctx, mealNames(added.Also)))
 	}
@@ -826,23 +887,47 @@ func (s *Server) addMeal(w http.ResponseWriter, r *http.Request) {
 	default:
 		msg += " · " + i18n.T(ctx, "plan.toast.onList", n, added.Shopping.List.Name)
 	}
-	entries := make([]string, len(added.Shopping.Added))
-	for i, e := range added.Shopping.Added {
-		entries[i] = e.ID.String()
-	}
 	undo := map[string]string{}
-	if len(entries) > 0 {
-		undo["entries"] = strings.Join(entries, ",")
-	}
-	if len(added.Also) > 0 {
-		ids := make([]string, len(added.Also))
-		for i, m := range added.Also {
-			ids[i] = m.ID.String()
+	if len(added.Shopping.Added) > 0 {
+		ids := make([]uuid.UUID, len(added.Shopping.Added))
+		for i, e := range added.Shopping.Added {
+			ids[i] = e.ID
 		}
-		undo["also"] = strings.Join(ids, ",")
+		undo["entries"] = joinIDs(ids)
 	}
-	back := localPath(f.get("back"), weekHref(cal.WeekOf(added.Meal.Date)))
-	s.planDone(w, r, back, toast(msg, "/plan/meals/"+added.Meal.ID.String()+"/unplan", undo))
+	var others []uuid.UUID
+	for _, m := range added.All() {
+		if m.ID != first.ID {
+			others = append(others, m.ID)
+		}
+	}
+	if len(others) > 0 {
+		undo["also"] = joinIDs(others)
+	}
+	back := localPath(f.get("back"), weekHref(cal.WeekOf(first.Date)))
+	s.planDone(w, r, back, toast(msg, "/plan/meals/"+first.ID.String()+"/unplan", undo))
+}
+
+// fieldIDs parses form or payload values as IDs; ok is false when one is
+// malformed.
+func fieldIDs(vals []string) (ids []uuid.UUID, ok bool) {
+	for _, v := range vals {
+		id, err := uuid.Parse(v)
+		if err != nil {
+			return nil, false
+		}
+		ids = append(ids, id)
+	}
+	return ids, true
+}
+
+// joinIDs is the comma-separated list idList reads.
+func joinIDs(ids []uuid.UUID) string {
+	parts := make([]string, len(ids))
+	for i, id := range ids {
+		parts[i] = id.String()
+	}
+	return strings.Join(parts, ",")
 }
 
 // unplanMeal is the Undo of planning a meal: it removes the meal and the
@@ -894,6 +979,18 @@ func (s *Server) pickView(ctx context.Context, sc store.Scoped, id *auth.Identit
 	}
 	back = localPath(back, weekHref(cal.WeekOf(date)))
 	v := ui.PlanPickView{Date: date.String(), DayLabel: fullDate(ctx, date), Query: q, Back: back}
+	w, err := s.plan.Week(ctx, sc, date)
+	if err != nil {
+		return ui.PlanPickView{}, err
+	}
+	onDay := map[uuid.UUID]bool{}
+	for _, d := range w.Days {
+		if d.Date == date {
+			for _, m := range d.Meals {
+				onDay[m.Recipe.ID] = true
+			}
+		}
+	}
 	cards, matched, err := s.pickCards(ctx, sc, id, q, shown, uuid.Nil)
 	if err != nil {
 		return ui.PlanPickView{}, err
@@ -912,13 +1009,14 @@ func (s *Server) pickView(ctx context.Context, sc store.Scoped, id *auth.Identit
 			v.Suggested = append(v.Suggested, ui.PickRecipe{
 				ID: sg.Recipe.ID.String(), Name: sg.Recipe.Name, Photo: sg.Recipe.Photo,
 				Meta: joinNonEmpty(" · ", minutes(ctx, sg.Recipe.TotalMin), lastCooked(ctx, now, sg.LastCookedAt)),
-				Href: addHref(sg.Recipe.ID, date, store.Date{}, back),
+				Href: addHref(sg.Recipe.ID, date, store.Date{}, back), Planned: onDay[sg.Recipe.ID],
 			})
 		}
 	}
 	for _, c := range cards {
 		v.Recipes = append(v.Recipes, ui.PickRecipe{
 			ID: c.ID.String(), Name: c.Name, Photo: c.Photo, Meta: cardMeta(ctx, c), Href: addHref(c.ID, date, store.Date{}, back),
+			Planned: onDay[c.ID],
 		})
 	}
 	if q != "" {
@@ -1002,7 +1100,7 @@ func (s *Server) pickResults(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	s.sendPatches(w, r, patchTempl(ui.PlanPickResults(v)))
+	s.sendPatches(w, r, patchTempl(ui.PlanPickResults(v, q.Get(ui.PageParam) == "")))
 }
 
 // ---- Meal menu ----
@@ -1153,11 +1251,13 @@ func (s *Server) mealMenu(w http.ResponseWriter, r *http.Request) {
 	}
 	switch part {
 	case "body":
+		// The body first, so the move view's radios have the week's dates
+		// when movedate's bind checks one.
 		s.sendPatches(w, r,
-			patchSignals(map[string]any{"movedate": v.Move.Date, "mealservings": v.Servings, "swapq": v.Query}),
-			patchTempl(ui.MealMenuBody(v, true)))
+			patchTempl(ui.MealMenuBody(v, true)),
+			patchSignals(map[string]any{"movedate": v.Move.Date, "mealservings": v.Servings, "swapq": v.Query}))
 	case "results":
-		s.sendPatches(w, r, patchTempl(ui.MealSwapResults(v)))
+		s.sendPatches(w, r, patchTempl(ui.MealSwapResults(v, q.Get(ui.PageParam) == "")))
 	default:
 		s.sendPatches(w, r, patchTempl(ui.MealMenuSheet(v)))
 	}
@@ -1324,6 +1424,111 @@ func (s *Server) restoreMeal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if s.planError(w, r, s.plan.Restore(r.Context(), sc, mealID)) {
+		return
+	}
+	s.planUndone(w, r, localPath(r.PostFormValue("back"), "/plan"))
+}
+
+// mealsField reads the meals of a bulk action: repeated "meal" values or
+// a payload array. ok is false when there are none or one is malformed.
+func mealsField(f fields) ([]uuid.UUID, bool) {
+	ids, ok := fieldIDs(f.all("meal"))
+	return ids, ok && len(ids) > 0
+}
+
+// moveMeals puts several meals on a day, after its meals: selected meals
+// dropped on a day.
+func (s *Server) moveMeals(w http.ResponseWriter, r *http.Request) {
+	f, err := readFields(r)
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
+	}
+	ids, ok := mealsField(f)
+	if !ok {
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
+	}
+	ctx := r.Context()
+	sc, err := s.db.Scope(ctx)
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	to := dateParam(f.get("date"))
+	mv, err := s.plan.MoveAll(ctx, sc, ids, to)
+	if s.planError(w, r, err) {
+		return
+	}
+	back := localPath(f.get("back"), s.weekBack(ctx, sc, to))
+	if len(mv.Undo) == 0 {
+		s.planDone(w, r, back, clearToast)
+		return
+	}
+	msg := i18n.T(ctx, "plan.toast.moved", joinNames(ctx, mealNames(mv.Meals)), shortDate(ctx, to))
+	s.planDone(w, r, back, toast(msg, "/plan/place", map[string]string{"placements": placements(mv.Undo), "back": back}))
+}
+
+// removeMeals takes several meals off the plan: the selection removed
+// with the Delete key or the selection bar.
+func (s *Server) removeMeals(w http.ResponseWriter, r *http.Request) {
+	f, err := readFields(r)
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
+	}
+	ids, ok := mealsField(f)
+	if !ok {
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
+	}
+	ctx := r.Context()
+	sc, err := s.db.Scope(ctx)
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	gone, err := s.plan.RemoveAll(ctx, sc, ids)
+	if s.planError(w, r, err) {
+		return
+	}
+	back := localPath(f.get("back"), s.weekBack(ctx, sc, gone[0].Date))
+	names := joinNames(ctx, mealNames(gone))
+	msg := i18n.T(ctx, "plan.toast.removedMany", names)
+	if sameDay(gone) {
+		msg = i18n.T(ctx, "plan.toast.removed", names, shortDate(ctx, gone[0].Date))
+	}
+	removed := make([]uuid.UUID, len(gone))
+	for i, m := range gone {
+		removed[i] = m.ID
+	}
+	s.planDone(w, r, back, toast(msg, "/plan/restore", map[string]string{"meals": joinIDs(removed), "back": back}))
+}
+
+// sameDay reports whether the meals are all on one day.
+func sameDay(ms []plan.Meal) bool {
+	for _, m := range ms {
+		if m.Date != ms[0].Date {
+			return false
+		}
+	}
+	return true
+}
+
+// restoreMeals is the Undo of removeMeals.
+func (s *Server) restoreMeals(w http.ResponseWriter, r *http.Request) {
+	ids, ok := idList(r.PostFormValue("meals"))
+	if !ok || len(ids) == 0 {
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
+	}
+	ctx := r.Context()
+	sc, err := s.db.Scope(ctx)
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	if s.planError(w, r, s.plan.RestoreAll(ctx, sc, ids)) {
 		return
 	}
 	s.planUndone(w, r, localPath(r.PostFormValue("back"), "/plan"))
