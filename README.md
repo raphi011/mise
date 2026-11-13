@@ -2,11 +2,6 @@
 
 Self-hosted recipes, meal plan and shared shopping lists for your household. One Go binary, SQLite or Postgres, no JavaScript build.
 
-<p>
-  <img src="docs/screenshots/plan-desktop-light.png" alt="The week plan on a desktop" width="640">
-  <img src="docs/screenshots/recipes-phone-light.png" alt="The recipe library on a phone" width="170">
-</p>
-
 ## Features
 
 - **Recipes.** Photos, tags, favourites, search by name or ingredient, "goes well with" links, a bin with undo, public read-only links you can turn off again. Scale servings on the page; amounts show in each viewer's units (metric or US).
