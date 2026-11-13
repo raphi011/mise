@@ -81,7 +81,7 @@ func TestHouseholdIsolation(t *testing.T) {
 				t.Errorf("suggestions: %+v, %v", sugg, err)
 			}
 			// Dal is planned this week, and Soup was just cooked.
-			if tn, err := s.Tonight(ctx, sc); err != nil || tn.Meal != nil || tn.Suggestion != nil {
+			if tn, err := s.Tonight(ctx, sc); err != nil || len(tn.Meals) != 0 || tn.Suggestion != nil {
 				t.Errorf("tonight: %+v, %v", tn, err)
 			}
 			_, err := s.Get(ctx, sc, other.meal.ID)

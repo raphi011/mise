@@ -2828,9 +2828,23 @@ button.menu__item:hover { background: var(--surface-2); }
 }
 
 .tonight__media img { width: 100%; height: 100%; object-fit: cover; }
-.tonight__text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.tonight__stack { display: flex; flex-shrink: 0; }
+.tonight__text { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
 .tonight__name { font-family: var(--font-display); font-size: 22px; font-weight: 700; overflow-wrap: anywhere; }
 .tonight__meta { font-size: 13px; opacity: 0.8; }
+
+/* Several meals today: overlapping thumbnails and a summary that opens the day. */
+.tonight--several .tonight__media {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  font-size: 22px;
+  border: 2px solid var(--feature);
+}
+
+.tonight--several .tonight__media + .tonight__media { margin-left: -24px; }
+.tonight--several .tonight__name { font-size: 18px; }
+.tonight__go { display: flex; flex-shrink: 0; opacity: 0.7; }
 
 /* Add-to-home-screen hint (app.js opens it and sets data-platform). */
 .install-hint__head { display: flex; align-items: flex-start; gap: 14px; }

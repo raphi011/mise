@@ -476,17 +476,28 @@ func (v MealMenuView) replaceAction(recipeID string) string {
 
 // ---- Tonight ----
 
-// TonightCard is the library's "Suggested for tonight".
+// TonightCard is the library's "Suggested for tonight": one recipe, or
+// a summary of several planned for today that opens the day.
 type TonightCard struct {
-	RecipeID   string
-	RecipeSlug string
-	Name       string
-	Photo      string
+	Href string
+	// Name is the recipe's name, or the first planned recipes' names.
+	Name string
 	// Meta is the translated second line.
 	Meta string
-	// Planned is set when the recipe is on tonight's plan, not a
+	// Planned is set when the recipes are on tonight's plan, not a
 	// suggestion.
 	Planned bool
+	// Several is set when Href opens the day rather than a recipe.
+	Several bool
+	// Thumbs are the pictures shown, stacked when there are several.
+	Thumbs []TonightThumb
+}
+
+// TonightThumb is one recipe's picture on the TonightCard.
+type TonightThumb struct {
+	RecipeID string
+	Name     string
+	Photo    string
 }
 
 // ---- Selection, drag and drop ----

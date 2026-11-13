@@ -1187,7 +1187,7 @@ templ AddToPlanButton(recipeID, class string) {
 
 // tonightCard is the library's "Suggested for tonight".
 templ tonightCard(t TonightCard) {
-	<a class="tonight" href={ templ.SafeURL(RecipeHref(t.RecipeSlug)) }>
+	<a class={ "tonight", templ.KV("tonight--several", t.Several) } href={ templ.SafeURL(t.Href) }>
 		<span class="tonight__label">
 			if t.Planned {
 				{ i18n.T(ctx, "plan.tonight.planned") }
@@ -1196,11 +1196,15 @@ templ tonightCard(t TonightCard) {
 			}
 		</span>
 		<span class="tonight__body">
-			<span class={ "tonight__media avatar--" + Tint(t.RecipeID) }>
-				if t.Photo != "" {
-					<img src={ ImageURL(t.Photo, "thumb") } alt=""/>
-				} else {
-					<span aria-hidden="true">{ Initial(t.Name) }</span>
+			<span class="tonight__stack">
+				for _, th := range t.Thumbs {
+					<span class={ "tonight__media avatar--" + Tint(th.RecipeID) }>
+						if th.Photo != "" {
+							<img src={ ImageURL(th.Photo, "thumb") } alt=""/>
+						} else {
+							<span aria-hidden="true">{ Initial(th.Name) }</span>
+						}
+					</span>
 				}
 			</span>
 			<span class="tonight__text">
@@ -1209,6 +1213,11 @@ templ tonightCard(t TonightCard) {
 					<span class="tonight__meta">{ t.Meta }</span>
 				}
 			</span>
+			if t.Several {
+				<span class="tonight__go">
+					@iconChevron(false)
+				</span>
+			}
 		</span>
 	</a>
 }

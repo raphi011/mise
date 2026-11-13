@@ -285,6 +285,13 @@ func TestCookedAndDeleteConfirm(t *testing.T) {
 		if strings.Contains(libraryBody, "Suggested for tonight") {
 			t.Error("library calls tonight's planned meal a suggestion")
 		}
+		// A second meal today: the card names both and opens the day.
+		dalForm := stickyTofu()
+		dalForm.Set("name", "Red lentil dal")
+		dal := createRecipe(t, anna, dalForm)
+		anna.post("/plan", url.Values{"recipe": {dal}, "date": {"2026-11-09"}}).expect(t, "plan a second meal today", http.StatusSeeOther)
+		contains(t, "library with two meals", anna.get("/recipes").body,
+			"On tonight’s plan", "Sticky tofu, Red lentil dal", `href="/plan/day?back=%2Frecipes&amp;date=2026-11-09"`)
 		today := mealIDs(t, anna.get("/plan/month?month=2026-11&date=2026-11-09").body)
 		found := false
 		for _, id := range today {
