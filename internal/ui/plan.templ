@@ -320,7 +320,7 @@ templ AddPlanSheet(v AddPlanView) {
 }
 
 // AddPlanPage is the add-to-plan sheet as a page, opened directly or
-// without JavaScript.
+// without JavaScript. Its form posts natively, so planning goes back.
 templ AddPlanPage(p Page, v AddPlanView) {
 	@Layout(p) {
 		<div class="narrow sheet" data-signals={ addPlanSignals(v) }>
@@ -330,7 +330,14 @@ templ AddPlanPage(p Page, v AddPlanView) {
 }
 
 templ addPlanForm(v AddPlanView, modal bool) {
-	<form class="plan-form" method="post" action="/plan" data-on:submit={ postForm("/plan") }>
+	<form
+		class="plan-form"
+		method="post"
+		action="/plan"
+		if modal {
+			data-on:submit={ postForm("/plan") }
+		}
+	>
 		if v.Back != "" {
 			<input type="hidden" name="back" value={ v.Back }/>
 		}
@@ -570,7 +577,7 @@ templ PlanPickSheet(v PlanPickView) {
 }
 
 // PlanPickPage picks a recipe as a page, opened directly or without
-// JavaScript.
+// JavaScript. Its rows and "Plan" open the add sheet as a page.
 templ PlanPickPage(p Page, v PlanPickView) {
 	@Layout(p) {
 		<div class="narrow sheet" data-signals={ planPickSignals(v) }>
@@ -591,7 +598,7 @@ templ planPick(v PlanPickView, modal bool) {
 			</button>
 		}
 	</div>
-	<form class="search-link search-link--field" method="get" action="/plan/pick" role="search" data-on:submit__prevent={ v.resultsAction() }>
+	<form class="search-link search-link--field" method="get" action="/plan/pick" role="search" data-on:submit__prevent={ v.resultsAction(modal) }>
 		@iconSearch(20)
 		<input type="hidden" name="date" value={ v.Date }/>
 		if v.Back != "" {
@@ -607,15 +614,15 @@ templ planPick(v PlanPickView, modal bool) {
 			placeholder={ i18n.T(ctx, "plan.pick.search") }
 			autocomplete="off"
 			data-bind:pickq
-			data-on:input__debounce.200ms={ v.resultsAction() }
+			data-on:input__debounce.200ms={ v.resultsAction(modal) }
 		/>
 	</form>
-	<form class="plan-pick-form" method="get" action="/plan/add" data-on:submit__prevent={ v.pickPlanAction() }>
+	<form class="plan-pick-form" method="get" action="/plan/add" data-on:submit__prevent={ v.pickPlanAction(modal) }>
 		<input type="hidden" name="date" value={ v.Date }/>
 		if v.Back != "" {
 			<input type="hidden" name="back" value={ v.Back }/>
 		}
-		@PlanPickResults(v)
+		@PlanPickResults(v, modal)
 		<div class="pick-bar">
 			<span
 				class="pick-bar__names pick-bar__names--hint"
@@ -638,13 +645,14 @@ templ planPick(v PlanPickView, modal bool) {
 	}
 }
 
-// PlanPickResults is the picker's list, patched as the search changes.
-templ PlanPickResults(v PlanPickView) {
+// PlanPickResults is the picker's list, patched as the search changes;
+// modal is false on the picker page.
+templ PlanPickResults(v PlanPickView, modal bool) {
 	<div id="plan-pick-results" class="plan-pick">
 		<p class="visually-hidden" role="status">{ v.Status }</p>
 		if len(v.Suggested) > 0 {
 			<h3 class="section-title">{ i18n.T(ctx, "plan.stale.title") }</h3>
-			@pickList(v.Suggested)
+			@pickList(v.Suggested, modal)
 		}
 		if len(v.Recipes) > 0 {
 			<h3 class="section-title">
@@ -654,8 +662,8 @@ templ PlanPickResults(v PlanPickView) {
 					{ i18n.T(ctx, "plan.pick.all") }
 				}
 			</h3>
-			@pickList(v.Recipes)
-			@pickMore(len(v.Recipes), v.Matched, v.MoreHref(), v.moreAction())
+			@pickList(v.Recipes, modal)
+			@pickMore(len(v.Recipes), v.Matched, v.MoreHref(), v.moreAction(modal))
 		} else if v.Query != "" {
 			<p class="muted">{ i18n.T(ctx, "plan.pick.none", v.Query) }</p>
 		}
@@ -665,7 +673,7 @@ templ PlanPickResults(v PlanPickView) {
 // pickList lists recipes to plan: a row opens the add sheet for it, its
 // tile picks it to plan with others (a checkbox, so without JavaScript the
 // form plans the ticked ones). While some are picked, a row picks too.
-templ pickList(rs []PickRecipe) {
+templ pickList(rs []PickRecipe, modal bool) {
 	<ul class="list pick-list" role="list">
 		for _, r := range rs {
 			<li class="pick-item" data-class:pick-item--on={ "$picksel.includes(" + jsString(r.ID) + ")" }>
@@ -685,7 +693,15 @@ templ pickList(rs []PickRecipe) {
 					</span>
 					<span class="visually-hidden">{ i18n.T(ctx, "plan.pick.select", r.Name) }</span>
 				</label>
-				<a class="list__link pick-row" href={ templ.SafeURL(r.Href) } data-on:click__prevent={ pickRowAction(r) }>
+				<a
+					class="list__link pick-row"
+					href={ templ.SafeURL(r.Href) }
+					if modal {
+						data-on:click__prevent={ pickRowAction(r, true) }
+					} else {
+						data-on:click={ pickRowAction(r, false) }
+					}
+				>
 					<span class="list__text">
 						<span class="pick-row__name">{ r.Name }</span>
 						if r.Meta != "" || r.Planned {
@@ -737,7 +753,8 @@ templ MealMenuSheet(v MealMenuView) {
 }
 
 // MealMenuPage is the menu as a page, opened directly or without
-// JavaScript.
+// JavaScript. Its views are links and its forms post natively, so a
+// change goes back.
 templ MealMenuPage(p Page, v MealMenuView) {
 	@Layout(p) {
 		<div class="narrow sheet" data-signals={ mealMenuSignals(v) }>
@@ -824,7 +841,13 @@ templ mealMenu(v MealMenuView, modal bool) {
 		@menuLink(v, modal, "swap", i18n.T(ctx, "plan.menu.swap"), "", iconSwap())
 		if v.Cooked {
 			<li>
-				<form method="post" action={ templ.SafeURL("/recipes/" + v.RecipeID + "/cooked") } data-on:submit={ postForm("/recipes/" + v.RecipeID + "/cooked") }>
+				<form
+					method="post"
+					action={ templ.SafeURL("/recipes/" + v.RecipeID + "/cooked") }
+					if modal {
+						data-on:submit={ postForm("/recipes/" + v.RecipeID + "/cooked") }
+					}
+				>
 					@backField(v.Back)
 					<button type="submit" class="menu__item">
 						<span class="menu__icon">
@@ -836,7 +859,13 @@ templ mealMenu(v MealMenuView, modal bool) {
 			</li>
 		}
 	</ul>
-	<form method="post" action={ templ.SafeURL("/plan/meals/" + v.ID + "/remove") } data-on:submit={ postForm("/plan/meals/" + v.ID + "/remove") }>
+	<form
+		method="post"
+		action={ templ.SafeURL("/plan/meals/" + v.ID + "/remove") }
+		if modal {
+			data-on:submit={ postForm("/plan/meals/" + v.ID + "/remove") }
+		}
+	>
 		@backField(v.Back)
 		<button type="submit" class="btn btn--destructive btn--block meal-menu__remove">
 			@iconTrash()
@@ -873,7 +902,14 @@ templ menuLink(v MealMenuView, modal bool, view, label, value string, icon templ
 }
 
 templ mealMove(v MealMenuView, modal bool) {
-	<form class="plan-form" method="post" action={ templ.SafeURL("/plan/meals/" + v.ID + "/move") } data-on:submit={ postForm("/plan/meals/" + v.ID + "/move") }>
+	<form
+		class="plan-form"
+		method="post"
+		action={ templ.SafeURL("/plan/meals/" + v.ID + "/move") }
+		if modal {
+			data-on:submit={ postForm("/plan/meals/" + v.ID + "/move") }
+		}
+	>
 		@backField(v.Back)
 		<input type="hidden" name="view" value="move"/>
 		@mealSubhead(v, modal, i18n.T(ctx, "plan.menu.move"), "")
@@ -930,7 +966,14 @@ templ mealMove(v MealMenuView, modal bool) {
 }
 
 templ mealServings(v MealMenuView, modal bool) {
-	<form class="plan-form" method="post" action={ templ.SafeURL("/plan/meals/" + v.ID + "/servings") } data-on:submit={ postForm("/plan/meals/" + v.ID + "/servings") }>
+	<form
+		class="plan-form"
+		method="post"
+		action={ templ.SafeURL("/plan/meals/" + v.ID + "/servings") }
+		if modal {
+			data-on:submit={ postForm("/plan/meals/" + v.ID + "/servings") }
+		}
+	>
 		@backField(v.Back)
 		<input type="hidden" name="view" value="servings"/>
 		@mealSubhead(v, modal, i18n.T(ctx, "plan.menu.servings"), "")
@@ -946,7 +989,7 @@ templ mealServings(v MealMenuView, modal bool) {
 
 templ mealSwap(v MealMenuView, modal bool) {
 	@mealSubhead(v, modal, i18n.T(ctx, "plan.menu.swap"), i18n.T(ctx, "plan.swap.keeps", v.Day))
-	<form class="search-link search-link--field" method="get" action={ templ.SafeURL("/plan/meals/" + v.ID) } role="search" data-on:submit__prevent={ v.swapResultsAction() }>
+	<form class="search-link search-link--field" method="get" action={ templ.SafeURL("/plan/meals/" + v.ID) } role="search" data-on:submit__prevent={ v.swapResultsAction(modal) }>
 		@iconSearch(20)
 		<input type="hidden" name="view" value="swap"/>
 		@backField(v.Back)
@@ -960,14 +1003,15 @@ templ mealSwap(v MealMenuView, modal bool) {
 			placeholder={ i18n.T(ctx, "plan.pick.search") }
 			autocomplete="off"
 			data-bind:swapq
-			data-on:input__debounce.200ms={ v.swapResultsAction() }
+			data-on:input__debounce.200ms={ v.swapResultsAction(modal) }
 		/>
 	</form>
-	@MealSwapResults(v)
+	@MealSwapResults(v, modal)
 }
 
-// MealSwapResults lists recipes to swap in; each swaps when chosen.
-templ MealSwapResults(v MealMenuView) {
+// MealSwapResults lists recipes to swap in; each swaps when chosen. On
+// the menu page (modal false) choosing one posts the form natively.
+templ MealSwapResults(v MealMenuView, modal bool) {
 	<form id="meal-swap-results" method="post" action={ templ.SafeURL("/plan/meals/" + v.ID + "/replace") }>
 		@backField(v.Back)
 		if len(v.Swap) == 0 {
@@ -976,7 +1020,15 @@ templ MealSwapResults(v MealMenuView) {
 			<ul class="list pick-list" role="list">
 				for _, r := range v.Swap {
 					<li>
-						<button type="submit" name="recipe" value={ r.ID } class="list__link pick-row" data-on:click__prevent={ v.replaceAction(r.ID) }>
+						<button
+							type="submit"
+							name="recipe"
+							value={ r.ID }
+							class="list__link pick-row"
+							if modal {
+								data-on:click__prevent={ v.replaceAction(r.ID) }
+							}
+						>
 							@pickTile(r)
 							<span class="list__text">
 								<span class="pick-row__name">{ r.Name }</span>
@@ -989,7 +1041,7 @@ templ MealSwapResults(v MealMenuView) {
 					</li>
 				}
 			</ul>
-			@pickMore(len(v.Swap), v.SwapMatched, v.SwapMoreHref(), v.swapMoreAction())
+			@pickMore(len(v.Swap), v.SwapMatched, v.SwapMoreHref(), v.swapMoreAction(modal))
 		}
 	</form>
 }

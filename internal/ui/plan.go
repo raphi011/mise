@@ -285,8 +285,13 @@ type PickRecipe struct {
 	Planned bool
 }
 
+// PageParam marks a request for part of a sheet that is open as a page
+// (opened directly), not as a modal dialog: the part is rendered for the
+// page, whose writes and links navigate instead of patching the sheet.
+const PageParam = "page"
+
 // pickQuery is the picker's date and back, plus shown when it is set.
-func (v PlanPickView) pickQuery(shown int) string {
+func (v PlanPickView) pickQuery(shown int) url.Values {
 	q := url.Values{"date": {v.Date}}
 	if v.Back != "" {
 		q.Set("back", v.Back)
@@ -294,21 +299,33 @@ func (v PlanPickView) pickQuery(shown int) string {
 	if shown > 0 {
 		q.Set("shown", itoa(shown))
 	}
+	return q
+}
+
+// resultsQuery is pickQuery for a request of the list, marked when the
+// picker is a page.
+func (v PlanPickView) resultsQuery(shown int, modal bool) string {
+	q := v.pickQuery(shown)
+	if !modal {
+		q.Set(PageParam, "1")
+	}
 	return q.Encode()
 }
 
 // resultsAction re-renders the picker's list for the search signal.
-func (v PlanPickView) resultsAction() string {
-	return "@get('/plan/pick/results?" + v.pickQuery(0) + "', {filterSignals: {include: /^pickq$/}})"
+func (v PlanPickView) resultsAction(modal bool) string {
+	return "@get('/plan/pick/results?" + v.resultsQuery(0, modal) + "', {filterSignals: {include: /^pickq$/}})"
 }
 
 // MoreHref is "Show more" without JavaScript: the picker page with the
 // next page of recipes.
-func (v PlanPickView) MoreHref() string { return "/plan/pick?" + v.pickQuery(v.Shown+LibraryPageSize) }
+func (v PlanPickView) MoreHref() string {
+	return "/plan/pick?" + v.pickQuery(v.Shown+LibraryPageSize).Encode()
+}
 
 // moreAction is "Show more" with JavaScript: the list with the next page.
-func (v PlanPickView) moreAction() string {
-	return "@get('/plan/pick/results?" + v.pickQuery(v.Shown+LibraryPageSize) + "', {filterSignals: {include: /^pickq$/}})"
+func (v PlanPickView) moreAction(modal bool) string {
+	return "@get('/plan/pick/results?" + v.resultsQuery(v.Shown+LibraryPageSize, modal) + "', {filterSignals: {include: /^pickq$/}})"
 }
 
 // ---- Meal menu ----
@@ -374,8 +391,15 @@ func (v MealMenuView) moveDaysAction(week string) string {
 }
 
 // swapResultsAction searches recipes to swap in.
-func (v MealMenuView) swapResultsAction() string {
-	return "@get('/plan/meals/" + v.ID + "?view=swap&part=results', {filterSignals: {include: /^swapq$/}})"
+func (v MealMenuView) swapResultsAction(modal bool) string {
+	q := url.Values{"view": {"swap"}, "part": {"results"}}
+	if v.Back != "" {
+		q.Set("back", v.Back)
+	}
+	if !modal {
+		q.Set(PageParam, "1")
+	}
+	return "@get('/plan/meals/" + v.ID + "?" + q.Encode() + "', {filterSignals: {include: /^swapq$/}})"
 }
 
 // swapMoreQuery is the swap view with the next page of recipes.
@@ -393,9 +417,12 @@ func (v MealMenuView) SwapMoreHref() string {
 }
 
 // swapMoreAction is the swap list's "Show more" with JavaScript.
-func (v MealMenuView) swapMoreAction() string {
+func (v MealMenuView) swapMoreAction(modal bool) string {
 	q := v.swapMoreQuery()
 	q.Set("part", "results")
+	if !modal {
+		q.Set(PageParam, "1")
+	}
 	return "@get('/plan/meals/" + v.ID + "?" + q.Encode() + "', {filterSignals: {include: /^swapq$/}})"
 }
 
@@ -519,20 +546,29 @@ func pickToggle(recipeID string) string {
 	return "$picksel = $picksel.includes(" + id + ") ? $picksel.filter(x => x !== " + id + ") : [...$picksel, " + id + "]"
 }
 
-// pickRowAction opens the add sheet for one recipe, or picks it while
-// others are picked.
-func pickRowAction(r PickRecipe) string {
-	return "$picksel.length ? (" + pickToggle(r.ID) + ") : " + getAction(r.Href)
+// pickRowAction picks a row's recipe while others are picked. Otherwise
+// the row opens the add sheet for it: in the modal picker into the page,
+// on the picker page by following its link.
+func pickRowAction(r PickRecipe, modal bool) string {
+	if modal {
+		return "$picksel.length ? (" + pickToggle(r.ID) + ") : " + getAction(r.Href)
+	}
+	return "$picksel.length && (evt.preventDefault(), " + pickToggle(r.ID) + ")"
 }
 
 // pickPlanAction opens the add sheet for the picked recipes, in the order
-// they were picked.
-func (v PlanPickView) pickPlanAction() string {
+// they were picked: into the page from the modal picker, as a page from
+// the picker page.
+func (v PlanPickView) pickPlanAction(modal bool) string {
 	base := url.Values{"date": {v.Date}}
 	if v.Back != "" {
 		base.Set("back", v.Back)
 	}
-	return "@get('/plan/add?" + base.Encode() + "&' + $picksel.map(id => 'recipe=' + id).join('&'))"
+	href := "'/plan/add?" + base.Encode() + "&' + $picksel.map(id => 'recipe=' + id).join('&')"
+	if modal {
+		return "@get(" + href + ")"
+	}
+	return "window.location.assign(" + href + ")"
 }
 
 func mealMenuSignals(v MealMenuView) string {

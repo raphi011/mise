@@ -795,8 +795,10 @@ func (s *Server) addPlanDays(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	s.sendPatches(w, r, patchSignals(map[string]any{"plandate": v.Days.Date}),
-		patchTempl(ui.AddPlanDays(v)), patchTempl(ui.AddPlanSubmit(v)))
+	// The days first: the signal's bind checks the radio whose value is
+	// the date, and the morphed radios only take the new week's dates.
+	s.sendPatches(w, r, patchTempl(ui.AddPlanDays(v)), patchTempl(ui.AddPlanSubmit(v)),
+		patchSignals(map[string]any{"plandate": v.Days.Date}))
 }
 
 // addMeal plans recipes: the add sheet's form, or suggestions dropped on
@@ -1098,7 +1100,7 @@ func (s *Server) pickResults(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	s.sendPatches(w, r, patchTempl(ui.PlanPickResults(v)))
+	s.sendPatches(w, r, patchTempl(ui.PlanPickResults(v, q.Get(ui.PageParam) == "")))
 }
 
 // ---- Meal menu ----
@@ -1249,11 +1251,13 @@ func (s *Server) mealMenu(w http.ResponseWriter, r *http.Request) {
 	}
 	switch part {
 	case "body":
+		// The body first, so the move view's radios have the week's dates
+		// when movedate's bind checks one.
 		s.sendPatches(w, r,
-			patchSignals(map[string]any{"movedate": v.Move.Date, "mealservings": v.Servings, "swapq": v.Query}),
-			patchTempl(ui.MealMenuBody(v, true)))
+			patchTempl(ui.MealMenuBody(v, true)),
+			patchSignals(map[string]any{"movedate": v.Move.Date, "mealservings": v.Servings, "swapq": v.Query}))
 	case "results":
-		s.sendPatches(w, r, patchTempl(ui.MealSwapResults(v)))
+		s.sendPatches(w, r, patchTempl(ui.MealSwapResults(v, q.Get(ui.PageParam) == "")))
 	default:
 		s.sendPatches(w, r, patchTempl(ui.MealMenuSheet(v)))
 	}

@@ -3,6 +3,7 @@ package web
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -647,5 +648,150 @@ func TestPlanSeveral(t *testing.T) {
 		anna.datastarJSON("/plan/remove", map[string]any{"meal": []string{}}).expect(t, "remove none", http.StatusBadRequest)
 		res = anna.datastarJSON("/plan/remove", map[string]any{"meal": ids[:2]}).expect(t, "remove gone", http.StatusOK)
 		contains(t, "remove gone", res.body, "That meal is no longer on the plan.")
+	})
+}
+
+var (
+	getActionRe  = regexp.MustCompile(`@get\('([^']+)'[,)]`)
+	patchedTopRe = regexp.MustCompile(`(?m)^data: elements <[a-z]+[^>]*?\sid="([^"]+)"`)
+)
+
+// patchedIDs are the IDs of the elements an SSE body patches: the top
+// element of each patch.
+func patchedIDs(body string) []string {
+	var ids []string
+	for ev := range strings.SplitSeq(body, "\n\n") {
+		if !strings.Contains(ev, "event: datastar-patch-elements") {
+			continue
+		}
+		// Only an event's first elements line opens its top element.
+		i := strings.Index(ev, "data: elements ")
+		if i < 0 {
+			continue
+		}
+		line, _, _ := strings.Cut(ev[i:], "\n")
+		if m := patchedTopRe.FindStringSubmatch(line); m != nil {
+			ids = append(ids, m[1])
+		}
+	}
+	return ids
+}
+
+// pageActionsLand checks a plan sheet opened as a page with JavaScript:
+// it posts nothing with Datastar (its forms post natively and go back),
+// and every Datastar load it makes patches only elements the page has.
+// The modal sheets patch #sheet and #toast, which only the week and month
+// pages have.
+func pageActionsLand(t *testing.T, b *browser, what, body string) {
+	t.Helper()
+	body = html.UnescapeString(body)
+	if strings.Contains(body, "@post(") {
+		t.Errorf("%s posts with Datastar:\n%s", what, regexp.MustCompile(`(?s).{0,80}@post\(.{0,80}`).FindString(body))
+	}
+	for _, m := range getActionRe.FindAllStringSubmatch(body, -1) {
+		action := m[1]
+		sep := "?"
+		if strings.Contains(action, "?") {
+			sep = "&"
+		}
+		res := b.datastarGet(action + sep + "datastar=" + url.QueryEscape("{}"))
+		if res.status != http.StatusOK {
+			t.Errorf("%s: %s: status %d", what, action, res.status)
+			continue
+		}
+		for _, id := range patchedIDs(res.body) {
+			if !strings.Contains(body, `id="`+id+`"`) {
+				t.Errorf("%s: %s patches #%s, which the page does not have", what, action, id)
+			}
+		}
+		// A list the page reloads renders for the page too.
+		if strings.Contains(html.UnescapeString(res.body), "@post(") {
+			t.Errorf("%s: %s reloads a list that posts with Datastar", what, action)
+		}
+	}
+}
+
+// TestPlanSheetsAsPages: the picker, the add sheet and the meal menu
+// opened directly (a reload, a shared link) work with JavaScript: their
+// taps and forms navigate like the plain HTML path, since the page has no
+// #sheet or #toast for the modal answers.
+func TestPlanSheetsAsPages(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		s, srv := startTimedServer(t, db)
+		s.clock = func() time.Time { return planClock }
+		anna, _ := household(t, srv)
+		tofu := createRecipe(t, anna, stickyTofu())
+		dalForm := stickyTofu()
+		dalForm.Set("name", "Red lentil dal")
+		dal := createRecipe(t, anna, dalForm)
+		back := "/plan?week=2026-11-09"
+
+		// The picker: a row follows its link unless recipes are picked,
+		// "Plan" opens the add sheet as a page.
+		pickPath := "/plan/pick?" + url.Values{"date": {"2026-11-10"}, "back": {back}}.Encode()
+		pick := anna.get(pickPath).expect(t, "picker page", http.StatusOK)
+		pageActionsLand(t, anna, "picker page", pick.body)
+		contains(t, "picker page", html.UnescapeString(pick.body),
+			`data-on:click="$picksel.length && (evt.preventDefault(), `, "window.location.assign('/plan/add?", "page=1")
+		pick = anna.get(pickPath+"&q=dal").expect(t, "picker search page", http.StatusOK)
+		pageActionsLand(t, anna, "picker search page", pick.body)
+		// The modal picker keeps patching the page it opens on.
+		sheet := anna.datastarGet(pickPath).expect(t, "picker sheet", http.StatusOK)
+		contains(t, "picker sheet", html.UnescapeString(sheet.body), `id="sheet"`, "@get('/plan/add?", "$picksel.length ? (")
+		if strings.Contains(sheet.body, "page=1") {
+			t.Error("the modal picker asks for its list as a page")
+		}
+
+		// The add sheet posts natively and goes back.
+		addPath := "/plan/add?" + url.Values{"recipe": {dal, tofu}, "date": {"2026-11-10"}, "back": {back}}.Encode()
+		add := anna.get(addPath).expect(t, "add page", http.StatusOK)
+		pageActionsLand(t, anna, "add page", add.body)
+		contains(t, "add page", add.body, `action="/plan"`, `name="back" value="`+html.EscapeString(back)+`"`)
+		contains(t, "add sheet", html.UnescapeString(anna.datastarGet(addPath).body), "@post('/plan'")
+		anna.post("/plan", url.Values{
+			"recipe": {dal, tofu}, "date": {"2026-11-10"}, "servings." + dal: {"2"}, "servings." + tofu: {"2"}, "back": {back},
+		}).expect(t, "plan from page", http.StatusSeeOther, back)
+		meal := mealIDs(t, anna.get(back).body)[0]
+
+		// The meal menu and its views: links between them, native posts.
+		menuPath := "/plan/meals/" + meal + "?back=" + url.QueryEscape(back)
+		for _, view := range []string{"", "move", "servings", "swap"} {
+			p := anna.get(menuPath+"&view="+view).expect(t, "menu page "+view, http.StatusOK)
+			pageActionsLand(t, anna, "menu page "+view, p.body)
+		}
+		menuSheet := html.UnescapeString(anna.datastarGet(menuPath).body)
+		contains(t, "menu sheet", menuSheet, "/remove', {contentType: 'form'})", "part=body")
+		swapSheet := html.UnescapeString(anna.datastarGet(menuPath + "&view=swap&part=body").body)
+		contains(t, "swap sheet", swapSheet, "/replace', {payload:")
+
+		// Swapping from the page's list, reloaded by its search, goes back.
+		res := anna.datastar(http.MethodGet, "/plan/meals/"+meal+"?view=swap&part=results&page=1&back="+url.QueryEscape(back)+
+			"&datastar="+url.QueryEscape(`{"swapq":"tofu"}`), nil).expect(t, "swap page results", http.StatusOK)
+		contains(t, "swap page results", res.body, `id="meal-swap-results"`, `name="back" value="`+html.EscapeString(back)+`"`,
+			`name="recipe" value="`+tofu+`"`)
+		anna.post("/plan/meals/"+meal+"/replace", url.Values{"recipe": {tofu}, "back": {back}}).
+			expect(t, "swap from page", http.StatusSeeOther, back)
+		anna.post("/plan/meals/"+meal+"/remove", url.Values{"back": {back}}).
+			expect(t, "remove from page", http.StatusSeeOther, back)
+	})
+}
+
+// TestAddPlanDaysWeek: another week in the add sheet keeps the weekday.
+// The days are patched before the plandate signal, since the signal's
+// bind checks the radio with its value, which only the new days have.
+func TestAddPlanDaysWeek(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		s, srv := startTimedServer(t, db)
+		s.clock = func() time.Time { return planClock }
+		anna, _ := household(t, srv)
+		tofu := createRecipe(t, anna, stickyTofu())
+
+		res := anna.datastarGet("/plan/add/days?recipe="+tofu+"&week=2026-11-16&datastar="+url.QueryEscape(`{"plandate":"2026-11-10"}`)).
+			expect(t, "next week", http.StatusOK)
+		contains(t, "next week", res.body, "16 – 22 Nov", `value="2026-11-17" required checked`, `"plandate":"2026-11-17"`, "Add to Tuesday")
+		days, signal := strings.Index(res.body, `id="plan-add-days"`), strings.Index(res.body, "event: datastar-patch-signals")
+		if signal < days {
+			t.Errorf("plandate is patched before the days (%d < %d)", signal, days)
+		}
 	})
 }
