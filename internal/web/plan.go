@@ -168,6 +168,11 @@ func addHref(recipeID uuid.UUID, date, week store.Date, back string) string {
 	return withParams("/plan/add", q)
 }
 
+// dayHref opens the day sheet with all of a day's meals.
+func dayHref(date store.Date, back string) string {
+	return withParams("/plan/day", url.Values{"date": {date.String()}, "back": {back}})
+}
+
 func mealHref(id uuid.UUID, back string) string {
 	return withParams("/plan/meals/"+id.String(), url.Values{"back": {back}})
 }
@@ -186,8 +191,8 @@ func (s *Server) planMeal(ctx context.Context, m plan.Meal, back string) ui.Plan
 func (s *Server) planDay(ctx context.Context, d plan.Day, today store.Date, back string) ui.PlanDay {
 	pd := ui.PlanDay{
 		Date: d.Date.String(), Dow: i18n.T(ctx, weekdayShortKeys[d.Date.Weekday()]), Num: d.Date.Day,
-		Label: fullDate(ctx, d.Date), Today: d.Date == today, Past: d.Date.Before(today), InMonth: true,
-		AddHref: pickHref(d.Date, back),
+		Label: fullDate(ctx, d.Date), Today: d.Date == today, InMonth: true,
+		AddHref: pickHref(d.Date, back), DayHref: dayHref(d.Date, back),
 	}
 	for _, m := range d.Meals {
 		pd.Meals = append(pd.Meals, s.planMeal(ctx, m, back))
@@ -285,6 +290,41 @@ func (s *Server) planPage(w http.ResponseWriter, r *http.Request) {
 	start := cal.WeekOf(date)
 	p := s.page(r, weekTitle(ctx, start, cal.WeekOf(today)), ui.NavPlan)
 	s.render(w, r, http.StatusOK, ui.PlanWeek(p, v))
+}
+
+// planDayPage shows every meal of a day: the sheet behind the week's
+// "+N more" card, or a page without JavaScript.
+func (s *Server) planDayPage(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	date := dateParam(r.URL.Query().Get("date"))
+	if date.IsZero() {
+		s.notFound(w, r)
+		return
+	}
+	sc, err := s.db.Scope(ctx)
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	back := localPath(r.URL.Query().Get("back"), s.weekBack(ctx, sc, date))
+	wk, err := s.plan.Week(ctx, sc, date)
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	v := ui.PlanDayView{Back: back}
+	for _, d := range wk.Days {
+		if d.Date == date {
+			v.Day = s.planDay(ctx, d, wk.Today, back)
+		}
+	}
+	if !isDatastar(r) {
+		p := s.page(r, v.Day.Label, ui.NavPlan)
+		p.BackHref, p.BackLabel = back, i18n.T(ctx, "plan.day.back")
+		s.render(w, r, http.StatusOK, ui.PlanDayPage(p, v))
+		return
+	}
+	s.sendPatches(w, r, patchTempl(ui.PlanDaySheet(v)))
 }
 
 // planMonthView loads a month with date selected (today or the first of

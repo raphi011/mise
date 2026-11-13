@@ -89,7 +89,7 @@ func TestPlanWeekByTap(t *testing.T) {
 		tofu := createRecipe(t, anna, stickyTofu())
 
 		week := anna.get("/plan").expect(t, "plan", http.StatusOK)
-		contains(t, "plan", week.body, "This week", "9 – 15 Nov · 0 of 7 days planned", "Plan a meal",
+		contains(t, "plan", week.body, "This week", "9 – 15 Nov · 0 of 7 days planned", ">Add</span>",
 			"Ideas for this week", "Sticky tofu", "Never cooked")
 
 		// The add sheet as a page: day, servings and ingredient chips.
@@ -347,10 +347,30 @@ func TestPlanUndoAndLinks(t *testing.T) {
 		anna.post("/plan", url.Values{"recipe": {dal}, "date": {"2026-11-10"}}).expect(t, "plan dal", http.StatusSeeOther)
 		two := anna.get("/plan?week=2026-11-09").body
 		contains(t, "week with two meals", two, "Sticky tofu on Tuesday, 10 November", "Red lentil dal on Tuesday, 10 November",
-			"plan-day__meals--several", "Plan a meal on Tuesday, 10 November")
+			"Plan a meal on Tuesday, 10 November")
 		if strings.Index(two, "Sticky tofu on Tuesday") > strings.Index(two, "Red lentil dal on Tuesday") {
 			t.Error("the week shows a day's meals out of order")
 		}
+
+		// The month grid shows two meals as chips; from three on it shows
+		// the first and a "+N more" that opens the day sheet.
+		month := anna.get("/plan/month?month=2026-11").body
+		if n := strings.Count(month, `class="meal-chip `); n != 2 {
+			t.Errorf("month with two meals on a day shows %d chips, want 2", n)
+		}
+		if strings.Contains(month, "month-grid__more") {
+			t.Error("month offers more meals on a day that has two")
+		}
+		anna.post("/plan", url.Values{"recipe": {tofu}, "date": {"2026-11-10"}}).expect(t, "plan a third", http.StatusSeeOther)
+		month = anna.get("/plan/month?month=2026-11").body
+		if n := strings.Count(month, `class="meal-chip `); n != 1 {
+			t.Errorf("month with three meals on a day shows %d chips, want 1", n)
+		}
+		contains(t, "month with three meals", month,
+			`href="/plan/day?back=%2Fplan%2Fmonth%3Fmonth%3D2026-11%26date%3D2026-11-09&amp;date=2026-11-10"`,
+			`aria-label="3 meals on Tuesday, 10 November. Show them all."`, ">+ 2 more</a>")
+		third := mealIDs(t, anna.get("/plan?week=2026-11-09").body)[2]
+		anna.post("/plan/meals/"+third+"/remove", nil).expect(t, "remove the third", http.StatusSeeOther)
 
 		// Undo clears the toast and leaves a sheet opened since alone.
 		meal := mealIDs(t, anna.get("/plan?week=2026-11-09").body)[0]
@@ -773,6 +793,59 @@ func TestPlanSheetsAsPages(t *testing.T) {
 			expect(t, "swap from page", http.StatusSeeOther, back)
 		anna.post("/plan/meals/"+meal+"/remove", url.Values{"back": {back}}).
 			expect(t, "remove from page", http.StatusSeeOther, back)
+	})
+}
+
+// TestPlanDaySheet: the desktop week holds three cards a day; from four
+// meals on it shows two and a "+N more" card that opens the day's sheet,
+// which lists every meal, also as a page without JavaScript.
+func TestPlanDaySheet(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		s, srv := startTimedServer(t, db)
+		s.clock = func() time.Time { return planClock }
+		anna, _ := household(t, srv)
+		tofu := createRecipe(t, anna, stickyTofu())
+		back := "/plan?week=2026-11-09"
+		for range 3 {
+			anna.post("/plan", url.Values{"recipe": {tofu}, "date": {"2026-11-10"}}).expect(t, "plan tofu", http.StatusSeeOther)
+		}
+
+		// Three meals fit the day.
+		week := anna.get(back).body
+		if strings.Contains(week, "plan-day__more") || strings.Contains(week, "meal-card--hidden") {
+			t.Error("the week hides meals of a day with three")
+		}
+
+		// A fourth: two cards show, the other two are behind "+ 2 more".
+		anna.post("/plan", url.Values{"recipe": {tofu}, "date": {"2026-11-10"}}).expect(t, "plan a fourth", http.StatusSeeOther)
+		week = anna.get(back).body
+		dayPath := "/plan/day?" + url.Values{"back": {back}, "date": {"2026-11-10"}}.Encode()
+		contains(t, "week with four meals", week, `class="plan-day__more only-wide" href="`+html.EscapeString(dayPath)+`"`,
+			`aria-label="4 meals on Tuesday, 10 November. Show them all."`, ">+ 2 more</a>")
+		if n := strings.Count(week, "meal-card--hidden"); n != 2 {
+			t.Errorf("week with four meals on a day hides %d, want 2", n)
+		}
+		if n := len(mealIDs(t, week)); n != 4 {
+			t.Errorf("week with four meals links %d, want all 4 for phones", n)
+		}
+
+		// The sheet lists every meal and opens their menus in its place.
+		sheet := html.UnescapeString(anna.datastarGet(dayPath).expect(t, "day sheet", http.StatusOK).body)
+		contains(t, "day sheet", sheet, `id="sheet"`, `id="plan-day"`, "Tuesday, 10 November", "4 meals",
+			"@get('/plan/meals/", "@get('/plan/pick?")
+		if n := len(mealIDs(t, sheet)); n != 4 {
+			t.Errorf("day sheet lists %d meals, want 4", n)
+		}
+
+		// As a page its links navigate, and it leads back to the week.
+		page := anna.get(dayPath).expect(t, "day page", http.StatusOK)
+		pageActionsLand(t, anna, "day page", page.body)
+		contains(t, "day page", page.body, "Back to the week", `href="`+html.EscapeString(back)+`"`)
+		if n := len(mealIDs(t, page.body)); n != 4 {
+			t.Errorf("day page lists %d meals, want 4", n)
+		}
+
+		anna.get("/plan/day").expect(t, "day without a date", http.StatusNotFound)
 	})
 }
 

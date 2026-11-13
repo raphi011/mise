@@ -1143,6 +1143,10 @@ a.list__link:hover, summary.list__link:hover { color: var(--ink); background: va
   font-weight: 700;
 }
 
+/* A recipe photo fills its tile wherever a tile shows one. */
+.tile { overflow: hidden; }
+.tile > img { width: 100%; height: 100%; object-fit: cover; }
+
 .tile--sm { width: 38px; height: 38px; border-radius: 11px; }
 .tile--lg { width: 48px; height: 48px; border-radius: 14px; font-size: 20px; }
 .tile--dashed { background: transparent; border: 1.5px dashed var(--pending); color: var(--ink-2); }
@@ -2256,6 +2260,7 @@ a.menu__item:hover { color: var(--ink); background: var(--surface-2); }
 .plan-day__num { font-size: 20px; font-weight: 600; }
 .plan-day--today .plan-day__dow, .plan-day--today .plan-day__num { color: var(--herb); }
 .plan-day__meals { position: relative; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.plan-day__slots { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 
 /* "Add" under a day's meals: quiet until hovered or dropped on. */
 .plan-day__another {
@@ -2276,7 +2281,6 @@ a.menu__item:hover { color: var(--ink); background: var(--surface-2); }
 /* The link stays small; its hit area grows to the tap target. */
 .plan-day__another::before { content: ""; position: absolute; inset: -6px 0; }
 .plan-day__another:hover, .plan-day--over .plan-day__another { color: var(--ink); border-color: var(--check-line); }
-.plan-day--past .plan-day__another { opacity: 0.7; }
 
 .plan-day__add {
   min-height: 72px;
@@ -2293,7 +2297,6 @@ a.menu__item:hover { color: var(--ink); background: var(--surface-2); }
 }
 
 .plan-day__add:hover { color: var(--ink); border-color: var(--herb); }
-.plan-day--past .meal-card, .plan-day--past .plan-day__add { opacity: 0.7; }
 
 .meal-card {
   display: flex;
@@ -2470,34 +2473,54 @@ a[draggable="true"] { transform: translate(0, 0); }
     padding: 6px;
     margin: -6px;
   }
-  .plan-day { grid-template-columns: minmax(0, 1fr); align-content: start; gap: 10px; min-width: 110px; padding: 6px; margin: 0; }
+  /* Every day is the same box of three slots (see weekSlots), and every
+     meal is one compact slot with its photo on the left, so cards are the
+     same size all week and "Add" lines up under every planned day. The
+     day itself spans the row, so the whole column takes drops. */
+  .plan-day { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; gap: 10px; min-width: 110px; padding: 6px; margin: 0; }
   .plan-day__date { flex-direction: row; align-items: baseline; gap: 6px; padding: 0 4px; }
-  .plan-day__meals { flex: 1; }
-  .meal-card { flex-direction: column; align-items: stretch; gap: 0; min-height: 240px; padding: 0; overflow: hidden; border-radius: 18px; }
-  .meal-card__media { width: auto; height: 110px; border-radius: 0; }
-  .meal-card__initial { font-size: 44px; }
-  .meal-card__text { padding: 12px; gap: 6px; }
-  .meal-card__meta { display: flex; flex-direction: column; gap: 6px; }
-  .meal-card__time + .meal-card__serves::before { content: none; }
-  .meal-card__grip {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    width: 26px;
-    height: 26px;
+  .plan-day__meals { container-type: inline-size; }
+  .plan-day__slots { height: 238px; }
+  .plan-week .plan-day__slots > * { flex: 0 0 74px; min-height: 0; }
+  .plan-day__add { align-self: start; height: 238px; flex-direction: column; border-radius: 18px; }
+  .plan-week .meal-card { gap: 0; padding: 0; overflow: hidden; border-radius: 14px; }
+  .plan-week .meal-card--hidden { display: none; }
+  .plan-week .meal-card__media { width: 44px; height: auto; align-self: stretch; border-radius: 0; }
+  .plan-week .meal-card__initial { font-size: 20px; }
+  .plan-week .meal-card__text { justify-content: center; padding: 8px 10px; gap: 2px; }
+  .plan-week .meal-card__name {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    overflow: hidden;
+    font-size: 13px;
+    overflow-wrap: break-word;
+    hyphens: auto;
+  }
+  /* The week names meals only; time and servings are in the meal's
+     options, and the whole card drags. */
+  .plan-week .meal-card__meta,
+  .plan-week .meal-card__grip { display: none; }
+  .plan-day__more {
+    display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 8px;
+    border-radius: 14px;
+    border: 1px solid var(--line-soft);
     background: var(--surface);
-    color: var(--muted);
+    color: var(--ink-2);
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
   }
-  .plan-day__add { min-height: 240px; flex-direction: column; border-radius: 18px; }
-  /* Several meals on a day: shorter cards, so a week stays in view. */
-  .plan-day__meals--several .meal-card { min-height: 0; }
-  .plan-day__meals--several .meal-card__media { height: 72px; }
-  .plan-day__meals--several .meal-card__initial { font-size: 30px; }
-  .plan-day__meals--several .meal-card__text { padding: 10px; gap: 4px; }
-  .plan-day__meals--several .meal-card__time { display: none; }
+  .plan-day__more:hover { color: var(--ink); border-color: var(--line-strong); }
+  /* Too narrow for text beside the photo: a short photo on top instead. */
+  @container (width < 124px) {
+    .plan-week .meal-card { flex-direction: column; align-items: stretch; }
+    .plan-week .meal-card__media { width: auto; height: 28px; }
+    .plan-week .meal-card__text { padding: 4px 8px; }
+    .plan-week .meal-card__name { -webkit-line-clamp: 2; }
+  }
   .plan-selbar { left: 88px; right: 24px; bottom: 24px; }
   .plan-aside { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); align-items: start; }
   .plan-suggest__list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -2527,7 +2550,6 @@ a[draggable="true"] { transform: translate(0, 0); }
 }
 
 .month-cal__day:hover { color: var(--ink); background: var(--surface-2); }
-.month-cal__day--past { color: var(--muted); }
 .month-cal__day--out { color: var(--pending); }
 .month-cal__day--today { background: var(--herb-soft); font-weight: 700; }
 .month-cal__day[aria-current="page"] { background: var(--strong); color: var(--on-strong); font-weight: 700; }
@@ -2561,8 +2583,7 @@ a[draggable="true"] { transform: translate(0, 0); }
   color: var(--muted);
 }
 
-.month-grid__day { min-height: 112px; display: flex; flex-direction: column; gap: 6px; padding: 8px; background: var(--surface); outline-offset: -3px; }
-.month-grid__day--past { background: var(--ground); }
+.month-grid__day { min-height: 112px; display: flex; flex-direction: column; gap: 4px; padding: 8px; background: var(--surface); outline-offset: -3px; }
 .month-grid__day--out { background: var(--ground); }
 .month-grid__day--over { background: var(--herb-soft); outline: 2px dashed var(--herb); }
 
@@ -2582,27 +2603,59 @@ a[draggable="true"] { transform: translate(0, 0); }
 }
 
 .month-grid__num:hover { color: var(--ink); background: var(--surface-2); }
-.month-grid__day--past .month-grid__num { color: var(--muted); }
 .month-grid__day--out .month-grid__num { color: var(--pending); }
 .month-grid__num--today, .month-grid__num--today:hover { background: var(--herb); color: var(--on-herb); }
 
 .meal-chip {
-  display: block;
-  padding: 6px 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  box-sizing: border-box;
+  padding: 4px 8px 4px 4px;
   border-radius: 10px;
   background: var(--av-bg, var(--surface-2));
   color: var(--av-fg, var(--ink-2));
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   text-decoration: none;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   cursor: grab;
 }
 
+.meal-chip__media {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--surface);
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.meal-chip__media img { width: 100%; height: 100%; object-fit: cover; }
+.meal-chip__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.month-grid__more {
+  align-self: flex-start;
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  border-radius: 8px;
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.month-grid__more:hover { color: var(--ink); background: var(--surface-2); }
+
 .meal-chip:hover { color: var(--av-fg, var(--ink-2)); filter: brightness(0.97); }
-.month-grid__day--past .meal-chip { opacity: 0.6; }
 .meal-chip--dragging { opacity: 0.4; }
 .meal-chip.is-selected { box-shadow: inset 0 0 0 2px var(--herb); }
 
@@ -2715,8 +2768,6 @@ a[draggable="true"] { transform: translate(0, 0); }
 .plan-form__recipe-head { display: flex; align-items: flex-start; gap: 8px; margin: -4px -6px 0 0; }
 .plan-form__recipe-name { margin: 0; font-size: 16px; font-weight: 600; }
 button.pick-row { width: 100%; border: none; background: transparent; font: inherit; text-align: left; cursor: pointer; }
-.pick-row__tile { overflow: hidden; }
-.pick-row__tile img { width: 100%; height: 100%; object-fit: cover; }
 .pick-row__name { font-weight: 500; }
 .pick-row__meta { font-size: 13px; }
 .pick-row__action { font-size: 13px; font-weight: 600; color: var(--herb); }
@@ -2728,8 +2779,6 @@ button.pick-row { width: 100%; border: none; background: transparent; font: inhe
 .meal-menu__remove-note { font-size: 12px; font-weight: 400; color: var(--muted); }
 button.menu__item { width: 100%; border: none; font: inherit; text-align: left; cursor: pointer; }
 button.menu__item:hover { background: var(--surface-2); }
-.sheet__head .tile { overflow: hidden; }
-.sheet__head .tile img { width: 100%; height: 100%; object-fit: cover; }
 
 /* Recipe page: "Add to plan" sits above the bottom bar on phones. */
 /* A pill at the right rather than a full-width bar, so it hides little of
