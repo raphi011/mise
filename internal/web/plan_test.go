@@ -89,7 +89,7 @@ func TestPlanWeekByTap(t *testing.T) {
 
 		week := anna.get("/plan").expect(t, "plan", http.StatusOK)
 		contains(t, "plan", week.body, "This week", "9 – 15 Nov · 0 of 7 days planned", "Plan a meal",
-			"Haven’t cooked in a while", "Sticky tofu", "Never cooked")
+			"Ideas for this week", "Sticky tofu", "Never cooked")
 
 		// The add sheet as a page: day, servings and ingredient chips.
 		add := anna.get("/plan/add?recipe="+tofu).expect(t, "add sheet", http.StatusOK)
@@ -279,7 +279,11 @@ func TestCookedAndDeleteConfirm(t *testing.T) {
 		library.next("library initial", liveDeadline, `id="recipes-live"`)
 		anna.post("/plan", url.Values{"recipe": {tofu}, "date": {"2026-11-09"}}).expect(t, "plan today", http.StatusSeeOther)
 		library.next("library follows the plan", liveDeadline, "On tonight’s plan")
-		contains(t, "library", anna.get("/recipes").body, "Suggested for tonight", "On tonight’s plan")
+		libraryBody := anna.get("/recipes").body
+		contains(t, "library", libraryBody, "On tonight’s plan")
+		if strings.Contains(libraryBody, "Suggested for tonight") {
+			t.Error("library calls tonight's planned meal a suggestion")
+		}
 		today := mealIDs(t, anna.get("/plan/month?month=2026-11&date=2026-11-09").body)
 		found := false
 		for _, id := range today {

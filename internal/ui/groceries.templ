@@ -55,15 +55,26 @@ templ GroceriesRegion(v GroceriesView) {
 			</section>
 		} else {
 			<p class="list-meta" aria-live="polite">
-				{ i18n.T(ctx, "groceries.toGet", v.Open) }
+				if v.Open > 0 || v.InCart > 0 {
+					{ i18n.T(ctx, "groceries.toGet", v.Open) }
+				}
 				if v.InCart > 0 {
 					{ " · " + i18n.T(ctx, "groceries.inCartCount", v.InCart) }
 				}
 			</p>
 			if len(v.Groups) == 0 {
 				<section class="empty">
-					<h2>{ i18n.T(ctx, "groceries.empty.title") }</h2>
-					<p>{ i18n.T(ctx, "groceries.empty.body") }</p>
+					if v.InCart > 0 {
+						<h2>{ i18n.T(ctx, "groceries.empty.title") }</h2>
+						<p>{ i18n.T(ctx, "groceries.empty.body") }</p>
+					} else {
+						<h2>{ i18n.T(ctx, "groceries.fresh.title") }</h2>
+						if len(v.Usual) > 0 {
+							<p>{ i18n.T(ctx, "groceries.fresh.usual") }</p>
+						} else {
+							<p>{ i18n.T(ctx, "groceries.fresh.body") }</p>
+						}
+					}
 				</section>
 			}
 			for i, g := range v.Groups {

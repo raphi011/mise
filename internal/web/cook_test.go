@@ -42,6 +42,8 @@ func TestCookMode(t *testing.T) {
 			"800 g", // the tofu at 4 servings, highlighted in step 1
 			`href="/recipes/sticky-tofu/cook?servings=4&amp;step=2"`,
 			`name="back" value="/recipes/sticky-tofu?servings=4"`,
+			// The ingredients, at 4 servings, behind a toggle.
+			"Ingredients (2)", `class="cook-ings__amount">800 g`,
 		} {
 			if !strings.Contains(cook.body, want) {
 				t.Errorf("cook mode has no %q", want)
@@ -75,7 +77,7 @@ func TestCookMode(t *testing.T) {
 		bare := stickyTofu()
 		bare["step"], bare["step_timer"] = nil, nil
 		bareID := createRecipe(t, anna, bare)
-		if strings.Contains(anna.open("/recipes/"+bareID).body, "/cook") {
+		if strings.Contains(anna.open("/recipes/"+bareID).body, `/cook"`) {
 			t.Error("recipe without steps links cook mode")
 		}
 		// The second "Sticky tofu" gets the next free slug.
@@ -113,11 +115,11 @@ func TestStepPartsMentionScope(t *testing.T) {
 		},
 	}
 	amounts := []string{"400 g", "200 g"}
-	mentions := func(steps [][]ui.StepPart) []string {
+	mentions := func(steps []ui.Step) []string {
 		var out []string
-		for _, parts := range steps {
+		for _, st := range steps {
 			var got []string
-			for _, p := range parts {
+			for _, p := range st.Parts {
 				if p.Mention {
 					got = append(got, p.Text+" "+p.Amount)
 				}

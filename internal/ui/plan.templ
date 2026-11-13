@@ -25,10 +25,14 @@ templ PlanWeekRegion(v PlanWeekView) {
 		<p class="list-meta">{ v.Summary }</p>
 		@planToolbar(false, "/plan?week="+v.Week, v.MonthHref, v.PrevHref, v.TodayHref, v.NextHref, v.Current,
 			i18n.T(ctx, "plan.prevWeek"), i18n.T(ctx, "plan.nextWeek"))
-		<p class="muted plan__hint">
-			<span class="only-phone">{ i18n.T(ctx, "plan.hint.phone") }</span>
-			<span class="only-wide">{ i18n.T(ctx, "plan.hint.web") }</span>
-		</p>
+		if v.HasMeals() {
+			<p class="muted plan__hint">
+				<span class="only-phone">{ i18n.T(ctx, "plan.hint.phone") }</span>
+				<span class="only-wide">{ i18n.T(ctx, "plan.hint.web") }</span>
+			</p>
+		} else if len(v.Suggestions) > 0 {
+			<p class="muted plan__hint only-wide">{ i18n.T(ctx, "plan.hint.empty") }</p>
+		}
 		<ol class="plan-week" role="list">
 			for _, d := range v.Days {
 				@weekDay(d)
@@ -907,7 +911,13 @@ templ AddToPlanButton(recipeID, class string) {
 // tonightCard is the library's "Suggested for tonight".
 templ tonightCard(t TonightCard) {
 	<a class="tonight" href={ templ.SafeURL(RecipeHref(t.RecipeSlug)) }>
-		<span class="tonight__label">{ i18n.T(ctx, "plan.tonight") }</span>
+		<span class="tonight__label">
+			if t.Planned {
+				{ i18n.T(ctx, "plan.tonight.planned") }
+			} else {
+				{ i18n.T(ctx, "plan.tonight") }
+			}
+		</span>
 		<span class="tonight__body">
 			<span class={ "tonight__media avatar--" + Tint(t.RecipeID) }>
 				if t.Photo != "" {
@@ -918,7 +928,9 @@ templ tonightCard(t TonightCard) {
 			</span>
 			<span class="tonight__text">
 				<span class="tonight__name">{ t.Name }</span>
-				<span class="tonight__meta">{ t.Meta }</span>
+				if t.Meta != "" {
+					<span class="tonight__meta">{ t.Meta }</span>
+				}
 			</span>
 		</span>
 	</a>

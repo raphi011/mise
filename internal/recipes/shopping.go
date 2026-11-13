@@ -8,6 +8,7 @@ import (
 	"golang.org/x/text/language"
 
 	"github.com/raphi011/mise/internal/groceries"
+	"github.com/raphi011/mise/internal/live"
 	"github.com/raphi011/mise/internal/store"
 )
 
@@ -175,6 +176,55 @@ func (s *Service) PutOnListTx(ctx context.Context, q store.Querier, sc store.Sco
 		}
 	}
 	return out, nil
+}
+
+// PutAllOnList puts every ingredient of a recipe that is not optional on
+// the default list, scaled to servings (the detail page's "Add all").
+// Items already on the list stay as they are. It returns ErrNotFound when
+// the recipe is gone.
+func (s *Service) PutAllOnList(ctx context.Context, sc store.Scoped, by, recipeID uuid.UUID, servings int, lang language.Tag) (PutOn, error) {
+	var out PutOn
+	err := sc.Tx(ctx, func(ctx context.Context, q store.Querier) error {
+		if err := lockRecipe(ctx, q, sc, recipeID); err != nil {
+			return err
+		}
+		var ids []uuid.UUID
+		if err := q.Select(ctx, &ids, `SELECT id FROM recipe_ingredients
+			WHERE household_id = ? AND recipe_id = ? AND optional = ? ORDER BY position, id`,
+			sc.HouseholdID(), recipeID, false); err != nil {
+			return err
+		}
+		var err error
+		out, err = s.PutOnListTx(ctx, q, sc, by, recipeID, ids, servings, lang)
+		return err
+	})
+	if err != nil {
+		return PutOn{}, err
+	}
+	if len(out.Added) > 0 {
+		s.publish(sc, live.Event{Kind: live.ListChanged, ListID: out.List.ID})
+	}
+	return out, nil
+}
+
+// TakeOffList undoes PutAllOnList: it removes the given entries of the
+// recipe that have not changed since.
+func (s *Service) TakeOffList(ctx context.Context, sc store.Scoped, recipeID uuid.UUID, entryIDs []uuid.UUID) error {
+	var lists []uuid.UUID
+	err := sc.Tx(ctx, func(ctx context.Context, q store.Querier) error {
+		var err error
+		lists, err = s.TakeOffListTx(ctx, q, sc, recipeID, entryIDs)
+		return err
+	})
+	if err != nil {
+		return err
+	}
+	events := make([]live.Event, len(lists))
+	for i, id := range lists {
+		events[i] = live.Event{Kind: live.ListChanged, ListID: id}
+	}
+	s.publish(sc, events...)
+	return nil
 }
 
 // TakeOffListTx undoes PutOnListTx inside the caller's transaction: it

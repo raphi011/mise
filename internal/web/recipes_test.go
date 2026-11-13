@@ -101,7 +101,8 @@ func TestRecipeToList(t *testing.T) {
 		id := createRecipe(t, anna, stickyTofu())
 
 		page := anna.open("/recipes/"+id).expect(t, "recipe", http.StatusOK)
-		for _, want := range []string{"Sticky tofu", "0 of 2 on Shopping list", "Firm tofu", "400 g", `class="mention"`, "Double the glaze", "Vegan"} {
+		for _, want := range []string{"Sticky tofu", "0 of 2 on Shopping list", "Firm tofu", "400 g", `class="mention"`, "Double the glaze", "Vegan",
+			`class="step__timer"`, "10:00"} {
 			if !strings.Contains(page.body, want) {
 				t.Errorf("recipe page has no %q", want)
 			}
@@ -152,6 +153,52 @@ func TestRecipeToList(t *testing.T) {
 		ids := tagIDs(t, ben) // Asian, Vegan
 		ben.post("/settings/tags/"+ids[1]+"/rename", url.Values{"name": {"Plant-based"}}).expect(t, "rename tag", http.StatusSeeOther)
 		annaRecipe.next("anna sees the renamed tag", liveDeadline, "Plant-based")
+	})
+}
+
+// TestRecipeAddAll: "Add all" puts every ingredient that is not optional
+// on the list at the viewer's servings, with and without JavaScript, and
+// Undo takes them off again.
+func TestRecipeAddAll(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		_, srv := startTimedServer(t, db)
+		anna, ben := household(t, srv)
+		list := firstList(t, anna)
+		id := createRecipe(t, anna, stickyTofu())
+		addAll := "/recipes/" + id + "/ingredients/all"
+		contains(t, "recipe", anna.open("/recipes/"+id).body, "0 of 2 on Shopping list", `action="`+addAll+`"`, "Add all")
+
+		benList := ben.openStream(list)
+		benList.next("ben list initial", liveDeadline, `id="groceries-live"`)
+
+		res := anna.datastar(http.MethodPost, addAll, url.Values{"servings": {"4"}}).expect(t, "add all", http.StatusOK)
+		contains(t, "add all response", res.body, "2 ingredients added to Shopping list", "2 of 2 on Shopping list", "/ingredients/all/undo")
+		if strings.Contains(res.body, `action="`+addAll+`"`) {
+			t.Error("Add all still offered with everything on the list")
+		}
+		benList.next("ben sees both, scaled", liveDeadline, "Firm tofu", "Soy sauce", "6 tbsp")
+		entries := regexp.MustCompile(`name="entries" value="([^"]+)"`).FindStringSubmatch(res.body)
+		if entries == nil || strings.Count(entries[1], ",") != 1 {
+			t.Fatalf("Undo does not carry both entries:\n%s", res.body)
+		}
+
+		// A second Add all adds nothing and offers no Undo.
+		res = anna.datastar(http.MethodPost, addAll, url.Values{"servings": {"4"}}).expect(t, "add all again", http.StatusOK)
+		if strings.Contains(res.body, "/ingredients/all/undo") {
+			t.Error("Undo offered for an Add all that added nothing")
+		}
+
+		// Undo takes both off again.
+		res = anna.datastar(http.MethodPost, "/recipes/"+id+"/ingredients/all/undo", url.Values{"entries": {entries[1]}, "servings": {"4"}}).
+			expect(t, "undo add all", http.StatusOK)
+		contains(t, "undo response", res.body, "0 of 2 on Shopping list")
+		benList.next("ben sees them gone", liveDeadline, "Nothing on this list yet")
+		anna.datastar(http.MethodPost, "/recipes/"+id+"/ingredients/all/undo", url.Values{"entries": {"not-an-id"}}).
+			expect(t, "undo with a bad entry", http.StatusBadRequest)
+
+		// Without JavaScript.
+		anna.post(addAll, url.Values{"servings": {"2"}}).expect(t, "add all without JavaScript", http.StatusSeeOther, "/recipes/sticky-tofu#ingredients")
+		contains(t, "recipe after add all", anna.open("/recipes/"+id).body, "2 of 2 on Shopping list")
 	})
 }
 
@@ -397,6 +444,8 @@ func TestRecipeWritesNotOnGET(t *testing.T) {
 		"/recipes/" + id + "/favourite?on=true",
 		toggle + "?on=true",
 		"/recipes/" + id + "/ingredients/restore",
+		"/recipes/" + id + "/ingredients/all",
+		"/recipes/" + id + "/ingredients/all/undo",
 		"/recipes/" + id + "/restore",
 	} {
 		// No GET route: the catch-all answers Not Found.
@@ -541,7 +590,8 @@ func TestNoGETWriteRoutes(t *testing.T) {
 	}
 	for _, path := range []string{
 		"/recipes", "/recipes/{id}/edit", "/recipes/{id}/favourite", "/recipes/{id}/ingredients/{ing}/toggle",
-		"/recipes/{id}/ingredients/restore", "/recipes/{id}/delete", "/recipes/{id}/restore",
+		"/recipes/{id}/ingredients/restore", "/recipes/{id}/ingredients/all", "/recipes/{id}/ingredients/all/undo",
+		"/recipes/{id}/delete", "/recipes/{id}/restore",
 	} {
 		if !posts[path] {
 			t.Errorf("no write route %s", path)

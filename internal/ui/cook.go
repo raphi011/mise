@@ -18,14 +18,10 @@ type CookView struct {
 	Base     int
 	// Step is the index of the step shown first.
 	Step  int
-	Steps []CookStep
-}
-
-// CookStep is one step of cook mode.
-type CookStep struct {
-	Parts []StepPart
-	// TimerSeconds is the step's timer, or 0 for none.
-	TimerSeconds int
+	Steps []Step
+	// Ingredients are the recipe's ingredients at Servings, for the
+	// ingredients sheet.
+	Ingredients []IngredientView
 }
 
 // servingsQuery is the servings parameter, when they differ from the

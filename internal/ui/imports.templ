@@ -76,7 +76,8 @@ templ importFormBody(v ImportFormView, modal bool) {
 			}
 			novalidate
 		>
-		@formAlert(v.Form)
+		// Its only field shows its own error; a summary would repeat it.
+		@formAlert(Form{Alert: v.Form.Alert})
 		if v.Replace != "" {
 			<input type="hidden" name="replace" value={ v.Replace }/>
 		}
