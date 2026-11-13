@@ -1624,23 +1624,52 @@ func (s *Server) undoCooked(w http.ResponseWriter, r *http.Request) {
 
 // ---- Library ----
 
-// tonightCard is the library's "Suggested for tonight", or nil.
+// tonightCard is the library's "Suggested for tonight", or nil. Several
+// meals planned for today are summed up and open the day.
 func (s *Server) tonightCard(ctx context.Context, sc store.Scoped) (*ui.TonightCard, error) {
 	t, err := s.plan.Tonight(ctx, sc)
 	if err != nil {
 		return nil, err
 	}
 	switch {
-	case t.Meal != nil:
-		r := t.Meal.Recipe
-		return &ui.TonightCard{RecipeID: r.ID.String(), RecipeSlug: r.Slug, Name: r.Name, Photo: r.Photo, Planned: true,
-			Meta: minutes(ctx, r.TotalMin)}, nil
+	case len(t.Meals) == 1:
+		r := t.Meals[0].Recipe
+		return &ui.TonightCard{Href: ui.RecipeHref(r.Slug), Name: r.Name, Meta: minutes(ctx, r.TotalMin), Planned: true,
+			Thumbs: []ui.TonightThumb{tonightThumb(r.ID, r.Name, r.Photo)}}, nil
+	case len(t.Meals) > 1:
+		c := &ui.TonightCard{Href: dayHref(t.Meals[0].Date, "/recipes"), Planned: true, Several: true}
+		var names []string
+		for i, m := range t.Meals {
+			if i < tonightThumbs {
+				c.Thumbs = append(c.Thumbs, tonightThumb(m.Recipe.ID, m.Recipe.Name, m.Recipe.Photo))
+			}
+			if i < tonightNames {
+				names = append(names, m.Recipe.Name)
+			}
+		}
+		c.Name = strings.Join(names, ", ")
+		if n := len(t.Meals) - tonightNames; n > 0 {
+			c.Meta = i18n.T(ctx, "plan.more", n)
+		}
+		return c, nil
 	case t.Suggestion != nil:
 		r := t.Suggestion.Recipe
-		return &ui.TonightCard{RecipeID: r.ID.String(), RecipeSlug: r.Slug, Name: r.Name, Photo: r.Photo,
-			Meta: joinNonEmpty(" · ", minutes(ctx, r.TotalMin), lastCooked(ctx, s.now(), t.Suggestion.LastCookedAt))}, nil
+		return &ui.TonightCard{Href: ui.RecipeHref(r.Slug), Name: r.Name,
+			Meta:   joinNonEmpty(" · ", minutes(ctx, r.TotalMin), lastCooked(ctx, s.now(), t.Suggestion.LastCookedAt)),
+			Thumbs: []ui.TonightThumb{tonightThumb(r.ID, r.Name, r.Photo)}}, nil
 	}
 	return nil, nil
+}
+
+// The tonight card stacks at most tonightThumbs pictures and names
+// tonightNames recipes; the rest count as "+ n more".
+const (
+	tonightThumbs = 3
+	tonightNames  = 2
+)
+
+func tonightThumb(id uuid.UUID, name, photo string) ui.TonightThumb {
+	return ui.TonightThumb{RecipeID: id.String(), Name: name, Photo: photo}
 }
 
 func joinNonEmpty(sep string, parts ...string) string {

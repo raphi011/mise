@@ -592,13 +592,14 @@ func TestSuggestions(t *testing.T) {
 		// Tonight: the first suggestion not planned this week, until a
 		// meal is planned for today.
 		tn, err := e.s.Tonight(ctx, e.sc)
-		if err != nil || tn.Meal != nil || tn.Suggestion == nil || tn.Suggestion.Recipe.ID != twoMonths.ID {
+		if err != nil || len(tn.Meals) != 0 || tn.Suggestion == nil || tn.Suggestion.Recipe.ID != twoMonths.ID {
 			t.Errorf("tonight %+v, %v", tn, err)
 		}
 		e.add(t, newer, "2026-11-09")
 		e.add(t, never, "2026-11-09")
-		if tn, err = e.s.Tonight(ctx, e.sc); err != nil || tn.Meal == nil || tn.Meal.Recipe.ID != newer.ID || tn.Suggestion != nil {
-			t.Errorf("tonight with a meal %+v, %v", tn, err)
+		tn, err = e.s.Tonight(ctx, e.sc)
+		if err != nil || len(tn.Meals) != 2 || tn.Meals[0].Recipe.ID != newer.ID || tn.Meals[1].Recipe.ID != never.ID || tn.Suggestion != nil {
+			t.Errorf("tonight with meals %+v, %v", tn, err)
 		}
 	})
 }

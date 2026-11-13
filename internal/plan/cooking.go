@@ -88,15 +88,15 @@ func (s *Service) Suggestions(ctx context.Context, sc store.Scoped, from, to sto
 	return out, nil
 }
 
-// Tonight is what the library suggests cooking tonight: today's first
-// planned meal, or else the first suggestion not planned this week.
+// Tonight is what the library suggests cooking tonight: today's planned
+// meals in plan order, or else the first suggestion not planned this week.
 type Tonight struct {
-	Meal       *Meal
+	Meals      []Meal
 	Suggestion *Suggestion
 }
 
-// Tonight returns the suggestion for tonight; both fields are nil when the
-// library has nothing to suggest.
+// Tonight returns the suggestion for tonight; both fields are empty when
+// the library has nothing to suggest.
 func (s *Service) Tonight(ctx context.Context, sc store.Scoped) (Tonight, error) {
 	c, err := s.Calendar(ctx, sc)
 	if err != nil {
@@ -108,7 +108,7 @@ func (s *Service) Tonight(ctx context.Context, sc store.Scoped) (Tonight, error)
 		return Tonight{}, err
 	}
 	if len(meals) > 0 {
-		return Tonight{Meal: &meals[0]}, nil
+		return Tonight{Meals: meals}, nil
 	}
 	week := c.WeekOf(today)
 	sugg, err := s.Suggestions(ctx, sc, week, week.AddDays(7), 1)
