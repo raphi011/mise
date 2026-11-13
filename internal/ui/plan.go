@@ -53,15 +53,58 @@ type PlanDay struct {
 	// Label is the translated full date ("Monday, 9 November").
 	Label string
 	Today bool
-	Past  bool
 	// InMonth is false for the neighbouring months' days in a month view.
 	InMonth bool
 	// Selected marks the month view's selected day; SelectHref selects it.
 	Selected   bool
 	SelectHref string
 	Meals      []PlanMeal
-	// AddHref plans a meal on the day.
+	// AddHref plans a meal on the day; DayHref opens the day sheet with all
+	// its meals.
 	AddHref string
+	DayHref string
+}
+
+// monthChips is how many meal chips a month grid cell holds.
+const monthChips = 2
+
+// MonthChips are the meals the month grid shows as chips: all of them when
+// they fit, else the first, with MonthHidden counting the rest.
+func (d PlanDay) MonthChips() []PlanMeal {
+	if len(d.Meals) > monthChips {
+		return d.Meals[:monthChips-1]
+	}
+	return d.Meals
+}
+
+// MonthHidden is how many meals the month grid leaves out of a day.
+func (d PlanDay) MonthHidden() int { return len(d.Meals) - len(d.MonthChips()) }
+
+// weekSlots is how many cards a desktop week day holds, all the same
+// height: up to that many meals, else one fewer and a "+N more" card.
+const weekSlots = 3
+
+// WeekOverflows reports whether the desktop week shows a "+N more" card for
+// the day instead of all its meals.
+func (d PlanDay) WeekOverflows() bool { return len(d.Meals) > weekSlots }
+
+// weekHidden reports whether the desktop week hides the day's i-th meal
+// behind its "+N more" card. Phones list every meal.
+func (d PlanDay) weekHidden(i int) bool { return d.WeekOverflows() && i >= weekSlots-1 }
+
+// WeekHidden is how many meals the "+N more" card stands for.
+func (d PlanDay) WeekHidden() int {
+	if !d.WeekOverflows() {
+		return 0
+	}
+	return len(d.Meals) - (weekSlots - 1)
+}
+
+// PlanDayView is the day sheet: every meal planned on a day.
+type PlanDayView struct {
+	Day PlanDay
+	// Back is the week page a change returns to without JavaScript.
+	Back string
 }
 
 // PlanMeal is a planned meal on a card or chip.

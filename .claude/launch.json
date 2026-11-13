@@ -6,6 +6,18 @@
       "runtimeExecutable": "mise",
       "runtimeArgs": ["run", "run"],
       "port": 8080
+    },
+    {
+      "name": "mise-demo",
+      "runtimeExecutable": "mise",
+      "runtimeArgs": ["exec", "--", "go", "run", "./cmd/mise-server", "serve", "-data-dir", "./data/demo", "-listen", ":8081"],
+      "port": 8081
+    },
+    {
+      "name": "mise-prod-copy",
+      "runtimeExecutable": "mise",
+      "runtimeArgs": ["exec", "--", "go", "run", "./cmd/mise-server", "serve", "-data-dir", "./data/prod-copy", "-db", "postgres://mise:mise@127.0.0.1:55432/mise?sslmode=disable", "-listen", ":8082", "-base-url", "http://localhost:8082"],
+      "port": 8082
     }
   ]
 }

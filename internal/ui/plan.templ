@@ -138,7 +138,7 @@ templ planSelectionBar() {
 
 templ weekDay(d PlanDay) {
 	<li
-		class={ "plan-day", templ.KV("plan-day--today", d.Today), templ.KV("plan-day--past", d.Past) }
+		class={ "plan-day", templ.KV("plan-day--today", d.Today) }
 		data-on:dragover__prevent={ dragOver(d.Date) }
 		data-on:dragleave={ dragLeave(d.Date) }
 		data-on:drop__prevent={ dropOn(d.Date) }
@@ -152,10 +152,20 @@ templ weekDay(d PlanDay) {
 			}
 		</div>
 		if len(d.Meals) > 0 {
-			<div class={ "plan-day__meals", templ.KV("plan-day__meals--several", len(d.Meals) > 1) }>
-				for _, m := range d.Meals {
-					@mealCard(m)
-				}
+			<div class="plan-day__meals">
+				<div class="plan-day__slots">
+					for i, m := range d.Meals {
+						@mealCard(m, d.weekHidden(i))
+					}
+					if d.WeekOverflows() {
+						<a
+							class="plan-day__more only-wide"
+							href={ templ.SafeURL(d.DayHref) }
+							data-on:click__prevent={ getAction(d.DayHref) }
+							aria-label={ i18n.T(ctx, "plan.moreLabel", len(d.Meals), d.Label) }
+						>{ i18n.T(ctx, "plan.more", d.WeekHidden()) }</a>
+					}
+				</div>
 				<a class="plan-day__another" href={ templ.SafeURL(d.AddHref) } data-on:click__prevent={ getAction(d.AddHref) } aria-label={ i18n.T(ctx, "plan.addOn", d.Label) }>
 					@iconPlus(14)
 					<span data-text={ "$_over === '" + d.Date + "' ? " + jsString(i18n.T(ctx, "plan.dropHere")) + " : " + jsString(i18n.T(ctx, "plan.add")) }>{ i18n.T(ctx, "plan.add") }</span>
@@ -171,10 +181,11 @@ templ weekDay(d PlanDay) {
 }
 
 // mealCard is a planned meal: a link to its menu that drags to other days
-// and can be selected.
-templ mealCard(m PlanMeal) {
+// and can be selected. A hidden card is behind its day's "+N more" card in
+// the desktop week.
+templ mealCard(m PlanMeal, hidden bool) {
 	<a
-		class="meal-card"
+		class={ "meal-card", templ.KV("meal-card--hidden", hidden) }
 		href={ templ.SafeURL(m.MenuHref()) }
 		{ selectable("m:"+m.ID, m.MenuHref(), m.Label, i18n.T(ctx, "plan.select.selected"))... }
 		data-class:meal-card--dragging={ dragging("m:" + m.ID) }
@@ -234,7 +245,7 @@ templ PlanMonthRegion(v PlanMonthView) {
 					for _, d := range week {
 						<li>
 							<a
-								class={ "month-cal__day", templ.KV("month-cal__day--out", !d.InMonth), templ.KV("month-cal__day--past", d.Past), templ.KV("month-cal__day--today", d.Today) }
+								class={ "month-cal__day", templ.KV("month-cal__day--out", !d.InMonth), templ.KV("month-cal__day--today", d.Today) }
 								href={ templ.SafeURL(d.SelectHref) }
 								if d.Selected {
 									aria-current="page"
@@ -257,7 +268,7 @@ templ PlanMonthRegion(v PlanMonthView) {
 				}
 			</h2>
 			for _, m := range v.Selected.Meals {
-				@mealCard(m)
+				@mealCard(m, false)
 			}
 			<a class="plan-day__add" href={ templ.SafeURL(v.Selected.AddHref) } data-on:click__prevent={ getAction(v.Selected.AddHref) }>
 				@iconPlus(16)
@@ -272,7 +283,7 @@ templ PlanMonthRegion(v PlanMonthView) {
 				for _, week := range v.Weeks {
 					for _, d := range week {
 						<div
-							class={ "month-grid__day", templ.KV("month-grid__day--out", !d.InMonth), templ.KV("month-grid__day--past", d.Past) }
+							class={ "month-grid__day", templ.KV("month-grid__day--out", !d.InMonth) }
 							data-on:dragover__prevent={ dragOver(d.Date) }
 							data-on:dragleave={ dragLeave(d.Date) }
 							data-on:drop__prevent={ dropOn(d.Date) }
@@ -284,13 +295,30 @@ templ PlanMonthRegion(v PlanMonthView) {
 								data-on:click__prevent={ getAction(d.AddHref) }
 								aria-label={ i18n.T(ctx, "plan.addOn", d.Label) }
 							>{ itoa(d.Num) }</a>
-							for _, m := range d.Meals {
+							for _, m := range d.MonthChips() {
 								<a
 									class={ "meal-chip avatar--" + Tint(m.RecipeID) }
 									href={ templ.SafeURL(m.MenuHref()) }
 									{ selectable("m:"+m.ID, m.MenuHref(), m.Label, i18n.T(ctx, "plan.select.selected"))... }
 									data-class:meal-chip--dragging={ dragging("m:" + m.ID) }
-								>{ m.Name }</a>
+								>
+									<span class="meal-chip__media" aria-hidden="true">
+										if m.Photo != "" {
+											<img src={ ImageURL(m.Photo, "thumb") } alt=""/>
+										} else {
+											{ Initial(m.Name) }
+										}
+									</span>
+									<span class="meal-chip__name">{ m.Name }</span>
+								</a>
+							}
+							if n := d.MonthHidden(); n > 0 {
+								<a
+									class="month-grid__more"
+									href={ templ.SafeURL(d.DayHref) }
+									data-on:click__prevent={ getAction(d.DayHref) }
+									aria-label={ i18n.T(ctx, "plan.moreLabel", len(d.Meals), d.Label) }
+								>{ i18n.T(ctx, "plan.more", n) }</a>
 							}
 						</div>
 					}
@@ -299,6 +327,91 @@ templ PlanMonthRegion(v PlanMonthView) {
 		</div>
 		<p class="muted plan__hint only-wide">{ i18n.T(ctx, "plan.month.legend") }</p>
 	</div>
+}
+
+// ---- Day ----
+
+// PlanDaySheet is a day's meals as a modal dialog, opened from the week's
+// "+N more" card.
+templ PlanDaySheet(v PlanDayView) {
+	<div id="sheet">
+		<dialog
+			id="plan-day"
+			class="sheet-dialog"
+			aria-labelledby="plan-day-title"
+			data-init="el.open || el.showModal()"
+			data-on:close="el.remove()"
+		>
+			@planDayBody(v, true)
+		</dialog>
+	</div>
+}
+
+// PlanDayPage is the day as a page, opened directly or without JavaScript.
+templ PlanDayPage(p Page, v PlanDayView) {
+	@Layout(p) {
+		<div class="narrow sheet">
+			@planDayBody(v, false)
+		</div>
+	}
+}
+
+// planDayBody lists the day's meals, each opening its menu, and adds
+// another. In the modal they replace the sheet; on the page they navigate.
+templ planDayBody(v PlanDayView, modal bool) {
+	<div class="sheet__head">
+		<span class="list__text">
+			<h2 class="sheet__title" id="plan-day-title">{ v.Day.Label }</h2>
+			<span class="muted">{ plural(ctx, len(v.Day.Meals), "plan.dayMealsOne", "plan.dayMeals") }</span>
+		</span>
+		if modal {
+			<button type="button" class="icon-btn" aria-label={ i18n.T(ctx, "groceries.edit.close") } data-on:click="el.closest('dialog').close()">
+				@iconClose()
+			</button>
+		}
+	</div>
+	if len(v.Day.Meals) > 0 {
+		<ul class="list plan-day-list" role="list">
+			for _, m := range v.Day.Meals {
+				<li class="list__row">
+					<a
+						class="list__link"
+						href={ templ.SafeURL(m.MenuHref()) }
+						if modal {
+							data-on:click__prevent={ getAction(m.MenuHref()) }
+						}
+					>
+						<span class={ "tile tile--lg avatar--" + Tint(m.RecipeID) } aria-hidden="true">
+							if m.Photo != "" {
+								<img src={ ImageURL(m.Photo, "thumb") } alt=""/>
+							} else {
+								{ Initial(m.Name) }
+							}
+						</span>
+						<span class="list__text">
+							<span class="plan-day-list__name">{ m.Name }</span>
+							<span class="list__note">{ joinNonEmpty(" · ", m.Time, m.Serves) }</span>
+						</span>
+						@chevron()
+					</a>
+				</li>
+			}
+		</ul>
+	}
+	<a
+		class="btn btn--secondary btn--block"
+		href={ templ.SafeURL(v.Day.AddHref) }
+		if modal {
+			data-on:click__prevent={ getAction(v.Day.AddHref) }
+		}
+		aria-label={ i18n.T(ctx, "plan.addOn", v.Day.Label) }
+	>
+		@iconPlus(16)
+		{ i18n.T(ctx, "plan.add") }
+	</a>
+	if !modal {
+		<a class="btn btn--ghost btn--block" href={ templ.SafeURL(v.Back) }>{ i18n.T(ctx, "plan.day.back") }</a>
+	}
 }
 
 // ---- Add to plan ----

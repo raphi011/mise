@@ -431,6 +431,7 @@ func (s *Server) routes(r *router) {
 	r.read("/images/{hash}/{size}", s.user(s.image))
 	r.read("/plan", s.user(s.planPage))
 	r.read("/plan/month", s.user(s.planMonthPage))
+	r.read("/plan/day", s.user(s.planDayPage))
 	r.write(http.MethodPost, "/plan", s.user(s.addMeal))
 	r.read("/plan/add", s.user(s.addPlanPage))
 	r.read("/plan/add/days", s.user(s.addPlanDays))
