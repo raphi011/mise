@@ -956,9 +956,9 @@ templ mealMenu(v MealMenuView, modal bool) {
 			<li>
 				<form
 					method="post"
-					action={ templ.SafeURL("/recipes/" + v.RecipeID + "/cooked") }
+					action={ templ.SafeURL("/plan/meals/" + v.ID + "/cooked") }
 					if modal {
-						data-on:submit={ postForm("/recipes/" + v.RecipeID + "/cooked") }
+						data-on:submit={ postForm("/plan/meals/" + v.ID + "/cooked") }
 					}
 				>
 					@backField(v.Back)

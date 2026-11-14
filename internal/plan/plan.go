@@ -110,6 +110,18 @@ type Calendar struct {
 // Today returns the household's date at t.
 func (c Calendar) Today(t time.Time) store.Date { return store.DateOf(t.In(c.Location)) }
 
+// WindowOf returns the first day of the planner's seven days that contain
+// d. The planner's weeks run from today rather than from the first day of
+// the week: today's, and every seven days before and after it.
+func WindowOf(today, d store.Date) store.Date {
+	n := int(d.In(time.UTC).Sub(today.In(time.UTC)).Hours()) / 24
+	k := n / 7
+	if n%7 < 0 {
+		k--
+	}
+	return today.AddDays(7 * k)
+}
+
 // WeekOf returns the first day of the week that contains d.
 func (c Calendar) WeekOf(d store.Date) store.Date {
 	return d.AddDays(-((int(d.Weekday()) - int(c.WeekStart) + 7) % 7))

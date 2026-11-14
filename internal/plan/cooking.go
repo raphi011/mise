@@ -89,7 +89,8 @@ func (s *Service) Suggestions(ctx context.Context, sc store.Scoped, from, to sto
 }
 
 // Tonight is what the library suggests cooking tonight: today's planned
-// meals in plan order, or else the first suggestion not planned this week.
+// meals in plan order, or else the first suggestion not planned in the
+// next seven days.
 type Tonight struct {
 	Meals      []Meal
 	Suggestion *Suggestion
@@ -110,8 +111,7 @@ func (s *Service) Tonight(ctx context.Context, sc store.Scoped) (Tonight, error)
 	if len(meals) > 0 {
 		return Tonight{Meals: meals}, nil
 	}
-	week := c.WeekOf(today)
-	sugg, err := s.Suggestions(ctx, sc, week, week.AddDays(7), 1)
+	sugg, err := s.Suggestions(ctx, sc, today, today.AddDays(7), 1)
 	if err != nil || len(sugg) == 0 {
 		return Tonight{}, err
 	}
@@ -125,6 +125,35 @@ func cookEvents(recipeID uuid.UUID) []live.Event {
 // MarkCooked records that the member by cooked the recipe now ("I made
 // this") and returns the cook event, for Undo with UndoCooked.
 func (s *Service) MarkCooked(ctx context.Context, sc store.Scoped, recipeID, by uuid.UUID) (uuid.UUID, error) {
+	return s.recordCooked(ctx, sc, recipeID, by, s.now())
+}
+
+// MarkMealCooked records that the member by cooked the planned meal on its
+// day: now for today's meal, at noon of its day for a past one. It returns
+// the meal and the cook event, for Undo with UndoCooked. A meal planned
+// after today has the field error "date".
+func (s *Service) MarkMealCooked(ctx context.Context, sc store.Scoped, mealID, by uuid.UUID) (Meal, uuid.UUID, error) {
+	m, err := getMeal(ctx, sc.Read(), sc, mealID)
+	if err != nil {
+		return Meal{}, uuid.Nil, err
+	}
+	c, err := s.Calendar(ctx, sc)
+	if err != nil {
+		return Meal{}, uuid.Nil, err
+	}
+	now := s.now()
+	at := now
+	switch today := c.Today(now); {
+	case today.Before(m.Date):
+		return Meal{}, uuid.Nil, FieldErrors{"date": "plan.error.cookedFuture"}
+	case m.Date.Before(today):
+		at = m.Date.In(c.Location).Add(12 * time.Hour)
+	}
+	ev, err := s.recordCooked(ctx, sc, m.Recipe.ID, by, at)
+	return m, ev, err
+}
+
+func (s *Service) recordCooked(ctx context.Context, sc store.Scoped, recipeID, by uuid.UUID, at time.Time) (uuid.UUID, error) {
 	id := store.NewID()
 	err := sc.Tx(ctx, func(ctx context.Context, q store.Querier) error {
 		if _, err := lockRecipe(ctx, q, sc, recipeID); err != nil {
@@ -132,7 +161,7 @@ func (s *Service) MarkCooked(ctx context.Context, sc store.Scoped, recipeID, by 
 		}
 		now := s.clock()
 		_, err := q.Exec(ctx, `INSERT INTO cook_events (id, household_id, recipe_id, user_id, cooked_at, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?)`, id, sc.HouseholdID(), recipeID, by, now, now, now)
+			VALUES (?, ?, ?, ?, ?, ?, ?)`, id, sc.HouseholdID(), recipeID, by, store.T(at), now, now)
 		return err
 	})
 	if err != nil {

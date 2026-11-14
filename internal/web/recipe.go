@@ -49,6 +49,16 @@ func dayMonth(ctx context.Context, t time.Time, loc *time.Location) string {
 	return i18n.T(ctx, "date.dayMonth", t.Day(), i18n.T(ctx, shortMonthKeys[t.Month()-1]))
 }
 
+// lastCookedOn is "Last 3 Nov", with the year when it is not this year's.
+func lastCookedOn(ctx context.Context, at, now time.Time, loc *time.Location) string {
+	at = at.In(loc)
+	d := dayMonth(ctx, at, loc)
+	if at.Year() != now.In(loc).Year() {
+		d += " " + strconv.Itoa(at.Year())
+	}
+	return i18n.T(ctx, "recipes.cookedLast", d)
+}
+
 // joinNames lists names as "Ben", "Ben and Chris", "Ben, Chris and Dana".
 func joinNames(ctx context.Context, names []string) string {
 	switch len(names) {
@@ -117,6 +127,9 @@ func (s *Server) recipeView(ctx context.Context, sc store.Scoped, id *auth.Ident
 		v.Cooked = i18n.T(ctx, "recipes.cookedOnce")
 	default:
 		v.Cooked = i18n.T(ctx, "recipes.cookedTimes", rec.TimesCooked)
+	}
+	if rec.LastCookedAt != nil {
+		v.LastCooked = lastCookedOn(ctx, *rec.LastCookedAt, s.now(), loc)
 	}
 	v.Attribution = i18n.T(ctx, "recipes.attribution", personLabel(ctx, rec.CreatedBy, id.UserID), monthYear(ctx, rec.CreatedAt, loc))
 	if rec.UpdatedBy.ID != rec.CreatedBy.ID {

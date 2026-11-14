@@ -428,7 +428,8 @@ func TestDiscoverPreview(t *testing.T) {
 		anna.get("/live?page=discover-preview&u="+url.QueryEscape("https://evil.example/x-rezept-1")).expect(t, "live of off-site page", http.StatusNotFound)
 
 		if body := anna.get(preview(site.URL + "/plain-rezept-3")).body; !strings.Contains(body, "No recipe data on this page") ||
-			!strings.Contains(body, `name="from" value="preview"`) {
+			!strings.Contains(body, `name="from" value="preview"`) ||
+			!strings.Contains(body, "Open it on the site instead") || strings.Contains(body, "AI import") {
 			t.Errorf("page without recipe data:\n%.4000s", body)
 		}
 		if body := anna.get(preview(site.URL + "/missing-rezept-4")).body; !strings.Contains(body, "couldn’t be reached") {

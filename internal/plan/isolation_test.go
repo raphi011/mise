@@ -137,6 +137,8 @@ func TestHouseholdIsolation(t *testing.T) {
 			_, err = s.MarkCooked(ctx, sc, other.recipe.ID, me)
 			notFound("cook other's recipe", err)
 			notFound("undo other's cook event", s.UndoCooked(ctx, sc, other.cookedRecipe, other.cooked))
+			_, _, err = s.MarkMealCooked(ctx, sc, other.meal.ID, me)
+			notFound("cook other's meal", err)
 
 			// Swapping onto a day only considers own meals: own meal moves
 			// alone.

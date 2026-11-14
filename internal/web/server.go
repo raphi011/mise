@@ -453,6 +453,7 @@ func (s *Server) routes(r *router) {
 	r.write(http.MethodPost, "/plan/meals/{id}/move", s.user(s.moveMeal))
 	r.write(http.MethodPost, "/plan/meals/{id}/servings", s.user(s.setMealServings))
 	r.write(http.MethodPost, "/plan/meals/{id}/replace", s.user(s.replaceMeal))
+	r.write(http.MethodPost, "/plan/meals/{id}/cooked", s.user(s.markMealCooked))
 	r.write(http.MethodPost, "/plan/meals/{id}/remove", s.user(s.removeMeal))
 	r.write(http.MethodPost, "/plan/meals/{id}/restore", s.user(s.restoreMeal))
 	r.write(http.MethodPost, "/plan/meals/{id}/unplan", s.user(s.unplanMeal))

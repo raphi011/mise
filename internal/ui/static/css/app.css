@@ -1833,6 +1833,7 @@ mark {
 
 .meta-tile dt { font-size: 12px; color: var(--muted); }
 .meta-tile dd { margin: 0; font-size: 16px; font-weight: 600; }
+.meta-tile dd.meta-tile__note { font-size: 12px; font-weight: 400; color: var(--muted); }
 .meta-tile__action {
   display: inline-flex;
   align-items: center;

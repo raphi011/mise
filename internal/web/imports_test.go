@@ -257,7 +257,8 @@ func TestImportRunningAndCancel(t *testing.T) {
 }
 
 // TestImportFailedScreen shows a page without recipe data while AI import
-// is off: the error, the form with the link kept, and the way out.
+// is off: the error, the form with the link kept, and the way out, without
+// a word about AI.
 func TestImportFailedScreen(t *testing.T) {
 	_, srv := startImportServer(t, storetest.SQLite(t))
 	anna, _ := household(t, srv)
@@ -266,10 +267,13 @@ func TestImportFailedScreen(t *testing.T) {
 	job := startImport(t, anna, site.URL+"/plain")
 	page := "/imports/" + job
 	body := waitForPage(t, anna, page, "Couldn’t find recipe data on that page")
-	for _, want := range []string{"ask an admin to turn on AI import", `value="` + site.URL + `/plain"`, "Type it myself", "Import again", `href="/recipes/new"`} {
+	for _, want := range []string{"Only pages with recipe data can be imported", `value="` + site.URL + `/plain"`, "Type it myself", "Import again", `href="/recipes/new"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("failed screen lacks %q", want)
 		}
+	}
+	if strings.Contains(body, " AI") {
+		t.Error("failed screen mentions AI while AI import is off")
 	}
 	if t.Failed() {
 		t.Fatalf("failed screen:\n%.4000s", body)

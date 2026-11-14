@@ -122,15 +122,15 @@ func localPath(raw, fallback string) string {
 
 func weekHref(week store.Date) string { return "/plan?week=" + week.String() }
 
-// weekBack is the week page of the week that contains d, where a plain
-// form post returns to. Without the calendar it links d itself, which the
-// week page also shows.
+// weekBack is the week page of the planner week that contains d, where a
+// plain form post returns to. Without the calendar it links d itself,
+// which the week page also shows.
 func (s *Server) weekBack(ctx context.Context, sc store.Scoped, d store.Date) string {
-	cal, err := s.plan.Calendar(ctx, sc)
+	today, err := s.plan.Today(ctx, sc)
 	if err != nil {
 		return weekHref(d)
 	}
-	return weekHref(cal.WeekOf(d))
+	return weekHref(plan.WindowOf(today, d))
 }
 
 func monthHref(year int, month time.Month, date store.Date) string {
@@ -200,27 +200,20 @@ func (s *Server) planDay(ctx context.Context, d plan.Day, today store.Date, back
 	return pd
 }
 
-// planWeekView loads the week that contains date for the viewer.
+// planWeekView loads the planner week (seven days from today, or a
+// multiple of seven days before or after) that contains date.
 func (s *Server) planWeekView(ctx context.Context, sc store.Scoped, date store.Date) (ui.PlanWeekView, error) {
-	w, err := s.plan.Week(ctx, sc, date)
+	w, err := s.plan.Window(ctx, sc, date)
 	if err != nil {
 		return ui.PlanWeekView{}, err
 	}
 	back := weekHref(w.Start)
-	cal, err := s.plan.Calendar(ctx, sc)
-	if err != nil {
-		return ui.PlanWeekView{}, err
-	}
-	thisWeek := cal.WeekOf(w.Today)
-	// The month link shows today's month for this week, else the month
-	// the week starts in: the same for the page and its live refresh.
+	// The month link shows the month the week starts in, today's for the
+	// current week: the same for the page and its live refresh.
 	month := w.Start
-	if w.Start == thisWeek {
-		month = w.Today
-	}
 	v := ui.PlanWeekView{
 		Week: w.Start.String(), PrevHref: weekHref(w.Start.AddDays(-7)), NextHref: weekHref(w.Start.AddDays(7)),
-		TodayHref: "/plan", Current: w.Start == thisWeek,
+		TodayHref: "/plan", Current: w.Start == w.Today,
 		MonthHref: monthHref(month.Year, month.Month, store.Date{}),
 	}
 	planned := 0
@@ -287,8 +280,7 @@ func (s *Server) planPage(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	start := cal.WeekOf(date)
-	p := s.page(r, weekTitle(ctx, start, cal.WeekOf(today)), ui.NavPlan)
+	p := s.page(r, weekTitle(ctx, plan.WindowOf(today, date), today), ui.NavPlan)
 	s.render(w, r, http.StatusOK, ui.PlanWeek(p, v))
 }
 
@@ -307,7 +299,7 @@ func (s *Server) planDayPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	back := localPath(r.URL.Query().Get("back"), s.weekBack(ctx, sc, date))
-	wk, err := s.plan.Week(ctx, sc, date)
+	wk, err := s.plan.Window(ctx, sc, date)
 	if err != nil {
 		s.serverError(w, r, err)
 		return
@@ -612,9 +604,9 @@ func (s *Server) addPlanView(ctx context.Context, sc store.Scoped, id *auth.Iden
 	if st.week.IsZero() {
 		st.week = st.date
 	}
-	week := cal.WeekOf(st.week)
+	week := plan.WindowOf(today, st.week)
 	// A week other than the chosen day's keeps its weekday.
-	if from := cal.WeekOf(st.date); from != week {
+	if from := plan.WindowOf(today, st.date); from != week {
 		st.date = week.AddDays(dayIndex(from, st.date))
 	}
 	picker, err := s.addPicker(ctx, sc, week, st.date)
@@ -685,7 +677,7 @@ func dayIndex(start, d store.Date) int {
 
 // addPicker is the add sheet's week with date chosen.
 func (s *Server) addPicker(ctx context.Context, sc store.Scoped, week, date store.Date) (ui.PlanPicker, error) {
-	w, err := s.plan.Week(ctx, sc, week)
+	w, err := s.plan.Window(ctx, sc, week)
 	if err != nil {
 		return ui.PlanPicker{}, err
 	}
@@ -944,7 +936,7 @@ func (s *Server) addMeal(w http.ResponseWriter, r *http.Request) {
 	if len(others) > 0 {
 		undo["also"] = joinIDs(others)
 	}
-	back := localPath(f.get("back"), weekHref(cal.WeekOf(first.Date)))
+	back := localPath(f.get("back"), weekHref(plan.WindowOf(cal.Today(s.now()), first.Date)))
 	s.planDone(w, r, back, toast(msg, "/plan/meals/"+first.ID.String()+"/unplan", undo))
 }
 
@@ -1014,12 +1006,13 @@ func (s *Server) pickView(ctx context.Context, sc store.Scoped, id *auth.Identit
 	if err != nil {
 		return ui.PlanPickView{}, err
 	}
+	today := cal.Today(s.now())
 	if date.IsZero() {
-		date = cal.Today(s.now())
+		date = today
 	}
-	back = localPath(back, weekHref(cal.WeekOf(date)))
+	back = localPath(back, weekHref(plan.WindowOf(today, date)))
 	v := ui.PlanPickView{Date: date.String(), DayLabel: fullDate(ctx, date), Query: q, Back: back}
-	w, err := s.plan.Week(ctx, sc, date)
+	w, err := s.plan.Window(ctx, sc, date)
 	if err != nil {
 		return ui.PlanPickView{}, err
 	}
@@ -1039,7 +1032,7 @@ func (s *Server) pickView(ctx context.Context, sc store.Scoped, id *auth.Identit
 	// Suggestions only help when the list below does not already show the
 	// whole library.
 	if q == "" && matched > len(cards) {
-		week := cal.WeekOf(date)
+		week := plan.WindowOf(today, date)
 		sugg, err := s.plan.Suggestions(ctx, sc, week, week.AddDays(7), staleShown)
 		if err != nil {
 			return ui.PlanPickView{}, err
@@ -1171,7 +1164,7 @@ func (s *Server) mealMenuView(ctx context.Context, sc store.Scoped, id *auth.Ide
 		ID: m.ID.String(), RecipeID: m.Recipe.ID.String(), RecipeSlug: m.Recipe.Slug, Name: m.Recipe.Name, Photo: m.Recipe.Photo,
 		DayLabel: fullDate(ctx, m.Date), Day: weekday(ctx, m.Date), Servings: m.Servings, Base: m.Recipe.Servings,
 		View: st.view, Cooked: !today.Before(m.Date), Query: st.query,
-		Back: localPath(st.back, weekHref(cal.WeekOf(m.Date))),
+		Back: localPath(st.back, weekHref(plan.WindowOf(today, m.Date))),
 	}
 	switch st.view {
 	case "move":
@@ -1179,7 +1172,7 @@ func (s *Server) mealMenuView(ctx context.Context, sc store.Scoped, id *auth.Ide
 		if week.IsZero() {
 			week = m.Date
 		}
-		if v.Move, err = s.movePicker(ctx, sc, m, cal.WeekOf(week), st.moveTo); err != nil {
+		if v.Move, err = s.movePicker(ctx, sc, m, plan.WindowOf(today, week), st.moveTo); err != nil {
 			return ui.MealMenuView{}, err
 		}
 	case "servings":
@@ -1200,7 +1193,7 @@ func (s *Server) mealMenuView(ctx context.Context, sc store.Scoped, id *auth.Ide
 // movePicker is the move view's week with to chosen (none when zero or
 // outside the week).
 func (s *Server) movePicker(ctx context.Context, sc store.Scoped, m plan.Meal, week, to store.Date) (ui.PlanPicker, error) {
-	w, err := s.plan.Week(ctx, sc, week)
+	w, err := s.plan.Window(ctx, sc, week)
 	if err != nil {
 		return ui.PlanPicker{}, err
 	}
@@ -1604,6 +1597,26 @@ func (s *Server) markCooked(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.planDone(w, r, back, patchTempl(ui.ToastRegion(cookedToast(ctx, recipeID, event, back))))
+}
+
+// markMealCooked is "I made this" on a planned meal: it records the
+// meal's day, not today.
+func (s *Server) markMealCooked(w http.ResponseWriter, r *http.Request) {
+	mealID, sc, ok := s.mealTarget(w, r)
+	if !ok {
+		return
+	}
+	ctx := r.Context()
+	m, event, err := s.plan.MarkMealCooked(ctx, sc, mealID, identity(r).UserID)
+	if s.planError(w, r, err) {
+		return
+	}
+	back := localPath(r.PostFormValue("back"), s.weekBack(ctx, sc, m.Date))
+	t := cookedToast(ctx, m.Recipe.ID, event, back)
+	if today, err := s.plan.Today(ctx, sc); err == nil && m.Date != today {
+		t.Message = i18n.T(ctx, "plan.toast.cookedOn", shortDate(ctx, m.Date))
+	}
+	s.planDone(w, r, back, patchTempl(ui.ToastRegion(t)))
 }
 
 func (s *Server) undoCooked(w http.ResponseWriter, r *http.Request) {

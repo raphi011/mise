@@ -167,6 +167,8 @@ type RecipeView struct {
 	Prep   string
 	Cook   string
 	Cooked string
+	// LastCooked is the translated "Last 3 Nov", or "" when never cooked.
+	LastCooked string
 	// Servings is what the viewer scaled to; Base what the recipe makes.
 	Servings int
 	Base     int
