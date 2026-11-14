@@ -3,6 +3,7 @@ package ai
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"golang.org/x/text/language"
 
@@ -13,6 +14,9 @@ import (
 // ErrNoRecipe means the page has no schema.org Recipe data.
 var ErrNoRecipe = errors.New("ai: no recipe data on the page")
 
+// ErrUnreachable wraps why a page could not be fetched.
+var ErrUnreachable = errors.New("ai: page could not be fetched")
+
 // pageDraft fetches a page and builds a draft from its JSON-LD without a
 // model. Without JSON-LD it returns the parsed page and ErrNoRecipe, so
 // the caller can hand the text to the model. lang is the importer's
@@ -20,7 +24,7 @@ var ErrNoRecipe = errors.New("ai: no recipe data on the page")
 func (s *Service) pageDraft(ctx context.Context, sc store.Scoped, rawURL string, lang language.Tag) (Draft, Page, error) {
 	res, err := s.fetcher.Fetch(ctx, rawURL, KindPage)
 	if err != nil {
-		return Draft{}, Page{}, err
+		return Draft{}, Page{}, fmt.Errorf("%w: %w", ErrUnreachable, err)
 	}
 	page := ParsePage(res)
 	if page.Recipe == nil {
@@ -30,7 +34,18 @@ func (s *Service) pageDraft(ctx context.Context, sc store.Scoped, rawURL string,
 	return d, page, err
 }
 
-// draftFromPage builds a draft from a page's JSON-LD recipe.
+// PreviewDraft builds the draft importing rawURL would start from, from
+// the page's recipe data and without a model or an import job, so a
+// recipe can be looked at before it is imported. It returns ErrNoRecipe
+// for a page without recipe data and ErrUnreachable (wrapping the cause)
+// when the page could not be fetched.
+func (s *Service) PreviewDraft(ctx context.Context, sc store.Scoped, rawURL string, lang language.Tag) (Draft, error) {
+	d, _, err := s.pageDraft(ctx, sc, rawURL, lang)
+	return d, err
+}
+
+// draftFromPage builds a draft from a page's recipe data (JSON-LD or
+// microdata).
 func (s *Service) draftFromPage(ctx context.Context, sc store.Scoped, page Page, lang language.Tag) (Draft, error) {
 	r := *page.Recipe
 	if r.SourceURL == "" && page.URL != nil {

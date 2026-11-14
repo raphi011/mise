@@ -563,14 +563,14 @@ func dragLeave(date string) string {
 	return "!el.contains(evt.relatedTarget) && $_over === '" + date + "' && ($_over = '')"
 }
 
-// dropOn puts what is dragged on the day: one meal swaps with the day's
-// first meal, several go after its meals; recipes are planned on it in
-// the order they were selected.
+// dropOn puts what is dragged on the day: meals go after its meals (swapping
+// is in the meal's menu); recipes are planned on it in the order they were
+// selected.
 func dropOn(date string) string {
 	d := "'" + date + "'"
 	return "$_drag.startsWith('m:') ? ($_drag.includes(',')" +
 		" ? @post('/plan/move', {payload: {meal: mise.plan.ids($_drag), date: " + d + "}})" +
-		" : @post('/plan/meals/' + $_drag.slice(2) + '/move', {payload: {date: " + d + ", mode: 'swap'}}))" +
+		" : @post('/plan/meals/' + $_drag.slice(2) + '/move', {payload: {date: " + d + ", mode: 'move'}}))" +
 		" : $_drag.startsWith('r:') && (@post('/plan', {payload: {recipe: mise.plan.ids($_drag), date: " + d + "}}), $_sel = []);" +
 		" $_drag = ''; $_over = ''"
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/raphi011/mise/internal/ai"
 	"github.com/raphi011/mise/internal/auth"
 	"github.com/raphi011/mise/internal/config"
+	"github.com/raphi011/mise/internal/discover"
 	"github.com/raphi011/mise/internal/groceries"
 	"github.com/raphi011/mise/internal/i18n"
 	"github.com/raphi011/mise/internal/images"
@@ -85,6 +86,8 @@ type Server struct {
 	ai        *ai.Service
 	// aiConfig is what ai was built from; tests rebuild it with fakes.
 	aiConfig ai.Config
+	// discover searches the recipe sites; tests rebuild it with fake ones.
+	discover *discover.Service
 	images   *images.Store
 	// sso signs users in with the OIDC provider; nil without one.
 	sso *sso.Client
@@ -162,9 +165,11 @@ func New(cfg config.Config, db *store.DB, log *slog.Logger) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	s.aiConfig = ai.Config{Box: box, Groceries: s.groceries, Recipes: s.recipes, Now: s.now,
+	fetcher := ai.NewFetcher()
+	s.aiConfig = ai.Config{Box: box, Groceries: s.groceries, Recipes: s.recipes, Fetcher: fetcher, Now: s.now,
 		DB: db, Publisher: s.live, Log: log}
 	s.ai = ai.New(s.aiConfig)
+	s.discover = discover.New(fetcher, []discover.Site{discover.Ichkoche()}, s.now)
 	s.auth = auth.New(db, auth.Config{Log: log, SecureCookie: s.secureCookie, OnSetup: s.seedHousehold})
 	if cfg.BaseURL != nil {
 		if err := s.setBaseURL(cfg.BaseURL); err != nil {
@@ -401,6 +406,9 @@ func (s *Server) routes(r *router) {
 	r.read("/recipes/new", s.user(s.newRecipePage))
 	r.read("/recipes/import", s.user(s.importFormPage))
 	r.write(http.MethodPost, "/recipes/import", s.user(s.startImport))
+	r.write(http.MethodPost, ui.DiscoverPath+"/import", s.user(s.discoverImport))
+	r.read(ui.DiscoverPath+"/photo", s.user(s.discoverPhoto))
+	r.read(ui.DiscoverPath+"/preview", s.user(s.discoverPreview))
 	r.read("/imports/{id}", s.user(s.importPage))
 	r.write(http.MethodPost, "/imports/{id}/cancel", s.user(s.cancelImport))
 	r.write(http.MethodPost, "/imports/{id}/discard", s.user(s.cancelImport))

@@ -9,7 +9,7 @@ import (
 
 // SharedSummary is the line a link preview shows under the title: the
 // recipe's own description, else its times and servings.
-func SharedSummary(ctx context.Context, description string, v SharedRecipeView) string {
+func SharedSummary(ctx context.Context, description string, v ReadOnlyRecipeView) string {
 	if d := strings.TrimSpace(description); d != "" {
 		return d
 	}

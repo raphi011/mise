@@ -1,0 +1,234 @@
+package ui
+
+import "github.com/raphi011/mise/internal/i18n"
+
+// SearchWeb is the search page's "From the web" section: the recipe
+// sites' merged hits for the query, the site chips, "More results" and
+// which sites could not be searched. Chips and "More results" are links
+// without JavaScript; with it they set signals that reopen the live
+// stream, which patches this region.
+templ SearchWeb(v WebView) {
+	<div id="search-web" class="search-web">
+		if v.Search.Query != "" {
+			<section
+				class="web stack"
+				aria-labelledby="web-title"
+				if v.Loading || v.LoadingMore {
+					aria-busy="true"
+				}
+			>
+				<div class="web__head">
+					<h2 class="section-title" id="web-title">
+						if v.Site != "" {
+							{ i18n.T(ctx, "discover.web.titleSite", v.Site) }
+						} else {
+							{ i18n.T(ctx, "discover.web.title") }
+						}
+					</h2>
+					<p class="web__lead">{ i18n.T(ctx, "discover.web.lead") }</p>
+				</div>
+				if v.Short > 0 {
+					<p class="muted">{ i18n.T(ctx, "discover.web.short", v.Short) }</p>
+				} else {
+					@formAlert(Form{Alert: v.Alert})
+					if len(v.Sites) > 0 {
+						<div class="chips web__sites" role="group" aria-label={ i18n.T(ctx, "discover.web.sites") }>
+							@webChip(v, "", i18n.T(ctx, "discover.web.all"), false)
+							for _, st := range v.Sites {
+								@webChip(v, st.Name, st.Name, st.Down)
+							}
+						</div>
+					}
+					<p class="visually-hidden" role="status">
+						if v.Loading || v.LoadingMore {
+							{ i18n.T(ctx, "discover.web.loading") }
+						}
+					</p>
+					if v.Loading {
+						<ul class="list web-hits" role="list" aria-hidden="true">
+							@webSkeleton(4)
+						</ul>
+					} else if len(v.Hits) > 0 {
+						<ul class="list web-hits" role="list" aria-label={ i18n.T(ctx, "discover.results") }>
+							for _, h := range v.Hits {
+								@webHit(v, h)
+							}
+							if v.LoadingMore {
+								@webSkeleton(2)
+							}
+						</ul>
+					} else if v.Empty {
+						<p class="muted">{ i18n.T(ctx, "discover.web.none", v.Search.Query) }</p>
+					}
+					if v.More && !v.Loading && !v.LoadingMore {
+						<p class="web__more">
+							<a
+								class="btn btn--secondary"
+								href={ templ.SafeURL(SearchHref(WebSearch{Query: v.Search.Query, Site: v.Search.Site, Pages: v.Search.Pages + 1})) }
+								data-on:click__prevent={ webMore(v.Search) }
+							>
+								if v.Search.Site != "" && len(v.Sites) > 0 {
+									{ i18n.T(ctx, "discover.web.moreSite", v.Search.Site) }
+								} else {
+									{ i18n.T(ctx, "discover.web.more") }
+								}
+							</a>
+						</p>
+					}
+					if v.Unavailable != "" {
+						<p class="fine-print">{ i18n.T(ctx, "discover.web.unavailable", v.Unavailable) }</p>
+					}
+				}
+			</section>
+		}
+	</div>
+}
+
+// webChip is a site filter chip; site "" is "All sites". A site that
+// could not be searched cannot be picked.
+templ webChip(v WebView, site, label string, down bool) {
+	if down {
+		<span class="chip chip--dashed chip--down" aria-disabled="true">
+			{ label }
+			<span class="chip__count">{ i18n.T(ctx, "discover.web.down") }</span>
+		</span>
+	} else {
+		<a
+			class={ "chip", templ.KV("chip--on", v.Search.Site == site) }
+			href={ templ.SafeURL(SearchHref(WebSearch{Query: v.Search.Query, Site: site})) }
+			if v.Search.Site == site {
+				aria-current="true"
+			}
+			data-on:click__prevent={ webPick(site) }
+		>{ label }</a>
+	}
+}
+
+templ webSkeleton(n int) {
+	for range n {
+		<li class="list__row web-hit web-hit--skeleton">
+			<span class="list__link">
+				<span class="tile tile--lg skeleton"></span>
+				<span class="list__text">
+					<span class="skeleton skeleton--line"></span>
+					<span class="skeleton skeleton--short"></span>
+				</span>
+			</span>
+		</li>
+	}
+}
+
+templ webHit(v WebView, h DiscoverHit) {
+	<li class="list__row web-hit">
+		<a class="list__link" href={ templ.SafeURL(DiscoverPreviewHref(h.URL, v.Search)) }>
+			<span class={ tileClass(Tint(h.URL), "lg") } aria-hidden="true">
+				if h.Photo != "" {
+					<img src={ h.Photo } alt="" loading="lazy"/>
+				} else {
+					{ Initial(h.Title) }
+				}
+			</span>
+			<span class="list__text">
+				<span class="hit__name">{ h.Title }</span>
+				if h.Meta != "" {
+					<span class="muted">{ h.Meta }</span>
+				}
+				if len(v.Sites) > 0 {
+					<span class="web-hit__site">{ h.Site }</span>
+				}
+			</span>
+		</a>
+		@discoverAction(h, v.Search, false)
+	</li>
+}
+
+// discoverAction is a hit's import button, or its state once it is in the
+// library or being imported. preview marks the form on the preview, which
+// the import answers by showing the preview again; in the search's list
+// the labels show on wide screens only, next to the icon.
+templ discoverAction(h DiscoverHit, w WebSearch, preview bool) {
+	switch h.State {
+		case DiscoverNew:
+			<form class="discover-hit__action" method="post" action={ templ.SafeURL(DiscoverPath + "/import") } data-on:submit={ postForm(DiscoverPath + "/import") }>
+				<input type="hidden" name="url" value={ h.URL }/>
+				<input type="hidden" name="q" value={ w.Query }/>
+				if w.Site != "" {
+					<input type="hidden" name="site" value={ w.Site }/>
+				}
+				<input type="hidden" name="wp" value={ itoa(w.Pages) }/>
+				if preview {
+					<input type="hidden" name="from" value="preview"/>
+					<button class="btn btn--primary" type="submit">
+						@iconImport(18)
+						{ i18n.T(ctx, "discover.import") }
+					</button>
+				} else {
+					<button class="btn btn--secondary btn--small web-hit__import" type="submit" aria-label={ i18n.T(ctx, "discover.importNamed", h.Title) }>
+						@iconImport(18)
+						<span class="web-hit__label">{ i18n.T(ctx, "discover.import") }</span>
+					</button>
+				}
+			</form>
+		default:
+			<a class={ "discover-hit__action", "discover-hit__state", "discover-hit__state--" + h.State } href={ templ.SafeURL(h.Href) }>
+				switch h.State {
+					case DiscoverLibrary, DiscoverReady:
+						@iconCheck(14)
+					case DiscoverFailed:
+						@iconAlert(14)
+					default:
+						<span class="import-job__spinner" aria-hidden="true"></span>
+				}
+				<span class={ templ.KV("web-hit__label", !preview) }>
+					if h.State == DiscoverLibrary {
+						{ i18n.T(ctx, "discover.inLibrary") }
+					} else {
+						{ i18n.T(ctx, i18n.Key("recipes.imports." + h.State)) }
+					}
+				</span>
+			</a>
+	}
+}
+
+// DiscoverPreview is a recipe on a site as importing it would start it:
+// read-only, with a bar saying where it comes from and the import button.
+// The live stream follows the import in the bar.
+templ DiscoverPreview(p Page, v DiscoverPreviewView) {
+	@Layout(p) {
+		<div class="discover-preview stack-lg" data-init={ discoverPreviewLive(v) }>
+			<section class="discover-preview__bar" aria-label={ i18n.T(ctx, "discover.preview.label") }>
+				<p class="discover-preview__note">
+					@iconSearch(16)
+					<span>{ i18n.T(ctx, "discover.preview.note", v.Site) }</span>
+				</p>
+				@DiscoverPreviewAction(v)
+			</section>
+			if v.Recipe != nil {
+				@readOnlyRecipe(*v.Recipe, false)
+			} else {
+				<section class="empty empty--center" role="alert">
+					<span class="confirm-dialog__icon" aria-hidden="true">
+						@iconAlert(22)
+					</span>
+					if v.NoRecipe {
+						<h2>{ i18n.T(ctx, "discover.preview.noRecipe") }</h2>
+						<p>{ i18n.T(ctx, "discover.preview.noRecipeBody") }</p>
+					} else {
+						<h2>{ i18n.T(ctx, "discover.preview.unavailable", v.SourceHost) }</h2>
+						<p>{ i18n.T(ctx, "discover.preview.unavailableBody") }</p>
+					}
+					<p><a href={ templ.SafeURL(v.Hit.URL) } rel="noopener noreferrer" target="_blank">{ i18n.T(ctx, "recipes.source", v.SourceHost) }</a></p>
+				</section>
+			}
+		</div>
+	}
+}
+
+// DiscoverPreviewAction is the preview's import button or import state,
+// patched on its own.
+templ DiscoverPreviewAction(v DiscoverPreviewView) {
+	<div id="discover-preview-action" class="discover-preview__action">
+		@formAlert(Form{Alert: v.Alert})
+		@discoverAction(v.Hit, v.Search, true)
+	</div>
+}

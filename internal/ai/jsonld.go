@@ -3,11 +3,16 @@ package ai
 import (
 	"net/url"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
+
+	"golang.org/x/net/html"
+	"golang.org/x/net/html/atom"
 )
 
-// Recipe is a recipe as read from a source (JSON-LD or the model), before
+// Recipe is a recipe as read from a source (JSON-LD, microdata or the
+// model), before
 // its ingredients are matched to items.
 type Recipe struct {
 	Name        string   `json:"name"`
@@ -40,6 +45,12 @@ func recipeFromJSONLD(data []byte, base *url.URL) *Recipe {
 	if node == nil {
 		return nil
 	}
+	return recipeFromNode(node, base)
+}
+
+// recipeFromNode reads a schema.org Recipe node, decoded from JSON-LD or
+// built from microdata. It returns nil without a name or ingredients.
+func recipeFromNode(node map[string]any, base *url.URL) *Recipe {
 	r := &Recipe{
 		Name:        cleanText(str(node["name"])),
 		Description: cleanText(str(node["description"])),
@@ -93,10 +104,8 @@ func findRecipe(v any, depth int) map[string]any {
 			}
 		}
 	case map[string]any:
-		for _, t := range strs(v["@type"]) {
-			if t == "Recipe" || strings.HasSuffix(t, "/Recipe") {
-				return v
-			}
+		if slices.ContainsFunc(strs(v["@type"]), isRecipeType) {
+			return v
 		}
 		for _, key := range []string{"@graph", "mainEntity", "mainEntityOfPage"} {
 			if r := findRecipe(v[key], depth+1); r != nil {
@@ -105,6 +114,12 @@ func findRecipe(v any, depth int) map[string]any {
 		}
 	}
 	return nil
+}
+
+// isRecipeType reports whether a type names schema.org Recipe, short or
+// as a URL.
+func isRecipeType(t string) bool {
+	return t == "Recipe" || strings.HasSuffix(t, "/Recipe")
 }
 
 // str returns a string, a number as text, or the first string of an array.
@@ -209,7 +224,7 @@ func instructions(v any, depth int) []Step {
 	switch v := v.(type) {
 	case string:
 		for line := range strings.SplitSeq(stripTagsToLines(v), "\n") {
-			if line = cleanText(line); line != "" {
+			if line = stepText(line); line != "" {
 				out = append(out, Step{Text: line})
 			}
 		}
@@ -221,15 +236,55 @@ func instructions(v any, depth int) []Step {
 		if items, ok := v["itemListElement"]; ok {
 			return instructions(items, depth+1)
 		}
-		text := cleanText(str(v["text"]))
+		text := stepText(str(v["text"]))
 		if text == "" {
-			text = cleanText(str(v["name"]))
+			text = stepText(str(v["name"]))
 		}
 		if text != "" {
 			out = append(out, Step{Text: text})
 		}
 	}
 	return out
+}
+
+// stepText cleans a step's text. A step that is nothing but a link points
+// elsewhere ("Watch the video") rather than saying what to do, so it
+// comes back empty.
+func stepText(s string) string {
+	if linkOnly(s) {
+		return ""
+	}
+	return cleanText(s)
+}
+
+// linkOnly reports whether all the text in a piece of markup sits inside
+// links.
+func linkOnly(s string) bool {
+	if !strings.Contains(s, "<") {
+		return false
+	}
+	doc, err := html.Parse(strings.NewReader("<body>" + s))
+	if err != nil {
+		return false
+	}
+	linked := false
+	var walk func(n *html.Node, inLink bool) bool
+	walk = func(n *html.Node, inLink bool) bool {
+		if n.Type == html.TextNode && strings.TrimSpace(n.Data) != "" {
+			if !inLink {
+				return false
+			}
+			linked = true
+		}
+		inLink = inLink || n.DataAtom == atom.A
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			if !walk(c, inLink) {
+				return false
+			}
+		}
+		return true
+	}
+	return walk(doc, false) && linked
 }
 
 var blockTag = regexp.MustCompile(`(?i)<\s*(?:br|/p|/li|/div)\s*/?>`)

@@ -336,11 +336,16 @@ templ toggleRow(name, label string, checked bool) {
 	</label>
 }
 
-// Search is the recipe search page. Results update as the user types; the
-// form also works as a plain GET.
+// Search is the recipe search page. The library's results update as the
+// user types; the recipe sites' follow once typing settles ($wq), through
+// the live stream. The form also works as a plain GET.
 templ Search(p Page, v SearchView) {
 	@Layout(p) {
-		<div class="search" data-signals={ "{q: " + jsString(v.Query) + "}" }>
+		<div
+			class="search"
+			data-signals={ "{q: " + jsString(v.Query) + ", wq: " + jsString(v.Web.Search.Query) + ", site: " + jsString(v.Web.Search.Site) + ", wpages: " + itoa(v.Web.Search.Pages) + "}" }
+			data-effect={ searchWebLive }
+		>
 			<form id="search-form" class="search-form" method="get" action="/recipes/search" role="search">
 				<label class="search-link search-link--field">
 					@iconSearch(20)
@@ -358,14 +363,17 @@ templ Search(p Page, v SearchView) {
 						aria-controls="search-results"
 						data-bind:q
 						data-on:input__debounce.200ms="@get('/recipes/search/results', {filterSignals: {include: /^q$/}})"
+						data-on:input__debounce.600ms="$wq = $q; $wpages = 1"
 					/>
 				</label>
+				<input type="hidden" name="site" value={ v.Web.Search.Site } disabled?={ v.Web.Search.Site == "" } data-attr:value="$site" data-attr:disabled="!$site"/>
 			</form>
 			<section class="recent" aria-labelledby="recent-title" data-recent hidden>
 				<h2 class="section-title" id="recent-title">{ i18n.T(ctx, "recipes.search.recent") }</h2>
 				<ul class="chips" role="list" data-recent-list></ul>
 			</section>
 			@SearchResults(v)
+			@SearchWeb(v.Web)
 		</div>
 	}
 }

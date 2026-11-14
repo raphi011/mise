@@ -136,11 +136,11 @@ func (f *Fetcher) Fetch(ctx context.Context, rawURL string, kind Kind) (Fetched,
 	return f.fetch(ctx, rawURL, kind, "")
 }
 
-// FetchOnHost is Fetch for a page that must be on host, redirects
-// included (ErrOtherHost), as fetch_page's pages must be on the source
-// page's host.
-func (f *Fetcher) FetchOnHost(ctx context.Context, rawURL, host string) (Fetched, error) {
-	return f.fetch(ctx, rawURL, KindPage, host)
+// FetchOnHost is Fetch for a page or image that must be on host,
+// redirects included (ErrOtherHost), as fetch_page's pages must be on the
+// source page's host.
+func (f *Fetcher) FetchOnHost(ctx context.Context, rawURL, host string, kind Kind) (Fetched, error) {
+	return f.fetch(ctx, rawURL, kind, host)
 }
 
 func (f *Fetcher) fetch(ctx context.Context, rawURL string, kind Kind, host string) (Fetched, error) {

@@ -168,7 +168,7 @@ func (s *Server) sharedRecipePage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	token := r.PathValue("token")
-	v := ui.SharedRecipeView{
+	v := ui.ReadOnlyRecipeView{
 		Tint: ui.Tint(rec.ID.String()), Name: rec.Name, Description: rec.Description,
 		Prep: minutes(ctx, rec.PrepMin), Cook: minutes(ctx, rec.CookMin), Servings: rec.Servings,
 	}

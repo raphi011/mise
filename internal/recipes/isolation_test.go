@@ -28,7 +28,8 @@ func TestHouseholdIsolation(t *testing.T) {
 		setup := func(name string) fixture {
 			e := newEnv(t, db, name)
 			f := fixture{env: e}
-			f.recipe = e.create(t, Input{Name: "Dal", Tags: []string{"Vegan"}, Ingredients: ings("250 g red lentils")})
+			f.recipe = e.create(t, Input{Name: "Dal", Tags: []string{"Vegan"}, Ingredients: ings("250 g red lentils"),
+				SourceURL: "https://food.example/dal-" + name})
 			f.binned = e.create(t, Input{Name: "Soup"})
 			f.renamed = e.create(t, Input{Name: "Chili"})
 			if err := e.s.Update(ctx, e.sc, f.renamed.ID, e.hh.Admin, Input{Name: "Chili con carne", Servings: 2}); err != nil {
@@ -86,6 +87,10 @@ func TestHouseholdIsolation(t *testing.T) {
 			}
 			if tags, err := s.Tags(ctx, sc); err != nil || len(tags) != 2 || tags[1].Count != 1 {
 				t.Errorf("tags %+v, %v", tags, err)
+			}
+			if got, err := s.BySourceURL(ctx, sc, []string{own.recipe.SourceURL, other.recipe.SourceURL}); err != nil ||
+				len(got) != 1 || got[own.recipe.SourceURL] != "dal" {
+				t.Errorf("by source URL: %v, %v", got, err)
 			}
 			_, err := s.Get(ctx, sc, other.recipe.ID, me)
 			notFound("get other's recipe", err)

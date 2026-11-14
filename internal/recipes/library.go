@@ -431,3 +431,32 @@ func matchSpan(text, key string) Span {
 	}
 	return Span{}
 }
+
+// BySourceURL returns the slugs of the household's live recipes imported
+// from any of urls, keyed by URL, so a site's search results can mark the
+// recipes already in the library.
+func (s *Service) BySourceURL(ctx context.Context, sc store.Scoped, urls []string) (map[string]string, error) {
+	out := map[string]string{}
+	if len(urls) == 0 {
+		return out, nil
+	}
+	args := []any{sc.HouseholdID(), false}
+	for _, u := range urls {
+		args = append(args, u)
+	}
+	var rows []struct {
+		Slug      string `db:"slug"`
+		SourceURL string `db:"source_url"`
+	}
+	if err := sc.Read().Select(ctx, &rows, `SELECT slug, source_url FROM recipes
+		WHERE household_id = ? AND deleted_at IS NULL AND draft = ? AND source_url IN (`+placeholders(len(urls))+`)
+		ORDER BY created_at`, args...); err != nil {
+		return nil, err
+	}
+	for _, r := range rows {
+		if _, ok := out[r.SourceURL]; !ok {
+			out[r.SourceURL] = r.Slug
+		}
+	}
+	return out, nil
+}
