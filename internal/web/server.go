@@ -169,7 +169,7 @@ func New(cfg config.Config, db *store.DB, log *slog.Logger) (*Server, error) {
 	s.aiConfig = ai.Config{Box: box, Groceries: s.groceries, Recipes: s.recipes, Fetcher: fetcher, Now: s.now,
 		DB: db, Publisher: s.live, Log: log}
 	s.ai = ai.New(s.aiConfig)
-	s.discover = discover.New(fetcher, []discover.Site{discover.Ichkoche()}, s.now)
+	s.discover = discover.New(fetcher, discover.Sites(), s.now)
 	s.auth = auth.New(db, auth.Config{Log: log, SecureCookie: s.secureCookie, OnSetup: s.seedHousehold})
 	if cfg.BaseURL != nil {
 		if err := s.setBaseURL(cfg.BaseURL); err != nil {
@@ -508,6 +508,8 @@ func (s *Server) routes(r *router) {
 	r.write(http.MethodPost, "/settings/tags/{id}/pin", s.user(s.pinTag))
 	r.write(http.MethodPost, "/settings/tags/{id}/merge", s.user(s.mergeTag))
 	r.write(http.MethodPost, "/settings/tags/{id}/delete", s.user(s.deleteTag))
+	r.read(householdSettingsPath, s.admin(s.householdSettingsPage))
+	r.write(http.MethodPost, householdSettingsPath, s.admin(s.saveHouseholdSettings))
 	r.read("/settings/ai", s.admin(s.aiSettingsPage))
 	r.write(http.MethodPost, "/settings/ai", s.admin(s.saveAISettings))
 	r.write(http.MethodPost, "/settings/ai/test", s.admin(s.testAISettings))

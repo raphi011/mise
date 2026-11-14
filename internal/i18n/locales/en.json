@@ -1128,5 +1128,16 @@
   "discover.preview.noRecipe": "No recipe data on this page",
   "discover.preview.noRecipeBody": "It can’t be previewed. Importing it needs the AI import.",
   "discover.preview.unavailable": "%s couldn’t be reached",
-  "discover.preview.unavailableBody": "Try again in a moment, or open the recipe on the site."
+  "discover.preview.unavailableBody": "Try again in a moment, or open the recipe on the site.",
+  "settings.household": "Household",
+  "settings.householdNote": "Name, time zone, language and recipe sites.",
+  "settings.householdSites": "Recipe sites searched: %d",
+  "household.settings.title": "Household",
+  "household.settings.language": "Default language",
+  "household.settings.languageHint": "For members who haven’t chosen their own language, and for new items in the grocery catalog.",
+  "household.settings.sites": "Recipe sites",
+  "household.settings.sitesNote": "The recipe search also looks on these sites.",
+  "household.settings.sitesFoot": "Sites in the household’s default language are on unless you turn them off.",
+  "discover.web.noSites": "No recipe sites are turned on for this household.",
+  "discover.web.chooseSites": "Choose sites"
 }

@@ -154,6 +154,12 @@ func (s *Server) renderSettings(w http.ResponseWriter, r *http.Request, status i
 			return
 		}
 		v.AIStatus, v.AIStatusClass = connectionStatus(ai)
+		sites, err := s.discover.Enabled(ctx, sc)
+		if err != nil {
+			s.serverError(w, r, err)
+			return
+		}
+		v.Household, v.Sites = id.HouseholdName, len(sites)
 	}
 	for _, l := range lists {
 		v.Lists = append(v.Lists, ui.ListTab{ID: l.ID.String(), Name: l.Name, Open: l.Open})

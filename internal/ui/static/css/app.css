@@ -3607,6 +3607,20 @@ details.import-activity:not([open]) { gap: 0; }
   font-size: 12px;
   font-weight: 500;
 }
+.web-hit__site .lang-badge { margin-left: 4px; }
+/* A language's short code next to a recipe site's name. */
+.lang-badge {
+  display: inline-block;
+  padding: 0 5px;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 15px;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+  opacity: 0.75;
+}
 .web-hit__import { width: var(--target); min-height: var(--target); padding: 0; justify-content: center; border-radius: 999px; }
 .web-hit .discover-hit__state { justify-content: center; min-width: var(--target); padding: 0; border-radius: 999px; }
 .web-hit .discover-hit__state--library, .web-hit .discover-hit__state--ready { background: var(--surface-2); }

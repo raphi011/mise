@@ -11,6 +11,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/starfederation/datastar-go/datastar"
+	"golang.org/x/text/language"
+	"golang.org/x/text/language/display"
 
 	"github.com/raphi011/mise/internal/ai"
 	"github.com/raphi011/mise/internal/auth"
@@ -38,33 +40,92 @@ func (s *Server) webSearch(q, site, pages string) ui.WebSearch {
 	return w
 }
 
-// webBase is the "From the web" section for w before anything is
-// searched: its chips and heading, and whether the query is too short.
-func (s *Server) webBase(w ui.WebSearch) ui.WebView {
-	v := ui.WebView{Search: w}
-	switch sites := s.discover.Sites(); len(sites) {
-	case 0:
-	case 1:
-		v.Site = sites[0]
-	default:
-		for _, name := range sites {
-			v.Sites = append(v.Sites, ui.WebSite{Name: name})
+// webScope is what a web search covers: the sites the household
+// searches and, of those, the ones this search asks.
+type webScope struct {
+	sites    []discover.Site
+	searched []string
+	// search is the search with a site filter dropped that names a site
+	// the household no longer searches.
+	search ui.WebSearch
+}
+
+func (s *Server) webScope(ctx context.Context, sc store.Scoped, w ui.WebSearch) (webScope, error) {
+	settings, err := s.discover.Settings(ctx, sc)
+	if err != nil {
+		return webScope{}, err
+	}
+	out := webScope{search: w}
+	for _, st := range settings {
+		if st.Enabled {
+			out.sites = append(out.sites, st.Site)
+			out.searched = append(out.searched, st.Site.Name())
 		}
 	}
-	if w.Query != "" && !discover.Searchable(w.Query) {
+	if w.Site != "" {
+		if slices.Contains(out.searched, w.Site) {
+			out.searched = []string{w.Site}
+		} else {
+			out.search.Site = ""
+		}
+	}
+	return out, nil
+}
+
+// webBase is the "From the web" section for scope before anything is
+// searched: its chips and heading, and whether the query is too short.
+// admin is whether the viewer may turn sites on.
+func (s *Server) webBase(ctx context.Context, scope webScope, admin bool) ui.WebView {
+	v := ui.WebView{Search: scope.search}
+	langs := map[string]bool{}
+	for _, st := range scope.sites {
+		langs[siteLanguage(st)] = true
+	}
+	v.Mixed = len(langs) > 1
+	switch len(scope.sites) {
+	case 0:
+		v.NoSites, v.CanEnable = true, admin
+	case 1:
+		v.Site = scope.sites[0].Name()
+	default:
+		for _, st := range scope.sites {
+			v.Sites = append(v.Sites, ui.WebSite{Name: st.Name(), Lang: siteLanguage(st), LangName: languageName(ctx, st.Language())})
+		}
+	}
+	if v.Search.Query != "" && !discover.Searchable(v.Search.Query) {
 		v.Short = discover.MinQuery
 	}
 	return v
 }
 
-// webView searches the sites for w (fetching what is not cached) and
-// marks each hit for user: in the library or being imported.
-func (s *Server) webView(ctx context.Context, sc store.Scoped, user uuid.UUID, w ui.WebSearch) (ui.WebView, error) {
-	v := s.webBase(w)
-	if w.Query == "" || v.Short > 0 {
+// siteLanguage is a site's language as a short code ("DE").
+func siteLanguage(st discover.Site) string {
+	b, _ := st.Language().Base()
+	return strings.ToUpper(b.String())
+}
+
+// languageName names a language in the viewer's language ("German").
+func languageName(ctx context.Context, tag language.Tag) string {
+	return display.Tags(i18n.Locale(ctx)).Name(tag)
+}
+
+// webView searches the household's sites for w (fetching what is not
+// cached) and marks each hit for the viewer: in the library or being
+// imported.
+func (s *Server) webView(ctx context.Context, sc store.Scoped, id *auth.Identity, w ui.WebSearch) (ui.WebView, error) {
+	scope, err := s.webScope(ctx, sc, w)
+	if err != nil {
+		return ui.WebView{}, err
+	}
+	return s.webResults(ctx, sc, id, scope)
+}
+
+func (s *Server) webResults(ctx context.Context, sc store.Scoped, id *auth.Identity, scope webScope) (ui.WebView, error) {
+	v := s.webBase(ctx, scope, id.IsAdmin())
+	if v.Search.Query == "" || v.Short > 0 || v.NoSites {
 		return v, nil
 	}
-	res := s.discover.Search(ctx, w.Query, w.Site, w.Pages)
+	res := s.discover.Search(ctx, v.Search.Query, scope.searched, v.Search.Pages)
 	if res.Err != nil {
 		s.log.WarnContext(ctx, "site search", slog.Any("err", res.Err))
 	}
@@ -73,38 +134,41 @@ func (s *Server) webView(ctx context.Context, sc store.Scoped, user uuid.UUID, w
 	for i := range v.Sites {
 		v.Sites[i].Down = slices.Contains(res.Unavailable, v.Sites[i].Name)
 	}
-	searched := 1
-	if w.Site == "" {
-		searched = len(s.discover.Sites())
+	v.Empty = len(res.Hits) == 0 && len(res.Unavailable) < len(scope.searched)
+	langs := map[string]string{}
+	for _, st := range scope.sites {
+		langs[st.Name()] = siteLanguage(st)
 	}
-	v.Empty = len(res.Hits) == 0 && len(res.Unavailable) < searched
 	for _, h := range res.Hits {
 		hit := ui.DiscoverHit{Site: h.Site, URL: h.URL, Title: h.Title, Meta: hitMeta(ctx, h)}
+		if v.Mixed {
+			hit.Lang = langs[h.Site]
+		}
 		if h.Photo != "" {
 			hit.Photo = ui.DiscoverPhotoHref(h.Photo)
 		}
 		v.Hits = append(v.Hits, hit)
 	}
-	if err := s.markHits(ctx, sc, user, v.Hits); err != nil {
+	if err := s.markHits(ctx, sc, id.UserID, v.Hits); err != nil {
 		return v, err
 	}
 	return v, nil
 }
 
-// webLoading is what the section shows while webView(w) fetches: the
-// pages already cached with a placeholder below them after "More
+// webLoading is what the section shows while webResults(scope) fetches:
+// the pages already cached with a placeholder below them after "More
 // results", else placeholders alone.
-func (s *Server) webLoading(ctx context.Context, sc store.Scoped, user uuid.UUID, w ui.WebSearch) (ui.WebView, error) {
-	if prev := w; w.Pages > 1 {
-		prev.Pages--
-		if s.discover.Cached(prev.Query, prev.Site, prev.Pages) {
-			v, err := s.webView(ctx, sc, user, prev)
+func (s *Server) webLoading(ctx context.Context, sc store.Scoped, id *auth.Identity, scope webScope) (ui.WebView, error) {
+	if prev := scope; scope.search.Pages > 1 {
+		prev.search.Pages--
+		if s.discover.Cached(prev.search.Query, prev.searched, prev.search.Pages) {
+			v, err := s.webResults(ctx, sc, id, prev)
 			v.LoadingMore = true
 			return v, err
 		}
 	}
-	v := s.webBase(w)
-	v.Loading = true
+	v := s.webBase(ctx, scope, id.IsAdmin())
+	v.Loading = !v.NoSites
 	return v, nil
 }
 
@@ -211,7 +275,7 @@ func (s *Server) discoverImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if isDatastar(r) {
-		v, err := s.webView(ctx, sc, id.UserID, ws)
+		v, err := s.webView(ctx, sc, id, ws)
 		if err != nil {
 			s.serverError(w, r, err)
 			return
@@ -225,7 +289,7 @@ func (s *Server) discoverImport(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	if v.Web, err = s.webView(ctx, sc, id.UserID, ws); err != nil {
+	if v.Web, err = s.webView(ctx, sc, id, ws); err != nil {
 		s.serverError(w, r, err)
 		return
 	}
@@ -266,8 +330,12 @@ func (s *Server) searchWebLive(w http.ResponseWriter, r *http.Request, sc store.
 	ws := s.webSearch(sig.Query, sig.Site, strconv.Itoa(sig.Pages))
 	s.serveLive(w, r, id, live.Stream{
 		Refresh: func(ctx context.Context, sse *datastar.ServerSentEventGenerator) error {
-			if !s.discover.Cached(ws.Query, ws.Site, ws.Pages) {
-				v, err := s.webLoading(ctx, sc, id.UserID, ws)
+			scope, err := s.webScope(ctx, sc, ws)
+			if err != nil {
+				return err
+			}
+			if !s.discover.Cached(scope.search.Query, scope.searched, scope.search.Pages) {
+				v, err := s.webLoading(ctx, sc, id, scope)
 				if err != nil {
 					return err
 				}
@@ -275,7 +343,7 @@ func (s *Server) searchWebLive(w http.ResponseWriter, r *http.Request, sc store.
 					return err
 				}
 			}
-			v, err := s.webView(ctx, sc, id.UserID, ws)
+			v, err := s.webResults(ctx, sc, id, scope)
 			if err != nil {
 				return err
 			}

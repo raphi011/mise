@@ -37,7 +37,8 @@ type Page struct {
 	NavExtra templ.Component
 	// Settings, when set, frames the page in the Settings layout (section
 	// index beside the content on desktop). It names the section to mark
-	// as current: people, lists, library, app or account; home marks none.
+	// as current: household, people, lists, library, app or account; home
+	// marks none.
 	// The back link is then phone-only.
 	Settings string
 	// Refresh, when set, reloads the page after that many seconds without
@@ -154,7 +155,7 @@ templ Layout(p Page) {
 					</header>
 					if p.Settings != "" {
 						<div class="settings">
-							@settingsNav(p.Settings)
+							@settingsNav(p.Settings, p.User != nil && p.User.Admin)
 							<div class="settings-body">
 								{ children... }
 							</div>
@@ -181,8 +182,14 @@ func currentAttr(current, key string) templ.Attributes {
 
 // settingsNav is the Settings section index: the sticky side list on
 // desktop, hidden on phones where Settings is a list of sub-pages.
-templ settingsNav(current string) {
+templ settingsNav(current string, admin bool) {
 	<nav class="settings-nav" aria-label={ i18n.T(ctx, "settings.sections") }>
+		if admin {
+			<a href="/settings#household" { currentAttr(current, "household")... }>
+				@iconHome()
+				{ i18n.T(ctx, "settings.household") }
+			</a>
+		}
 		<a href="/settings#people" { currentAttr(current, "people")... }>
 			@iconPeople()
 			{ i18n.T(ctx, "settings.people") }

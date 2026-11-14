@@ -196,3 +196,49 @@ func (s *Service) JoinInvite(ctx context.Context, id *Identity, token string) (u
 	})
 	return householdID, err
 }
+
+// HouseholdSettings are the household's own settings, as first-run setup
+// set them.
+type HouseholdSettings struct {
+	Name     string
+	Timezone string
+	// WeekStart is "mon" or "sun".
+	WeekStart string
+	// Language is the default UI language, one of Languages: members who
+	// chose none see it, and imports and new catalog items use it.
+	Language string
+}
+
+// Household returns the scoped household's settings.
+func (s *Service) Household(ctx context.Context, sc store.Scoped) (HouseholdSettings, error) {
+	var h HouseholdSettings
+	err := sc.Read().QueryRow(ctx, `SELECT name, timezone, week_start, default_language FROM households WHERE id = ?`,
+		sc.HouseholdID()).Scan(&h.Name, &h.Timezone, &h.WeekStart, &h.Language)
+	return h, err
+}
+
+// UpdateHousehold changes the scoped household's settings. Only its admins
+// may; others get ErrForbidden. Invalid input returns FieldErrors keyed
+// "household", "timezone", "week_start" and "language".
+func (s *Service) UpdateHousehold(ctx context.Context, sc store.Scoped, actor uuid.UUID, in HouseholdSettings) error {
+	in.Name, in.Timezone = clean(in.Name), clean(in.Timezone)
+	errs := FieldErrors{}
+	checkName(errs, "household", in.Name)
+	checkTimezone(errs, "timezone", in.Timezone)
+	checkChoice(errs, "week_start", in.WeekStart, []string{"mon", "sun"})
+	checkChoice(errs, "language", in.Language, Languages())
+	if err := errs.orNil(); err != nil {
+		return err
+	}
+	return sc.Tx(ctx, func(ctx context.Context, q store.Querier) error {
+		if err := requireAdmin(ctx, q, sc, actor); err != nil {
+			return err
+		}
+		r, err := q.Exec(ctx, `UPDATE households SET name = ?, timezone = ?, week_start = ?, default_language = ?, updated_at = ?
+			WHERE id = ?`, in.Name, in.Timezone, in.WeekStart, in.Language, s.clock(), sc.HouseholdID())
+		if err != nil {
+			return err
+		}
+		return mustAffect(r)
+	})
+}

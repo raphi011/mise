@@ -8,6 +8,9 @@ import (
 
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
+	"golang.org/x/text/language"
+
+	"github.com/raphi011/mise/internal/ai"
 )
 
 // ichkoche is ichkoche.at, an Austrian recipe site. Its search
@@ -31,12 +34,14 @@ func NewIchkoche(base *url.URL, photoHost string) Site {
 
 func (ichkoche) Name() string { return "ichkoche.at" }
 
-func (s ichkoche) SearchURL(q string, page int) string {
+func (ichkoche) Language() language.Tag { return language.German }
+
+func (s ichkoche) SearchURL(q string, page int) (string, ai.Kind) {
 	v := url.Values{"q": {q}}
 	if page > 1 {
 		v.Set("page", strconv.Itoa(page))
 	}
-	return s.base.JoinPath("suche", "rezepte").String() + "?" + v.Encode()
+	return s.base.JoinPath("suche", "rezepte").String() + "?" + v.Encode(), ai.KindPage
 }
 
 func (s ichkoche) PhotoHost(host string) bool { return strings.EqualFold(host, s.photoHost) }
@@ -61,7 +66,12 @@ var (
 	firstInteger = regexp.MustCompile(`\d+`)
 )
 
-func (s ichkoche) ParseResults(doc *html.Node, base *url.URL) ResultPage {
+func (s ichkoche) ParseResults(f ai.Fetched, _ int) (ResultPage, error) {
+	doc, err := parseHTML(f)
+	if err != nil {
+		return ResultPage{}, err
+	}
+	base := f.URL
 	if base == nil {
 		base = s.base
 	}
@@ -122,5 +132,5 @@ func (s ichkoche) ParseResults(doc *html.Node, base *url.URL) ResultPage {
 	}
 	pager := find(doc, func(n *html.Node) bool { return hasClass(n, "pagination") })
 	res.More = pager != nil && find(pager, func(n *html.Node) bool { return n.DataAtom == atom.Li && hasClass(n, "next") }) != nil
-	return res
+	return res, nil
 }

@@ -163,6 +163,14 @@ func TestFetchLimits(t *testing.T) {
 		case "/photo":
 			w.Header().Set("Content-Type", "image/jpeg")
 			_, _ = w.Write([]byte("\xff\xd8"))
+		case "/api":
+			if r.Header.Get("Accept") != "application/json" {
+				http.Error(w, "not acceptable", http.StatusNotAcceptable)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+			w.Header().Set("X-Total", "7")
+			_, _ = w.Write([]byte(`[]`))
 		}
 	})
 	f := fetcher(t, 300*time.Millisecond, s)
@@ -185,6 +193,16 @@ func TestFetchLimits(t *testing.T) {
 	}
 	if res, err := f.Fetch(t.Context(), s.URL+"/photo", ai.KindImage); err != nil || len(res.Body) != 2 {
 		t.Errorf("photo: %v", err)
+	}
+	// JSON is fetched only when asked for, and comes with its header.
+	if _, err := f.Fetch(t.Context(), s.URL+"/api", ai.KindPage); err == nil {
+		t.Error("JSON as page")
+	}
+	if res, err := f.Fetch(t.Context(), s.URL+"/api", ai.KindJSON); err != nil || string(res.Body) != "[]" || res.Header.Get("X-Total") != "7" {
+		t.Errorf("JSON: %+v, %v", res, err)
+	}
+	if _, err := f.Fetch(t.Context(), s.URL+"/pdf", ai.KindJSON); !errors.Is(err, ai.ErrContentType) {
+		t.Errorf("pdf as JSON: %v", err)
 	}
 }
 

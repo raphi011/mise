@@ -1,0 +1,62 @@
+[
+ {
+  "link": "https://www.eat-this.org/kichererbsen-minestrone-mit-orecchiette/",
+  "title": {
+   "rendered": "Kichererbsen-Minestrone mit Orecchiette"
+  },
+  "excerpt": {
+   "rendered": "<p>Unsere Kichererbsen-Minestrone mit Orecchiette ist ein leckerer, gesunder Wohlfühltopf, der satt und glücklich macht – und nebenbei auch noch den Geldbeutel schont. Heute gibt es ein Rezept, das wir seit der Vorweihnachtszeit in Heavy Rotation genießen – und das sich inzwischen zu einem unserer absoluten Winter-Go-Tos entwickelt hat. Mittlerweile könnte ich den Eintopf fast mit [&hellip;]</p>\n",
+   "protected": false
+  },
+  "_embedded": {
+   "wp:featuredmedia": [
+    {
+     "media_details": {
+      "sizes": {
+       "medium": {
+        "source_url": "https://www.eat-this.org/wp-content/uploads/2025/02/eat_this_kichererbsen-minestrone_mit_orecchiette_014-700x467.jpg"
+       },
+       "large": {
+        "source_url": "https://www.eat-this.org/wp-content/uploads/2025/02/eat_this_kichererbsen-minestrone_mit_orecchiette_014-1280x854.jpg"
+       },
+       "thumbnail": {
+        "source_url": "https://www.eat-this.org/wp-content/uploads/2025/02/eat_this_kichererbsen-minestrone_mit_orecchiette_014-290x290.jpg"
+       }
+      }
+     },
+     "source_url": "https://www.eat-this.org/wp-content/uploads/2025/02/eat_this_kichererbsen-minestrone_mit_orecchiette_014.jpg"
+    }
+   ]
+  }
+ },
+ {
+  "link": "https://www.eat-this.org/vegane-kichererbsen-joghurtsuppe/",
+  "title": {
+   "rendered": "Vegane Kichererbsen-Joghurtsuppe mit Paprika-Walnüssen"
+  },
+  "excerpt": {
+   "rendered": "<p>Schnell, cremig, leicht und super lecker: Unsere vegane Kichererbsen-Joghurtsuppe mit Paprika-Walnüssen bringt eine cremige Erfrischung und nussige Würze in deine Suppenschüssel. Die perfekte Kombi für die Soup Season! Es ist fast schon eine Art Tradition, dass wir das neue Jahr hier auf dem Blog mit einem Suppenrezept einläuten. Die Feiertagsvöllerei liegt hinter uns, der Schnupfen, [&hellip;]</p>\n",
+   "protected": false
+  },
+  "_embedded": {
+   "wp:featuredmedia": [
+    {
+     "media_details": {
+      "sizes": {
+       "medium": {
+        "source_url": "https://www.eat-this.org/wp-content/uploads/2025/01/eat_this_vegane_kichererbsen-joghurtsuppe_mit_paprika-walnuessen_002-700x467.jpg"
+       },
+       "large": {
+        "source_url": "https://www.eat-this.org/wp-content/uploads/2025/01/eat_this_vegane_kichererbsen-joghurtsuppe_mit_paprika-walnuessen_002-1280x854.jpg"
+       },
+       "thumbnail": {
+        "source_url": "https://www.eat-this.org/wp-content/uploads/2025/01/eat_this_vegane_kichererbsen-joghurtsuppe_mit_paprika-walnuessen_002-290x290.jpg"
+       }
+      }
+     },
+     "source_url": "https://www.eat-this.org/wp-content/uploads/2025/01/eat_this_vegane_kichererbsen-joghurtsuppe_mit_paprika-walnuessen_002.jpg"
+    }
+   ]
+  }
+ }
+]

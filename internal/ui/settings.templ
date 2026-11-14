@@ -35,6 +35,10 @@ type SettingsView struct {
 	// and AIStatusClass styles it. Shown to admins only.
 	AIStatus      i18n.Key
 	AIStatusClass string
+	// Household names the household and Sites counts the recipe sites it
+	// searches. Shown to admins only.
+	Household string
+	Sites     int
 }
 
 // MemberRow is one person in the People list.
@@ -75,6 +79,27 @@ templ Settings(p Page, v SettingsView) {
 					</span>
 					@chevron()
 				</a>
+				if v.Admin {
+					<section class="settings-section" id="household" aria-labelledby="household-title">
+						<div class="settings-section__head">
+							<span class="settings-section__titles">
+								<h2 class="settings-section__title" id="household-title">{ i18n.T(ctx, "settings.household") }</h2>
+								<span class="settings-section__desc">{ i18n.T(ctx, "settings.householdNote") }</span>
+							</span>
+						</div>
+						<ul class="list" role="list">
+							<li class="list__row">
+								<a class="list__link" href="/settings/household">
+									<span class="list__text">
+										<span>{ v.Household }</span>
+										<span class="list__note">{ i18n.T(ctx, "settings.householdSites", v.Sites) }</span>
+									</span>
+									@chevron()
+								</a>
+							</li>
+						</ul>
+					</section>
+				}
 				<section class="settings-section" id="people" aria-labelledby="people-title">
 					<div class="settings-section__head">
 						<span class="settings-section__titles">
@@ -214,6 +239,10 @@ templ memberRowBody(m MemberRow) {
 
 templ iconPeople() {
 	<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="7" r="4"></circle><path d="M2 21a7 7 0 0 1 14 0M16 3.5a4 4 0 0 1 0 7M18 14a6 6 0 0 1 4 6"></path></svg>
+}
+
+templ iconHome() {
+	<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"></path><path d="M5 9.5V21h14V9.5"></path><path d="M10 21v-6h4v6"></path></svg>
 }
 
 templ iconSliders() {
