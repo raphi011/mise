@@ -299,6 +299,9 @@ templ cookedTile(v RecipeView) {
 	<div class="meta-tile">
 		<dt>{ i18n.T(ctx, "recipes.cooked") }</dt>
 		<dd>{ v.Cooked }</dd>
+		if v.LastCooked != "" {
+			<dd class="meta-tile__note">{ v.LastCooked }</dd>
+		}
 		<dd>
 			<form class="inline-form" method="post" action={ templ.SafeURL("/recipes/" + v.ID + "/cooked") } data-on:submit={ postForm("/recipes/" + v.ID + "/cooked") }>
 				<button type="submit" class="meta-tile__action">

@@ -392,6 +392,11 @@ func (s *Server) discoverPreviewView(ctx context.Context, sc store.Scoped, id *a
 		v.Recipe, v.Hit.Title = &rv, rv.Name
 	case errors.Is(err, ai.ErrNoRecipe):
 		v.NoRecipe = true
+		st, err := s.ai.Settings(ctx, sc)
+		if err != nil {
+			return v, err
+		}
+		v.AI = st.Enabled
 	case errors.Is(err, ai.ErrUnreachable):
 		s.log.WarnContext(ctx, "recipe preview", slog.String("url", link), slog.Any("err", err))
 	default:

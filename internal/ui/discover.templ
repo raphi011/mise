@@ -236,7 +236,11 @@ templ DiscoverPreview(p Page, v DiscoverPreviewView) {
 					</span>
 					if v.NoRecipe {
 						<h2>{ i18n.T(ctx, "discover.preview.noRecipe") }</h2>
-						<p>{ i18n.T(ctx, "discover.preview.noRecipeBody") }</p>
+						if v.AI {
+							<p>{ i18n.T(ctx, "discover.preview.noRecipeBody") }</p>
+						} else {
+							<p>{ i18n.T(ctx, "discover.preview.noRecipeBodyOff") }</p>
+						}
 					} else {
 						<h2>{ i18n.T(ctx, "discover.preview.unavailable", v.SourceHost) }</h2>
 						<p>{ i18n.T(ctx, "discover.preview.unavailableBody") }</p>

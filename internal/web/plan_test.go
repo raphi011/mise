@@ -275,7 +275,7 @@ func TestCookedAndDeleteConfirm(t *testing.T) {
 		contains(t, "recipe menu", anna.get("/recipes/"+tofu+"/menu").body, "I made this")
 		res := anna.datastar(http.MethodPost, "/recipes/"+tofu+"/cooked", url.Values{}).expect(t, "cooked", http.StatusOK)
 		contains(t, "cooked response", res.body, "Marked as cooked today", "/cooked/")
-		contains(t, "recipe page", anna.open("/recipes/"+tofu).body, "Once")
+		contains(t, "recipe page", anna.open("/recipes/"+tofu).body, "<dd>Once</dd>", "Last 9 Nov")
 		undo := regexp.MustCompile(`/recipes/[0-9a-f-]{36}/cooked/[0-9a-f-]{36}/undo`).FindString(res.body)
 		anna.post(undo, nil).expect(t, "undo cooked", http.StatusSeeOther, "/recipes/sticky-tofu")
 		contains(t, "recipe page after undo", anna.open("/recipes/"+tofu).body, "Not yet")
@@ -315,6 +315,49 @@ func TestCookedAndDeleteConfirm(t *testing.T) {
 		if !found {
 			t.Error("no meal of today or the past offers I made this")
 		}
+
+		// I made this on a past meal records its day, not today, with and
+		// without JavaScript.
+		past := mealIDs(t, anna.get("/plan/day?date=2026-11-02").body)
+		if len(past) != 1 {
+			t.Fatalf("meals on the 2nd: %v", past)
+		}
+		pastMenu := anna.get("/plan/meals/" + past[0]).body
+		contains(t, "past meal menu", pastMenu, `action="/plan/meals/`+past[0]+`/cooked"`)
+		res = anna.datastar(http.MethodPost, "/plan/meals/"+past[0]+"/cooked", url.Values{}).expect(t, "cook past meal", http.StatusOK)
+		contains(t, "cook past meal", res.body, "Marked as cooked on Mon 2 Nov", "/cooked/")
+		contains(t, "recipe after past meal", anna.open("/recipes/"+tofu).body, "<dd>Once</dd>", "Last 2 Nov")
+		anna.post("/plan/meals/"+past[0]+"/cooked", url.Values{}).expect(t, "cook past meal again", http.StatusSeeOther, "/plan?week=2026-11-02")
+		contains(t, "recipe after cooking twice", anna.open("/recipes/"+tofu).body, "<dd>2 times</dd>")
+		future := mealIDs(t, anna.get("/plan/day?date=2026-11-10").body)
+		anna.post("/plan/meals/"+future[0]+"/cooked", url.Values{}).expect(t, "cook future meal", http.StatusUnprocessableEntity)
+	})
+}
+
+// TestPlanWeekFromToday shows the plan's weeks from today, not from the
+// first day of the week.
+func TestPlanWeekFromToday(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		s, srv := startTimedServer(t, db)
+		s.clock = func() time.Time { return planClock.Add(3 * 24 * time.Hour) } // Thursday the 12th
+		anna, _ := household(t, srv)
+		tofu := createRecipe(t, anna, stickyTofu())
+
+		week := anna.get("/plan").expect(t, "plan", http.StatusOK)
+		contains(t, "plan", week.body, "This week", "12 – 18 Nov · 0 of 7 days planned",
+			`href="/plan?week=2026-11-05"`, `href="/plan?week=2026-11-19"`, `&amp;date=2026-11-12"`, `&amp;date=2026-11-18"`)
+		if strings.Contains(week.body, `&amp;date=2026-11-11"`) {
+			t.Error("this week shows yesterday")
+		}
+		contains(t, "next week", anna.get("/plan?week=2026-11-19").body, "Next week", "19 – 25 Nov")
+		// Any day opens the week from today that contains it.
+		contains(t, "week of a day", anna.get("/plan?week=2026-11-16").body, "12 – 18 Nov")
+		contains(t, "last week", anna.get("/plan?week=2026-11-05").body, "Last week", "5 – 11 Nov")
+
+		// The add sheet's days start today too.
+		contains(t, "add sheet", anna.get("/plan/add?recipe="+tofu).body, "12 – 18 Nov", `value="2026-11-12" required checked`)
+		anna.post("/plan", url.Values{"recipe": {tofu}, "date": {"2026-11-20"}}).
+			expect(t, "plan next week", http.StatusSeeOther, "/plan?week=2026-11-19")
 	})
 }
 

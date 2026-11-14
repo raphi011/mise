@@ -138,6 +138,9 @@ type DiscoverPreviewView struct {
 	// from one that could not be fetched).
 	Recipe   *ReadOnlyRecipeView
 	NoRecipe bool
+	// AI is whether AI import is on, which can still import a page
+	// without recipe data.
+	AI bool
 	// Alert is a failed import's message.
 	Alert string
 }

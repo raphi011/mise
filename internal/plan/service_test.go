@@ -212,6 +212,88 @@ func TestCalendar(t *testing.T) {
 	})
 }
 
+func TestWindowOf(t *testing.T) {
+	today := date("2026-11-12") // a Thursday
+	for _, tc := range []struct{ d, want string }{
+		{"2026-11-12", "2026-11-12"},
+		{"2026-11-18", "2026-11-12"},
+		{"2026-11-19", "2026-11-19"},
+		{"2026-11-11", "2026-11-05"},
+		{"2026-11-05", "2026-11-05"},
+		{"2026-11-04", "2026-10-29"},
+		{"2027-01-01", "2026-12-31"},
+	} {
+		if got := WindowOf(today, date(tc.d)); got != date(tc.want) {
+			t.Errorf("WindowOf(%s) = %s, want %s", tc.d, got, tc.want)
+		}
+	}
+}
+
+func TestWindow(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		ctx := t.Context()
+		e := newEnv(t, db, "home")
+		e.clk.Add(3 * 24 * time.Hour) // Thursday the 12th
+		dal := e.recipe(t, "Dal")
+		e.add(t, dal, "2026-11-18")
+		w, err := e.s.Window(ctx, e.sc, date("2026-11-12"))
+		if err != nil || w.Start != date("2026-11-12") || w.Today != date("2026-11-12") || len(w.Days) != 7 ||
+			w.Days[6].Date != date("2026-11-18") || len(w.Days[6].Meals) != 1 {
+			t.Fatalf("window from today: %+v, %v", w, err)
+		}
+		if w, _ := e.s.Window(ctx, e.sc, date("2026-11-10")); w.Start != date("2026-11-05") {
+			t.Errorf("window before today starts %v", w.Start)
+		}
+		// The API's calendar week still starts on Monday.
+		if w, _ := e.s.Week(ctx, e.sc, date("2026-11-12")); w.Start != date("2026-11-09") {
+			t.Errorf("calendar week starts %v", w.Start)
+		}
+	})
+}
+
+func TestMarkMealCooked(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		ctx := t.Context()
+		e := newEnv(t, db, "home")
+		e.setHousehold(t, "Europe/Vienna", "mon")
+		dal := e.recipe(t, "Dal")
+		past := e.add(t, dal, "2026-11-05")
+		today := e.add(t, dal, "2026-11-09")
+		future := e.add(t, dal, "2026-11-10")
+		e.rec.take()
+
+		m, ev, err := e.s.MarkMealCooked(ctx, e.sc, past.ID, e.hh.Member)
+		if err != nil || m.Recipe.ID != dal.ID || m.Date != date("2026-11-05") {
+			t.Fatalf("cook past meal: %+v, %v", m, err)
+		}
+		if !hasKind(e.rec.take(), live.RecipeChanged) {
+			t.Error("cooking a meal published no recipe change")
+		}
+		vienna, _ := time.LoadLocation("Europe/Vienna")
+		noon := time.Date(2026, 11, 5, 12, 0, 0, 0, vienna)
+		if r, _ := e.r.Get(ctx, e.sc, dal.ID, e.hh.Admin); r.TimesCooked != 1 || r.LastCookedAt == nil || !r.LastCookedAt.Equal(noon) {
+			t.Errorf("after past meal: %d times, last %v", r.TimesCooked, r.LastCookedAt)
+		}
+		if _, _, err := e.s.MarkMealCooked(ctx, e.sc, today.ID, e.hh.Member); err != nil {
+			t.Fatal(err)
+		}
+		if r, _ := e.r.Get(ctx, e.sc, dal.ID, e.hh.Admin); r.TimesCooked != 2 || !r.LastCookedAt.Equal(start) {
+			t.Errorf("after today's meal: %d times, last %v", r.TimesCooked, r.LastCookedAt)
+		}
+		var fe FieldErrors
+		if _, _, err := e.s.MarkMealCooked(ctx, e.sc, future.ID, e.hh.Member); !errors.As(err, &fe) || fe["date"] == "" {
+			t.Errorf("cook future meal: %v", err)
+		}
+		// A past meal's cook event is undone like any other.
+		if err := e.s.UndoCooked(ctx, e.sc, dal.ID, ev); err != nil {
+			t.Errorf("undo past meal: %v", err)
+		}
+		if _, _, err := e.s.MarkMealCooked(ctx, e.sc, uuid.New(), e.hh.Member); !errors.Is(err, ErrNotFound) {
+			t.Errorf("cook unknown meal: %v", err)
+		}
+	})
+}
+
 func TestAdd(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, db *store.DB) {
 		ctx := t.Context()

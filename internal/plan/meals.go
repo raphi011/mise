@@ -43,7 +43,8 @@ type Day struct {
 	Meals []Meal
 }
 
-// Week is seven days from the household's first day of the week.
+// Week is seven days from Start: the household's first day of the week
+// (Service.Week), or a planner week (Service.Window).
 type Week struct {
 	Start store.Date
 	Days  []Day
@@ -147,6 +148,19 @@ func (s *Service) Week(ctx context.Context, sc store.Scoped, date store.Date) (W
 		return Week{}, err
 	}
 	w := Week{Start: c.WeekOf(date), Today: c.Today(s.now())}
+	w.Days, err = days(ctx, sc.Read(), sc, w.Start, 7)
+	return w, err
+}
+
+// Window returns the planner's seven days that contain date (see
+// WindowOf).
+func (s *Service) Window(ctx context.Context, sc store.Scoped, date store.Date) (Week, error) {
+	c, err := s.Calendar(ctx, sc)
+	if err != nil {
+		return Week{}, err
+	}
+	today := c.Today(s.now())
+	w := Week{Start: WindowOf(today, date), Today: today}
 	w.Days, err = days(ctx, sc.Read(), sc, w.Start, 7)
 	return w, err
 }
