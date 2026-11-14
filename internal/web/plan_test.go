@@ -197,28 +197,41 @@ func TestPlanByDrag(t *testing.T) {
 		}
 		tofuMeal := ids[0]
 
-		// Dropping on a free day moves; on a planned day swaps; Undo puts
-		// both back.
-		res = anna.datastarJSON("/plan/meals/"+tofuMeal+"/move", map[string]string{"date": "2026-11-10", "mode": "swap"}).
+		// Dropping on a free day moves; on a planned day adds the meal
+		// after the day's meals; Undo puts it back.
+		res = anna.datastarJSON("/plan/meals/"+tofuMeal+"/move", map[string]string{"date": "2026-11-10", "mode": "move"}).
 			expect(t, "drop on free day", http.StatusOK)
 		contains(t, "move response", res.body, "Sticky tofu moved to Tue 10 Nov", "/plan/place")
 		benWeek.next("ben sees the move", liveDeadline, "Sticky tofu on Tuesday, 10 November")
-		res = anna.datastarJSON("/plan/meals/"+tofuMeal+"/move", map[string]string{"date": "2026-11-11", "mode": "swap"}).
+		res = anna.datastarJSON("/plan/meals/"+tofuMeal+"/move", map[string]string{"date": "2026-11-11", "mode": "move"}).
 			expect(t, "drop on planned day", http.StatusOK)
+		contains(t, "drop response", res.body, "Sticky tofu moved to Wed 11 Nov")
+		benWeek.next("ben sees both", liveDeadline, "Red lentil dal on Wednesday, 11 November", "Sticky tofu on Wednesday, 11 November")
+		undo := placementsRe.FindStringSubmatch(res.body)
+		if undo == nil {
+			t.Fatalf("move has no Undo:\n%s", res.body)
+		}
+		anna.datastar(http.MethodPost, "/plan/place", url.Values{"placements": {undo[1]}}).expect(t, "undo move", http.StatusOK)
+		benWeek.next("ben sees the undo", liveDeadline, "Sticky tofu on Tuesday, 10 November", "Red lentil dal on Wednesday, 11 November")
+
+		// "Swap with …" in the move sheet swaps with the day's first meal,
+		// with Undo.
+		res = anna.datastar(http.MethodPost, "/plan/meals/"+tofuMeal+"/move", url.Values{"date": {"2026-11-11"}, "mode": {"swap"}}).
+			expect(t, "swap", http.StatusOK)
 		contains(t, "swap response", res.body, "Sticky tofu swapped with Red lentil dal")
 		benWeek.next("ben sees the swap", liveDeadline, "Sticky tofu on Wednesday, 11 November", "Red lentil dal on Tuesday, 10 November")
-		undo := placementsRe.FindStringSubmatch(res.body)
+		undo = placementsRe.FindStringSubmatch(res.body)
 		if undo == nil {
 			t.Fatalf("swap has no Undo:\n%s", res.body)
 		}
 		anna.datastar(http.MethodPost, "/plan/place", url.Values{"placements": {undo[1]}}).expect(t, "undo swap", http.StatusOK)
-		benWeek.next("ben sees the undo", liveDeadline, "Sticky tofu on Tuesday, 10 November", "Red lentil dal on Wednesday, 11 November")
+		benWeek.next("ben sees the swap undone", liveDeadline, "Sticky tofu on Tuesday, 10 November", "Red lentil dal on Wednesday, 11 November")
 
 		// "Keep both" adds the meal after the day's meals: the week shows
 		// both.
 		anna.datastar(http.MethodPost, "/plan/meals/"+tofuMeal+"/move", url.Values{"date": {"2026-11-11"}, "mode": {"move"}}).
 			expect(t, "keep both", http.StatusOK)
-		benWeek.next("ben sees both", liveDeadline, "Red lentil dal on Wednesday, 11 November", "Sticky tofu on Wednesday, 11 November")
+		benWeek.next("ben sees both again", liveDeadline, "Red lentil dal on Wednesday, 11 November", "Sticky tofu on Wednesday, 11 November")
 
 		// Swap the recipe from the menu, with Undo.
 		menu := anna.datastarGet("/plan/meals/"+tofuMeal+"?view=swap&part=body").expect(t, "swap view", http.StatusOK)

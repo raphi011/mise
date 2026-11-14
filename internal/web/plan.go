@@ -1336,9 +1336,9 @@ func parsePlacements(raw string) ([]plan.Placement, error) {
 	return out, nil
 }
 
-// moveMeal moves a meal to another day: mode "swap" (a drop, or "Swap
-// with …") swaps it with that day's first meal; "move" adds it after the
-// day's meals.
+// moveMeal moves a meal to another day: mode "swap" ("Swap with …")
+// swaps it with that day's first meal; "move" (a drop, or "Keep both")
+// adds it after the day's meals.
 func (s *Server) moveMeal(w http.ResponseWriter, r *http.Request) {
 	mealID, sc, ok := s.mealTarget(w, r)
 	if !ok {
