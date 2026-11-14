@@ -24,7 +24,8 @@ type Page struct {
 	Title string
 	// Lang is the document's language (<html lang>), if it names one.
 	Lang language.Tag
-	// Recipe is the first schema.org Recipe in the page's JSON-LD, or nil.
+	// Recipe is the first schema.org Recipe in the page's JSON-LD, else
+	// in its microdata, or nil.
 	Recipe *Recipe
 	// Image is og:image, a fallback photo.
 	Image string
@@ -89,6 +90,11 @@ func ParsePage(res Fetched) Page {
 		}
 	}
 	walk(doc, false)
+	if p.Recipe == nil {
+		if node := microdataRecipe(doc, res.URL); node != nil {
+			p.Recipe = recipeFromNode(node, res.URL)
+		}
+	}
 	p.Text = capText(collapseLines(text.String()))
 	return p
 }
