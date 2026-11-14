@@ -3,7 +3,8 @@ go = "1.27.3"
 golangci-lint = "2.15.0"
 
 [env]
-MISE_DATA_DIR = "{{config_root}}/data"
+# The app's data dir defaults to ./data. Don't set MISE_DATA_DIR here: the
+# mise tool reads it too and would install its tools into ./data.
 MISE_LOG_FORMAT = "text"
 
 [tasks.gen]
