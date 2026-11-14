@@ -1,8 +1,10 @@
 package discover_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"net/http"
 	"net/url"
 	"os"
 	"slices"
@@ -13,6 +15,7 @@ import (
 	"time"
 
 	"golang.org/x/net/html"
+	"golang.org/x/text/language"
 
 	"github.com/raphi011/mise/internal/ai"
 	"github.com/raphi011/mise/internal/discover"
@@ -47,10 +50,13 @@ func (f *fakeFetcher) Fetch(ctx context.Context, rawURL string, kind ai.Kind) (a
 	}
 	u, _ := url.Parse(rawURL)
 	ct := "text/html; charset=utf-8"
-	if kind == ai.KindImage {
+	switch kind {
+	case ai.KindImage:
 		ct = "image/jpeg"
+	case ai.KindJSON:
+		ct = "application/json; charset=UTF-8"
 	}
-	return ai.Fetched{URL: u, ContentType: ct, Body: []byte(body)}, nil
+	return ai.Fetched{URL: u, ContentType: ct, Body: []byte(body), Header: http.Header{}}, nil
 }
 
 func (f *fakeFetcher) took() []string {
@@ -73,11 +79,22 @@ type listSite struct{ name, host string }
 
 func (s listSite) Name() string { return s.name }
 
-func (s listSite) SearchURL(q string, page int) string {
+func (listSite) Language() language.Tag { return language.English }
+
+func (s listSite) SearchURL(q string, page int) (string, ai.Kind) {
+	return s.search(q, page), ai.KindPage
+}
+
+func (s listSite) search(q string, page int) string {
 	return "https://" + s.host + "/search?" + url.Values{"q": {q}, "p": {strconv.Itoa(page)}}.Encode()
 }
 
-func (s listSite) ParseResults(doc *html.Node, base *url.URL) discover.ResultPage {
+func (s listSite) ParseResults(f ai.Fetched, _ int) (discover.ResultPage, error) {
+	doc, err := html.Parse(bytes.NewReader(f.Body))
+	if err != nil {
+		return discover.ResultPage{}, err
+	}
+	base := f.URL
 	var res discover.ResultPage
 	var walk func(*html.Node)
 	walk = func(n *html.Node) {
@@ -105,7 +122,7 @@ func (s listSite) ParseResults(doc *html.Node, base *url.URL) discover.ResultPag
 		}
 	}
 	walk(doc)
-	return res
+	return res, nil
 }
 
 func (s listSite) RecipeURL(u *url.URL) (string, bool) {
@@ -139,7 +156,12 @@ func urls(hits []discover.Hit) []string {
 
 func fixture(t *testing.T) string {
 	t.Helper()
-	b, err := os.ReadFile("testdata/ichkoche_results.html")
+	return readFixture(t, "ichkoche_results.html")
+}
+
+func readFixture(t *testing.T, name string) string {
+	t.Helper()
+	b, err := os.ReadFile("testdata/" + name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,10 +172,10 @@ const searchURL = "https://www.ichkoche.at/suche/rezepte?q=kn%C3%B6del"
 
 func TestIchkocheSearchURL(t *testing.T) {
 	site := discover.Ichkoche()
-	if got := site.SearchURL("knödel", 1); got != searchURL {
+	if got, kind := site.SearchURL("knödel", 1); got != searchURL || kind != ai.KindPage {
 		t.Errorf("page 1: %s", got)
 	}
-	if got := site.SearchURL("a&b", 3); got != "https://www.ichkoche.at/suche/rezepte?page=3&q=a%26b" {
+	if got, _ := site.SearchURL("a&b", 3); got != "https://www.ichkoche.at/suche/rezepte?page=3&q=a%26b" {
 		t.Errorf("page 3: %s", got)
 	}
 }
@@ -161,7 +183,7 @@ func TestIchkocheSearchURL(t *testing.T) {
 func TestIchkocheResults(t *testing.T) {
 	f := &fakeFetcher{pages: map[string]string{searchURL: fixture(t)}}
 	s := discover.New(f, []discover.Site{discover.Ichkoche()}, nil)
-	res := s.Search(t.Context(), "knödel", "", 1)
+	res := s.Search(t.Context(), "knödel", []string{"ichkoche.at"}, 1)
 	// The article teaser, the member's cookbook entry, the repeated recipe
 	// and the link to another site are left out.
 	want := []discover.Hit{
@@ -189,18 +211,19 @@ func TestIchkocheResults(t *testing.T) {
 func TestSearchMerge(t *testing.T) {
 	a, b := listSite{"a.test", "a.test"}, listSite{"b.test", "b.test"}
 	f := &fakeFetcher{pages: map[string]string{
-		a.SearchURL("tofu", 1): results(true, "a1", "a2", "a3"),
-		a.SearchURL("tofu", 2): results(false, "a4", "a1"),
-		b.SearchURL("tofu", 1): results(false, "b1"),
+		a.search("tofu", 1): results(true, "a1", "a2", "a3"),
+		a.search("tofu", 2): results(false, "a4", "a1"),
+		b.search("tofu", 1): results(false, "b1"),
 	}}
 	s := discover.New(f, []discover.Site{a, b}, nil)
 	ctx := t.Context()
+	both := []string{"a.test", "b.test"}
 
-	if got := s.Sites(); !slices.Equal(got, []string{"a.test", "b.test"}) || !s.HasSite("b.test") || s.HasSite("c.test") {
-		t.Errorf("sites %q", got)
+	if got := s.Sites(); len(got) != 2 || got[0].Name() != "a.test" || !s.HasSite("b.test") || s.HasSite("c.test") {
+		t.Errorf("sites %v", got)
 	}
 
-	res := s.Search(ctx, "tofu", "", 1)
+	res := s.Search(ctx, "tofu", both, 1)
 	if got, want := urls(res.Hits), []string{"a.test /r/a1", "b.test /r/b1", "a.test /r/a2", "a.test /r/a3"}; !slices.Equal(got, want) {
 		t.Errorf("page 1: %q, want %q", got, want)
 	}
@@ -211,24 +234,24 @@ func TestSearchMerge(t *testing.T) {
 	// The second page is appended; a1, already shown, is not repeated, and
 	// b.test, which had no second page, is not asked for one.
 	f.reset()
-	res = s.Search(ctx, "tofu", "", 2)
+	res = s.Search(ctx, "tofu", both, 2)
 	if got, want := urls(res.Hits), []string{"a.test /r/a1", "b.test /r/b1", "a.test /r/a2", "a.test /r/a3", "a.test /r/a4"}; !slices.Equal(got, want) {
 		t.Errorf("pages 1-2: %q, want %q", got, want)
 	}
 	if res.More {
 		t.Error("pages 1-2: more")
 	}
-	if got := f.took(); !slices.Equal(got, []string{a.SearchURL("tofu", 2)}) {
+	if got := f.took(); !slices.Equal(got, []string{a.search("tofu", 2)}) {
 		t.Errorf("pages 1-2 fetched %q", got)
 	}
 
-	// A site filter searches that site alone; an unknown site nothing.
-	res = s.Search(ctx, "tofu", "b.test", 3)
+	// Naming one site searches it alone; an unknown site nothing.
+	res = s.Search(ctx, "tofu", []string{"b.test"}, 3)
 	if got := urls(res.Hits); !slices.Equal(got, []string{"b.test /r/b1"}) || res.More {
 		t.Errorf("b.test only: %q, more %v", got, res.More)
 	}
 	f.reset()
-	if res := s.Search(ctx, "tofu", "c.test", 1); len(res.Hits) != 0 || len(f.took()) != 0 {
+	if res := s.Search(ctx, "tofu", []string{"c.test"}, 1); len(res.Hits) != 0 || len(f.took()) != 0 {
 		t.Errorf("unknown site: %+v, fetched %q", res, f.took())
 	}
 }
@@ -238,47 +261,48 @@ func TestSearchMerge(t *testing.T) {
 func TestSearchUnavailable(t *testing.T) {
 	now := time.Date(2026, 11, 14, 12, 0, 0, 0, time.UTC)
 	a, down := listSite{"a.test", "a.test"}, listSite{"down.test", "down.test"}
-	f := &fakeFetcher{pages: map[string]string{a.SearchURL("tofu", 1): results(false, "a1")}}
+	f := &fakeFetcher{pages: map[string]string{a.search("tofu", 1): results(false, "a1")}}
 	s := discover.New(f, []discover.Site{down, a}, func() time.Time { return now })
 	ctx := t.Context()
+	both := []string{"a.test", "down.test"}
 
-	if s.Cached("tofu", "", 1) {
+	if s.Cached("tofu", both, 1) {
 		t.Error("cached before the first search")
 	}
-	res := s.Search(ctx, "tofu", "", 1)
+	res := s.Search(ctx, "tofu", both, 1)
 	if got := urls(res.Hits); !slices.Equal(got, []string{"a.test /r/a1"}) ||
 		!slices.Equal(res.Unavailable, []string{"down.test"}) || !errors.Is(res.Err, discover.ErrUnavailable) ||
 		!strings.Contains(res.Err.Error(), "down.test") {
 		t.Errorf("hits %q, unavailable %q, err %v", got, res.Unavailable, res.Err)
 	}
-	if !s.Cached("tofu", "", 1) {
+	if !s.Cached("tofu", both, 1) {
 		t.Error("not cached after the search")
 	}
 
 	// Within the minute the failure is not fetched again, nor logged again.
 	f.reset()
-	res = s.Search(ctx, "tofu", "", 1)
+	res = s.Search(ctx, "tofu", both, 1)
 	if len(f.took()) != 0 || !slices.Equal(res.Unavailable, []string{"down.test"}) || res.Err != nil {
 		t.Errorf("remembered failure: fetched %q, unavailable %q, err %v", f.took(), res.Unavailable, res.Err)
 	}
 	now = now.Add(61 * time.Second)
-	if s.Cached("tofu", "", 1) {
+	if s.Cached("tofu", both, 1) {
 		t.Error("failure still cached after a minute")
 	}
-	s.Search(ctx, "tofu", "", 1)
-	if got := f.took(); !slices.Equal(got, []string{down.SearchURL("tofu", 1)}) {
+	s.Search(ctx, "tofu", both, 1)
+	if got := f.took(); !slices.Equal(got, []string{down.search("tofu", 1)}) {
 		t.Errorf("after a minute fetched %q", got)
 	}
 
 	// A search the viewer gave up on is not the site's failure.
-	f.pages[down.SearchURL("soup", 1)] = results(false, "d1")
+	f.pages[down.search("soup", 1)] = results(false, "d1")
 	canceled, cancel := context.WithCancel(ctx)
 	cancel()
-	s.Search(canceled, "soup", "down.test", 1)
-	if s.Cached("soup", "down.test", 1) {
+	s.Search(canceled, "soup", []string{"down.test"}, 1)
+	if s.Cached("soup", []string{"down.test"}, 1) {
 		t.Error("canceled search cached")
 	}
-	if got := urls(s.Search(ctx, "soup", "down.test", 1).Hits); !slices.Equal(got, []string{"down.test /r/d1"}) {
+	if got := urls(s.Search(ctx, "soup", []string{"down.test"}, 1).Hits); !slices.Equal(got, []string{"down.test /r/d1"}) {
 		t.Errorf("after cancel: %q", got)
 	}
 }
@@ -288,29 +312,30 @@ func TestSearchCacheAndLimits(t *testing.T) {
 	f := &fakeFetcher{pages: map[string]string{searchURL: fixture(t)}}
 	s := discover.New(f, []discover.Site{discover.Ichkoche()}, func() time.Time { return now })
 	ctx := t.Context()
+	ich := []string{"ichkoche.at"}
 
 	// Short queries are not searched.
 	for _, q := range []string{"", "   ", "kn", " k  "} {
-		if res := s.Search(ctx, q, "", 1); len(res.Hits) != 0 || len(f.took()) != 0 || !s.Cached(q, "", 1) {
+		if res := s.Search(ctx, q, ich, 1); len(res.Hits) != 0 || len(f.took()) != 0 || !s.Cached(q, ich, 1) {
 			t.Errorf("query %q: %+v, fetched %q", q, res, f.took())
 		}
 	}
 	// The same search differing in case and spacing is served from the
 	// cache until it expires.
 	for _, q := range []string{"knödel", "  Knödel "} {
-		s.Search(ctx, q, "", 1)
+		s.Search(ctx, q, ich, 1)
 	}
 	if len(f.took()) != 1 {
 		t.Errorf("fetched %q, want one fetch", f.took())
 	}
 	now = now.Add(11 * time.Minute)
-	if s.Search(ctx, "knödel", "", 1); len(f.took()) != 2 {
+	if s.Search(ctx, "knödel", ich, 1); len(f.took()) != 2 {
 		t.Errorf("after expiry fetched %q", f.took())
 	}
 
 	// Queries are cut short, page counts clamped.
 	f.reset()
-	s.Search(ctx, strings.Repeat("x", 300), "", 1)
+	s.Search(ctx, strings.Repeat("x", 300), ich, 1)
 	if got := f.took(); len(got) != 1 || !strings.Contains(got[0], "q="+strings.Repeat("x", discover.MaxQuery)) ||
 		strings.Contains(got[0], strings.Repeat("x", discover.MaxQuery+1)) {
 		t.Errorf("long query fetched %q", got)

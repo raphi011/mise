@@ -82,11 +82,21 @@ type WebView struct {
 	Unavailable string
 	// Alert is a failed import's message.
 	Alert string
+	// Mixed is set when the searched sites are in more than one language,
+	// so hits name theirs.
+	Mixed bool
+	// NoSites is set when the household searches no site; CanEnable when
+	// the viewer may turn sites on.
+	NoSites   bool
+	CanEnable bool
 }
 
 // WebSite is a site filter chip.
 type WebSite struct {
 	Name string
+	// Lang is the site's language code ("DE"); LangName names it.
+	Lang     string
+	LangName string
 	// Down marks a site that could not be searched.
 	Down bool
 }
@@ -102,6 +112,9 @@ type DiscoverHit struct {
 	Photo string
 	// Meta is the rating and difficulty line.
 	Meta string
+	// Lang is the site's language code, set when the search mixes
+	// languages.
+	Lang string
 	// State is one of the Discover hit states; Href is the recipe
 	// (DiscoverLibrary) or the import (the others).
 	State string

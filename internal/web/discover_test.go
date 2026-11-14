@@ -1,6 +1,7 @@
 package web
 
 import (
+	"bytes"
 	"fmt"
 	"html"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	xhtml "golang.org/x/net/html"
+	"golang.org/x/text/language"
 
 	"github.com/raphi011/mise/internal/ai"
 	"github.com/raphi011/mise/internal/discover"
@@ -90,11 +92,18 @@ type listSite struct {
 
 func (s listSite) Name() string { return s.name }
 
-func (s listSite) SearchURL(q string, page int) string {
-	return s.base.JoinPath("search").String() + "?" + url.Values{"q": {q}, "p": {strconv.Itoa(page)}}.Encode()
+func (listSite) Language() language.Tag { return language.English }
+
+func (s listSite) SearchURL(q string, page int) (string, ai.Kind) {
+	return s.base.JoinPath("search").String() + "?" + url.Values{"q": {q}, "p": {strconv.Itoa(page)}}.Encode(), ai.KindPage
 }
 
-func (s listSite) ParseResults(doc *xhtml.Node, base *url.URL) discover.ResultPage {
+func (s listSite) ParseResults(f ai.Fetched, _ int) (discover.ResultPage, error) {
+	doc, err := xhtml.Parse(bytes.NewReader(f.Body))
+	if err != nil {
+		return discover.ResultPage{}, err
+	}
+	base := f.URL
 	var res discover.ResultPage
 	var walk func(*xhtml.Node)
 	walk = func(n *xhtml.Node) {
@@ -117,7 +126,7 @@ func (s listSite) ParseResults(doc *xhtml.Node, base *url.URL) discover.ResultPa
 		}
 	}
 	walk(doc)
-	return res
+	return res, nil
 }
 
 func (s listSite) RecipeURL(u *url.URL) (string, bool) {
@@ -175,6 +184,14 @@ func withSites(t *testing.T, s *Server) *sites {
 
 func (ss *sites) searches() int32 { return ss.ichHits.Load() + ss.otherHit.Load() }
 
+// enableSites makes admin's household search the named sites, through
+// Settings › Household. The household is the one setupForm creates.
+func enableSites(t *testing.T, admin *browser, names ...string) {
+	t.Helper()
+	form := url.Values{"household": {"Home"}, "timezone": {"Europe/Vienna"}, "week_start": {"mon"}, "language": {"en"}, "sites": names}
+	admin.post("/settings/household", form).expect(t, "enable sites", http.StatusSeeOther, "/settings/household?done=saved")
+}
+
 // inOrder reports whether body has each of want, in that order.
 func inOrder(body string, want ...string) bool {
 	at := 0
@@ -196,6 +213,7 @@ func TestWebSearch(t *testing.T) {
 		s, srv := startImportServer(t, db)
 		ss := withSites(t, s)
 		anna, _ := household(t, srv)
+		enableSites(t, anna, "ichkoche.at", "kochbar.test")
 		createRecipe(t, anna, stickyTofu())
 		tofu, curry := ss.ich.URL+"/crispy-tofu-rezept-1", ss.other.URL+"/r/tofu-curry"
 
@@ -215,8 +233,10 @@ func TestWebSearch(t *testing.T) {
 		for _, want := range []string{
 			// The library's hits come first, then the sites'.
 			"Sticky <mark>tofu</mark>", "From the web", "Not in your recipes yet",
-			`aria-current="true" data-on:click__prevent="$site = &#34;&#34;; $wpages = 1">All sites</a>`, `href="/recipes/search?q=tofu&amp;site=kochbar.test"`,
-			"★ 5/5 · 12 ratings · Eier-Koch", html.EscapeString(photo), `<span class="web-hit__site">kochbar.test</span>`,
+			`aria-current="true" data-on:click__prevent="$site = &#34;&#34;; $wpages = 1">All sites </a>`, `href="/recipes/search?q=tofu&amp;site=kochbar.test"`,
+			// The sites mix languages, so chips and hits name theirs.
+			`ichkoche.at <abbr class="lang-badge" title="German">DE</abbr></a>`,
+			"★ 5/5 · 12 ratings · Eier-Koch", html.EscapeString(photo), `<span class="web-hit__site">kochbar.test <span class="lang-badge">EN</span></span>`,
 			`name="url" value="` + tofu + `"`, `aria-label="Import Crispy tofu"`,
 			`href="` + html.EscapeString(ui.DiscoverPreviewHref(tofu, ui.WebSearch{Query: "tofu", Pages: 1})) + `"`,
 			`href="/recipes/search?q=tofu&amp;wp=2"`, "More results", "page=search-web",
@@ -250,7 +270,7 @@ func TestWebSearch(t *testing.T) {
 
 		// A chip searches its site alone.
 		body = anna.get("/recipes/search?q=tofu&site=kochbar.test").body
-		if !strings.Contains(body, `aria-current="true" data-on:click__prevent="$site = &#34;kochbar.test&#34;; $wpages = 1">kochbar.test</a>`) || !strings.Contains(body, "Tofu curry") ||
+		if !strings.Contains(body, `aria-current="true" data-on:click__prevent="$site = &#34;kochbar.test&#34;; $wpages = 1">kochbar.test <abbr`) || !strings.Contains(body, "Tofu curry") ||
 			strings.Contains(body, "Crispy tofu") || !strings.Contains(body, "More from kochbar.test") ||
 			!strings.Contains(body, `href="/recipes/search?q=tofu&amp;site=kochbar.test&amp;wp=2"`) {
 			t.Errorf("one site:\n%.8000s", body)
@@ -300,6 +320,7 @@ func TestWebSearchImport(t *testing.T) {
 		s, srv := startImportServer(t, db)
 		ss := withSites(t, s)
 		anna, ben := household(t, srv)
+		enableSites(t, anna, "ichkoche.at", "kochbar.test")
 		tofu, scramble := ss.ich.URL+"/crispy-tofu-rezept-1", ss.ich.URL+"/tofu-scramble-rezept-2"
 		results := "/recipes/search?q=tofu"
 

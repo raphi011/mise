@@ -60,6 +60,8 @@ type Kind int
 const (
 	KindPage Kind = iota
 	KindImage
+	// KindJSON is a JSON document, such as a site's search API answer.
+	KindJSON
 )
 
 // Fetched is a fetched body.
@@ -68,6 +70,8 @@ type Fetched struct {
 	URL         *url.URL
 	ContentType string
 	Body        []byte
+	// Header is the response's header.
+	Header http.Header
 }
 
 // Fetcher fetches recipe pages and photos from the public internet only:
@@ -162,10 +166,13 @@ func (f *Fetcher) fetch(ctx context.Context, rawURL string, kind Kind, host stri
 	}
 	req.Header.Set("User-Agent", userAgent)
 	limit := int64(MaxPageBytes)
-	if kind == KindImage {
+	switch kind {
+	case KindImage:
 		limit = MaxImageBytes
 		req.Header.Set("Accept", "image/jpeg,image/png,image/webp;q=0.9,*/*;q=0.1")
-	} else {
+	case KindJSON:
+		req.Header.Set("Accept", "application/json")
+	default:
 		req.Header.Set("Accept", "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.1")
 	}
 	res, err := f.client.Do(req)
@@ -190,7 +197,7 @@ func (f *Fetcher) fetch(ctx context.Context, rawURL string, kind Kind, host stri
 	if int64(len(body)) > limit {
 		return Fetched{}, ErrTooLarge
 	}
-	return Fetched{URL: res.Request.URL, ContentType: ct, Body: body}, nil
+	return Fetched{URL: res.Request.URL, ContentType: ct, Body: body, Header: res.Header}, nil
 }
 
 // unwrapFetchErr surfaces our sentinel errors from inside url.Error and
@@ -233,8 +240,11 @@ func acceptable(contentType string, kind Kind) bool {
 	if err != nil {
 		return false
 	}
-	if kind == KindImage {
+	switch kind {
+	case KindImage:
 		return mt == "image/jpeg" || mt == "image/png" || mt == "image/webp"
+	case KindJSON:
+		return mt == "application/json"
 	}
 	return mt == "text/html" || mt == "application/xhtml+xml" || mt == "text/plain"
 }

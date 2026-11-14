@@ -27,15 +27,22 @@ templ SearchWeb(v WebView) {
 					</h2>
 					<p class="web__lead">{ i18n.T(ctx, "discover.web.lead") }</p>
 				</div>
-				if v.Short > 0 {
+				if v.NoSites {
+					<p class="muted">
+						{ i18n.T(ctx, "discover.web.noSites") }
+						if v.CanEnable {
+							<a href="/settings/household#sites">{ i18n.T(ctx, "discover.web.chooseSites") }</a>
+						}
+					</p>
+				} else if v.Short > 0 {
 					<p class="muted">{ i18n.T(ctx, "discover.web.short", v.Short) }</p>
 				} else {
 					@formAlert(Form{Alert: v.Alert})
 					if len(v.Sites) > 0 {
 						<div class="chips web__sites" role="group" aria-label={ i18n.T(ctx, "discover.web.sites") }>
-							@webChip(v, "", i18n.T(ctx, "discover.web.all"), false)
+							@webChip(v, WebSite{Name: i18n.T(ctx, "discover.web.all")}, "")
 							for _, st := range v.Sites {
-								@webChip(v, st.Name, st.Name, st.Down)
+								@webChip(v, st, st.Name)
 							}
 						</div>
 					}
@@ -84,12 +91,13 @@ templ SearchWeb(v WebView) {
 	</div>
 }
 
-// webChip is a site filter chip; site "" is "All sites". A site that
-// could not be searched cannot be picked.
-templ webChip(v WebView, site, label string, down bool) {
-	if down {
+// webChip is a site filter chip for site ("" is "All sites"), with the
+// site's language when the sites mix languages. A site that could not be
+// searched cannot be picked.
+templ webChip(v WebView, st WebSite, site string) {
+	if st.Down {
 		<span class="chip chip--dashed chip--down" aria-disabled="true">
-			{ label }
+			{ st.Name }
 			<span class="chip__count">{ i18n.T(ctx, "discover.web.down") }</span>
 		</span>
 	} else {
@@ -100,8 +108,19 @@ templ webChip(v WebView, site, label string, down bool) {
 				aria-current="true"
 			}
 			data-on:click__prevent={ webPick(site) }
-		>{ label }</a>
+		>
+			{ st.Name }
+			if v.Mixed && st.Lang != "" {
+				@langBadge(st.Lang, st.LangName)
+			}
+		</a>
 	}
+}
+
+// langBadge is a language's short code, with its name for screen readers
+// and on hover.
+templ langBadge(code, name string) {
+	<abbr class="lang-badge" title={ name }>{ code }</abbr>
 }
 
 templ webSkeleton(n int) {
@@ -134,7 +153,12 @@ templ webHit(v WebView, h DiscoverHit) {
 					<span class="muted">{ h.Meta }</span>
 				}
 				if len(v.Sites) > 0 {
-					<span class="web-hit__site">{ h.Site }</span>
+					<span class="web-hit__site">
+						{ h.Site }
+						if h.Lang != "" {
+							<span class="lang-badge">{ h.Lang }</span>
+						}
+					</span>
 				}
 			</span>
 		</a>

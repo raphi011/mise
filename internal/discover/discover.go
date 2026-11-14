@@ -6,18 +6,17 @@
 package discover
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 	"unicode/utf8"
 
-	"golang.org/x/net/html"
-	"golang.org/x/net/html/charset"
+	"golang.org/x/text/language"
 
 	"github.com/raphi011/mise/internal/ai"
 )
@@ -53,12 +52,16 @@ const (
 
 // Site is a recipe site whose own search mise uses.
 type Site interface {
-	// Name is the site's name as people know it ("ichkoche.at").
+	// Name is the site's name as people know it ("ichkoche.at"). It also
+	// keys the site in households' settings, so it must not change.
 	Name() string
-	// SearchURL is the result page for q, page counting from 1.
-	SearchURL(q string, page int) string
-	// ParseResults reads a result page; base is its final URL.
-	ParseResults(doc *html.Node, base *url.URL) ResultPage
+	// Language is the language the site's recipes are written in.
+	Language() language.Tag
+	// SearchURL is the result page for q, page counting from 1, and what
+	// it is (a page or JSON).
+	SearchURL(q string, page int) (string, ai.Kind)
+	// ParseResults reads result page page; f.URL is its final URL.
+	ParseResults(f ai.Fetched, page int) (ResultPage, error)
 	// RecipeURL reports whether u is one of the site's recipe pages, and
 	// returns it without query or fragment.
 	RecipeURL(u *url.URL) (string, bool)
@@ -148,14 +151,8 @@ func New(f Fetcher, sites []Site, now func() time.Time) *Service {
 	return &Service{fetcher: f, sites: sites, now: now, cache: map[cacheKey]cached{}}
 }
 
-// Sites are the searched sites' names, in order.
-func (s *Service) Sites() []string {
-	names := make([]string, len(s.sites))
-	for i, st := range s.sites {
-		names[i] = st.Name()
-	}
-	return names
-}
+// Sites are the sites, in order.
+func (s *Service) Sites() []Site { return slices.Clone(s.sites) }
 
 // HasSite reports whether name is one of the searched sites.
 func (s *Service) HasSite(name string) bool {
@@ -184,14 +181,14 @@ func Searchable(q string) bool { return utf8.RuneCountInString(Query(q)) >= MinQ
 func Pages(n int) int { return min(max(n, 1), MaxPages) }
 
 // Search returns the first pages result pages for q (normalised with Query
-// and Pages) from site, or from every site merged when site is "". The
-// sites are searched at once; each page's hits are interleaved in site
-// order, so no site's hits bury another's. A site that fails is named in
-// Unavailable. A query that is not Searchable, or an unknown site, has no
+// and Pages) from the named sites, merged. The sites are searched at once;
+// each page's hits are interleaved in site order, so no site's hits bury
+// another's. A site that fails is named in Unavailable. Unknown names are
+// ignored; a query that is not Searchable, or no known site, has no
 // results and fetches nothing.
-func (s *Service) Search(ctx context.Context, q, site string, pages int) Results {
+func (s *Service) Search(ctx context.Context, q string, names []string, pages int) Results {
 	q, pages = Query(q), Pages(pages)
-	sites := s.searched(site)
+	sites := s.searched(names)
 	if !Searchable(q) || len(sites) == 0 {
 		return Results{}
 	}
@@ -204,14 +201,14 @@ func (s *Service) Search(ctx context.Context, q, site string, pages int) Results
 	return merge(sites, walks, pages)
 }
 
-// Cached reports whether Search(q, site, pages) would be answered from
+// Cached reports whether Search(q, names, pages) would be answered from
 // the cache alone, without fetching anything.
-func (s *Service) Cached(q, site string, pages int) bool {
+func (s *Service) Cached(q string, names []string, pages int) bool {
 	q, pages = Query(q), Pages(pages)
 	if !Searchable(q) {
 		return true
 	}
-	for _, st := range s.searched(site) {
+	for _, st := range s.searched(names) {
 		if _, complete := s.walk(context.Background(), st, q, pages, false); !complete {
 			return false
 		}
@@ -219,17 +216,15 @@ func (s *Service) Cached(q, site string, pages int) bool {
 	return true
 }
 
-// searched are the sites a search of site covers.
-func (s *Service) searched(site string) []Site {
-	if site == "" {
-		return s.sites
-	}
+// searched are the named sites, in site order.
+func (s *Service) searched(names []string) []Site {
+	var out []Site
 	for _, st := range s.sites {
-		if st.Name() == site {
-			return []Site{st}
+		if slices.Contains(names, st.Name()) {
+			out = append(out, st)
 		}
 	}
-	return nil
+	return out
 }
 
 // walk is one site's part of a search.
@@ -290,19 +285,16 @@ func (s *Service) fetch(ctx context.Context, site Site, key cacheKey, q string) 
 }
 
 func (s *Service) read(ctx context.Context, site Site, q string, page int) (ResultPage, error) {
-	f, err := s.fetcher.Fetch(ctx, site.SearchURL(q, page), ai.KindPage)
+	u, kind := site.SearchURL(q, page)
+	f, err := s.fetcher.Fetch(ctx, u, kind)
 	if err != nil {
 		return ResultPage{}, fmt.Errorf("%w: %w", ErrUnavailable, err)
 	}
-	r, err := charset.NewReader(bytes.NewReader(f.Body), f.ContentType)
-	if err != nil {
-		r = bytes.NewReader(f.Body)
-	}
-	doc, err := html.Parse(r)
+	res, err := site.ParseResults(f, page)
 	if err != nil {
 		return ResultPage{}, fmt.Errorf("%w: %w", ErrUnavailable, err)
 	}
-	return site.ParseResults(doc, f.URL), nil
+	return res, nil
 }
 
 // merge interleaves the sites' hits page by page, dropping repeats.

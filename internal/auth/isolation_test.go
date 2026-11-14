@@ -31,6 +31,7 @@ func TestHouseholdIsolation(t *testing.T) {
 			b.household: addSharedRecipe(t, db, b, "token-b"),
 		}
 		tokens := map[uuid.UUID]string{a.household: "token-a", b.household: "token-b"}
+		names := map[uuid.UUID]string{a.household: "a", b.household: "b"}
 
 		for _, pair := range []struct{ own, other fixture }{{a, b}, {b, a}} {
 			own, other := pair.own, pair.other
@@ -46,6 +47,15 @@ func TestHouseholdIsolation(t *testing.T) {
 				if m.UserID == other.admin || m.UserID == other.member {
 					t.Errorf("Members returned other household's user %s", m.Name)
 				}
+			}
+
+			// The household's settings are its own; another household's admin
+			// cannot change them.
+			if h, err := s.Household(ctx, own.sc); err != nil || h.Name != names[own.household] {
+				t.Errorf("Household: %+v, %v", h, err)
+			}
+			if err := s.UpdateHousehold(ctx, own.sc, other.admin, HouseholdSettings{Name: "x", Timezone: "UTC", WeekStart: "mon", Language: "en"}); !errors.Is(err, ErrForbidden) {
+				t.Errorf("UpdateHousehold by other household's admin: %v", err)
 			}
 
 			// A public link resolves to its own household's recipe only.

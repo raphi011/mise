@@ -1128,5 +1128,16 @@
   "discover.preview.noRecipe": "Keine Rezeptdaten auf dieser Seite",
   "discover.preview.noRecipeBody": "Sie lässt sich nicht als Vorschau zeigen. Zum Importieren braucht es den KI-Import.",
   "discover.preview.unavailable": "%s ist gerade nicht erreichbar",
-  "discover.preview.unavailableBody": "Versuch es gleich noch einmal oder öffne das Rezept auf der Seite."
+  "discover.preview.unavailableBody": "Versuch es gleich noch einmal oder öffne das Rezept auf der Seite.",
+  "settings.household": "Haushalt",
+  "settings.householdNote": "Name, Zeitzone, Sprache und Rezeptseiten.",
+  "settings.householdSites": "Durchsuchte Rezeptseiten: %d",
+  "household.settings.title": "Haushalt",
+  "household.settings.language": "Standardsprache",
+  "household.settings.languageHint": "Für alle, die keine eigene Sprache gewählt haben, und für neue Artikel im Einkaufskatalog.",
+  "household.settings.sites": "Rezeptseiten",
+  "household.settings.sitesNote": "Die Rezeptsuche sucht auch auf diesen Seiten.",
+  "household.settings.sitesFoot": "Seiten in der Standardsprache des Haushalts sind an, solange du sie nicht ausschaltest.",
+  "discover.web.noSites": "Für diesen Haushalt sind keine Rezeptseiten eingeschaltet.",
+  "discover.web.chooseSites": "Seiten auswählen"
 }

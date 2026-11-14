@@ -413,7 +413,7 @@ func (s *Server) searchPage(w http.ResponseWriter, r *http.Request) {
 	}
 	// The sites are searched before the page is sent, so it works without
 	// JavaScript; the live stream then takes the section over.
-	v.Web, err = s.webView(ctx, sc, id.UserID, s.webSearch(query.Get("q"), query.Get("site"), query.Get("wp")))
+	v.Web, err = s.webView(ctx, sc, id, s.webSearch(query.Get("q"), query.Get("site"), query.Get("wp")))
 	if err != nil {
 		s.serverError(w, r, err)
 		return

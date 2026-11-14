@@ -1,0 +1,101 @@
+package ui
+
+import "github.com/raphi011/mise/internal/i18n"
+
+// HouseholdSettingsView is Settings › Household (admins): the household's
+// name, time zone, week start and default language, and the recipe sites
+// the recipe search asks.
+type HouseholdSettingsView struct {
+	// Form holds household, timezone, week_start and language.
+	Form      Form
+	Languages []Option
+	// SiteGroups are the recipe sites by language.
+	SiteGroups []SiteGroup
+	Notice     string
+}
+
+// SiteGroup is the recipe sites in one language.
+type SiteGroup struct {
+	// Lang is the language's code ("DE"); Name names it in the viewer's
+	// language.
+	Lang  string
+	Name  string
+	Sites []SiteToggle
+}
+
+// SiteToggle is a recipe site and whether the household searches it.
+type SiteToggle struct {
+	Name string
+	On   bool
+}
+
+templ HouseholdSettings(p Page, v HouseholdSettingsView) {
+	@Layout(p) {
+		<form class="stack" method="post" action="/settings/household" novalidate>
+			@notice(v.Notice)
+			@formAlert(v.Form)
+			<div class="card stack">
+				@textField(Field{ID: "household-name", Name: "household", Label: i18n.T(ctx, "field.householdName"), Required: true,
+					Hint: i18n.T(ctx, "setup.householdHint")}, v.Form)
+				@textField(Field{ID: "household-timezone", Name: "timezone", Label: i18n.T(ctx, "field.timezone"), Required: true,
+					Hint:  i18n.T(ctx, "setup.timezoneHint"),
+					Attrs: templ.Attributes{"spellcheck": "false", "autocapitalize": "off"}}, v.Form)
+				<div class="field">
+					<label class="field__label" for="household-week-start">{ i18n.T(ctx, "field.weekStart") }</label>
+					<select class="input" id="household-week-start" name="week_start">
+						<option value="mon" selected?={ v.Form.Value("week_start") != "sun" }>{ i18n.T(ctx, "weekday.monday") }</option>
+						<option value="sun" selected?={ v.Form.Value("week_start") == "sun" }>{ i18n.T(ctx, "weekday.sunday") }</option>
+					</select>
+				</div>
+				<div class="field">
+					<label class="field__label" for="household-language">{ i18n.T(ctx, "household.settings.language") }</label>
+					<select
+						class="input"
+						id="household-language"
+						name="language"
+						aria-describedby="household-language-hint"
+						if v.Form.Error("language") != "" {
+							aria-invalid="true"
+						}
+					>
+						for _, o := range v.Languages {
+							<option value={ o.Value } selected?={ v.Form.Value("language") == o.Value }>{ o.Label }</option>
+						}
+					</select>
+					<span class="field__hint" id="household-language-hint">{ i18n.T(ctx, "household.settings.languageHint") }</span>
+					@fieldError("household-language-error", v.Form.Error("language"))
+				</div>
+			</div>
+			<section class="stack" id="sites" aria-labelledby="sites-title">
+				<div class="settings-section__head">
+					<span class="settings-section__titles">
+						<h2 class="section-title" id="sites-title">{ i18n.T(ctx, "household.settings.sites") }</h2>
+						<span class="settings-section__desc">{ i18n.T(ctx, "household.settings.sitesNote") }</span>
+					</span>
+				</div>
+				for _, g := range v.SiteGroups {
+					<fieldset class="form-group">
+						<legend class="form-group__title">
+							{ g.Name }
+							<span class="lang-badge" aria-hidden="true">{ g.Lang }</span>
+						</legend>
+						<div class="card toggle-rows">
+							for _, st := range g.Sites {
+								<label class="toggle-row">
+									<span class="toggle-row__text">
+										<span class="toggle-row__title">{ st.Name }</span>
+									</span>
+									<input type="checkbox" role="switch" name="sites" value={ st.Name } checked?={ st.On }/>
+								</label>
+							}
+						</div>
+					</fieldset>
+				}
+				<span class="settings-section__foot">{ i18n.T(ctx, "household.settings.sitesFoot") }</span>
+			</section>
+			<div>
+				<button class="btn btn--primary" type="submit">{ i18n.T(ctx, "form.save") }</button>
+			</div>
+		</form>
+	}
+}
