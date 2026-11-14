@@ -132,6 +132,8 @@ type SearchView struct {
 	Ingredients []SearchHit
 	// Status announces the result counts.
 	Status string
+	// Web is the recipe sites' hits, below the library's.
+	Web WebView
 }
 
 // SearchHit is one result, with the matched part of Pre+Hit+Post marked.
@@ -276,12 +278,13 @@ type RecipeMenuView struct {
 // "/revoke" under it removes the link.
 func ShareHref(id string) string { return "/recipes/" + id + "/share" }
 
-// ---- Public link ----
+// ---- Read-only recipe ----
 
-// SharedRecipeView is a recipe as its public link shows it: only what the
-// recipe itself says, nothing about the household.
-type SharedRecipeView struct {
-	// PhotoURL is the photo through the link's own route, or "".
+// ReadOnlyRecipeView is a recipe shown read-only, with only what the
+// recipe itself says: its public link (nothing about the household), or
+// the preview of a recipe on another site before it is imported.
+type ReadOnlyRecipeView struct {
+	// PhotoURL is the photo through a route that serves only it, or "".
 	PhotoURL    string
 	Tint        string
 	Name        string

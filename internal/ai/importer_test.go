@@ -303,3 +303,33 @@ func TestPageDraftNotesAndAlternatives(t *testing.T) {
 		}
 	})
 }
+
+// TestPreviewDraft builds the draft an import would start from without a
+// job, and tells a page without recipe data from one that can't be fetched.
+func TestPreviewDraft(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		ctx := t.Context()
+		base, f := pages(t, map[string]string{"/dal": dalPage, "/blog": blogPage})
+		e := newImportEnv(t, db, "home", f)
+		e.item(t, "Red lentils")
+
+		d, err := e.s.PreviewDraft(ctx, e.sc, base+"/dal", language.English)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if d.Name != "Red lentil dal & rice" || len(d.Ingredients) != 3 || d.Ingredients[0].Match != ai.MatchExact || len(d.Steps) != 3 {
+			t.Errorf("draft %+v", d)
+		}
+		if jobs, err := e.s.Jobs(ctx, e.sc, e.hh.Admin); err != nil || len(jobs) != 0 {
+			t.Errorf("preview left jobs %+v, %v", jobs, err)
+		}
+		if _, err := e.s.PreviewDraft(ctx, e.sc, base+"/blog", language.English); !errors.Is(err, ai.ErrNoRecipe) {
+			t.Errorf("blog: %v, want ErrNoRecipe", err)
+		}
+		_, err = e.s.PreviewDraft(ctx, e.sc, base+"/missing", language.English)
+		var se *ai.StatusError
+		if !errors.Is(err, ai.ErrUnreachable) || !errors.As(err, &se) || se.Code != http.StatusNotFound {
+			t.Errorf("missing: %v, want ErrUnreachable wrapping a 404", err)
+		}
+	})
+}

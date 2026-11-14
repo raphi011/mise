@@ -675,6 +675,10 @@ func (s *Server) liveStream(w http.ResponseWriter, r *http.Request) {
 		s.planLive(w, r, sc, id)
 	case "import":
 		s.importLive(w, r, sc, id)
+	case "search-web":
+		s.searchWebLive(w, r, sc, id)
+	case "discover-preview":
+		s.discoverPreviewLive(w, r, sc, id)
 	default:
 		s.notFound(w, r)
 	}

@@ -204,13 +204,13 @@ func TestFetchOnHost(t *testing.T) {
 		}
 	})
 	f := fetcher(t, 0, s)
-	if _, err := f.FetchOnHost(t.Context(), s.URL+"/away", "127.0.0.1"); !errors.Is(err, ai.ErrOtherHost) {
+	if _, err := f.FetchOnHost(t.Context(), s.URL+"/away", "127.0.0.1", ai.KindPage); !errors.Is(err, ai.ErrOtherHost) {
 		t.Errorf("redirect to another host: %v", err)
 	}
-	if _, err := f.FetchOnHost(t.Context(), s.URL+"/page", "example.org"); !errors.Is(err, ai.ErrOtherHost) {
+	if _, err := f.FetchOnHost(t.Context(), s.URL+"/page", "example.org", ai.KindPage); !errors.Is(err, ai.ErrOtherHost) {
 		t.Errorf("start on another host: %v", err)
 	}
-	if res, err := f.FetchOnHost(t.Context(), s.URL+"/here", "127.0.0.1"); err != nil || string(res.Body) != "page" {
+	if res, err := f.FetchOnHost(t.Context(), s.URL+"/here", "127.0.0.1", ai.KindPage); err != nil || string(res.Body) != "page" {
 		t.Errorf("redirect on the host: %v", err)
 	}
 	// Unpinned, the same redirect is followed.

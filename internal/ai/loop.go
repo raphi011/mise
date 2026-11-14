@@ -309,7 +309,7 @@ func (l *loop) fetchPage(ctx context.Context, res ToolResult, raw string) (ToolR
 	if err != nil || !strings.EqualFold(u.Hostname(), l.in.SourceURL.Hostname()) {
 		return fail("Only pages on " + l.in.SourceURL.Hostname() + " can be fetched.")
 	}
-	got, err := l.s.fetcher.FetchOnHost(ctx, u.String(), l.in.SourceURL.Hostname())
+	got, err := l.s.fetcher.FetchOnHost(ctx, u.String(), l.in.SourceURL.Hostname(), KindPage)
 	if errors.Is(err, ErrOtherHost) {
 		return fail("The page redirects off " + l.in.SourceURL.Hostname() + "; only pages on that site can be fetched.")
 	}

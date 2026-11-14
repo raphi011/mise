@@ -405,14 +405,32 @@ func (s *Server) searchPage(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	v, err := s.searchView(ctx, sc, identity(r), r.URL.Query().Get("q"))
+	id, query := identity(r), r.URL.Query()
+	v, err := s.searchView(ctx, sc, id, query.Get("q"))
 	if err != nil {
 		s.serverError(w, r, err)
 		return
 	}
+	// The sites are searched before the page is sent, so it works without
+	// JavaScript; the live stream then takes the section over.
+	v.Web, err = s.webView(ctx, sc, id.UserID, s.webSearch(query.Get("q"), query.Get("site"), query.Get("wp")))
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	s.renderSearch(w, r, http.StatusOK, v)
+}
+
+func (s *Server) renderSearch(w http.ResponseWriter, r *http.Request, status int, v ui.SearchView) {
+	ctx := r.Context()
 	p := s.page(r, i18n.T(ctx, "recipes.search.title"), ui.NavRecipes)
 	p.BackHref, p.BackLabel = "/recipes", i18n.T(ctx, "recipes.back")
-	s.render(w, r, http.StatusOK, ui.Search(p, v))
+	for _, h := range v.Web.Hits {
+		if h.State == ui.DiscoverRunning {
+			p.Refresh = discoverRefresh
+		}
+	}
+	s.render(w, r, status, ui.Search(p, v))
 }
 
 // searchResults answers the search field as the user types.

@@ -66,84 +66,93 @@ templ sharedFrame(p Page) {
 
 // SharedRecipePage is a recipe as its public link shows it: read-only, at
 // the recipe's own servings, without anything about the household.
-templ SharedRecipePage(p Page, v SharedRecipeView) {
+templ SharedRecipePage(p Page, v ReadOnlyRecipeView) {
 	@sharedFrame(p) {
-		<article class="recipe shared-recipe">
-			<div class="recipe-hero">
-				<div class={ "recipe-hero__media avatar--" + v.Tint }>
-					if v.PhotoURL != "" {
-						<img src={ v.PhotoURL } alt=""/>
-					} else {
-						<span class="recipe-hero__initial" aria-hidden="true">{ Initial(v.Name) }</span>
-					}
-				</div>
-				<div class="recipe-hero__text">
-					<h1 class="shared-recipe__title" id="page-title">{ v.Name }</h1>
-					if v.Description != "" {
-						<p class="recipe-hero__desc">{ v.Description }</p>
-					}
-					<dl class="meta-tiles">
-						if v.Prep != "" {
-							@metaTile(i18n.T(ctx, "recipes.prep"), v.Prep, "")
-						}
-						if v.Cook != "" {
-							@metaTile(i18n.T(ctx, "recipes.cook"), v.Cook, "")
-						}
-						@metaTile(i18n.T(ctx, "recipes.yield"), plural(ctx, v.Servings, "recipes.servingsOne", "recipes.servings"), "")
-					</dl>
-					if v.SourceURL != "" {
-						<p class="recipe-source">
-							<a href={ templ.SafeURL(v.SourceURL) } rel="noopener noreferrer" target="_blank">{ i18n.T(ctx, "recipes.source", v.SourceHost) }</a>
-						</p>
-					}
-				</div>
+		@readOnlyRecipe(v, true)
+	}
+}
+
+// readOnlyRecipe is a recipe without anything to change or count: its
+// public link, or a preview of a recipe on another site. title puts the
+// name in the hero, for pages whose header does not carry it.
+templ readOnlyRecipe(v ReadOnlyRecipeView, title bool) {
+	<article class="recipe readonly-recipe">
+		<div class="recipe-hero">
+			<div class={ "recipe-hero__media avatar--" + v.Tint }>
+				if v.PhotoURL != "" {
+					<img src={ v.PhotoURL } alt=""/>
+				} else {
+					<span class="recipe-hero__initial" aria-hidden="true">{ Initial(v.Name) }</span>
+				}
 			</div>
-			<div class="recipe-body">
-				<section class="recipe-section recipe-section--card" aria-labelledby="ingredients-title">
-					<div class="recipe-section__head">
-						<h2 class="recipe-section__title" id="ingredients-title">{ i18n.T(ctx, "recipes.ingredients") }</h2>
-					</div>
-					if len(v.Ingredients) > 0 {
-						<ul class="list ingredients" role="list">
-							for _, ing := range v.Ingredients {
-								<li class="ingredient ingredient--static">
-									<span class="ingredient__name">
-										{ ing.Name }
-										if ing.Note != "" {
-											<span class="ingredient__note">{ ing.Note }</span>
-										}
-										if ing.Optional {
-											<span class="ingredient__opt">{ i18n.T(ctx, "recipes.optional") }</span>
-										}
-									</span>
-									if ing.Amount != "" {
-										<span class="ingredient__amount">{ ing.Amount }</span>
+			<div class="recipe-hero__text">
+				if title {
+					<h1 class="readonly-recipe__title" id="page-title">{ v.Name }</h1>
+				}
+				if v.Description != "" {
+					<p class="recipe-hero__desc">{ v.Description }</p>
+				}
+				<dl class="meta-tiles">
+					if v.Prep != "" {
+						@metaTile(i18n.T(ctx, "recipes.prep"), v.Prep, "")
+					}
+					if v.Cook != "" {
+						@metaTile(i18n.T(ctx, "recipes.cook"), v.Cook, "")
+					}
+					@metaTile(i18n.T(ctx, "recipes.yield"), plural(ctx, v.Servings, "recipes.servingsOne", "recipes.servings"), "")
+				</dl>
+				if v.SourceURL != "" {
+					<p class="recipe-source">
+						<a href={ templ.SafeURL(v.SourceURL) } rel="noopener noreferrer" target="_blank">{ i18n.T(ctx, "recipes.source", v.SourceHost) }</a>
+					</p>
+				}
+			</div>
+		</div>
+		<div class="recipe-body">
+			<section class="recipe-section recipe-section--card" aria-labelledby="ingredients-title">
+				<div class="recipe-section__head">
+					<h2 class="recipe-section__title" id="ingredients-title">{ i18n.T(ctx, "recipes.ingredients") }</h2>
+				</div>
+				if len(v.Ingredients) > 0 {
+					<ul class="list ingredients" role="list">
+						for _, ing := range v.Ingredients {
+							<li class="ingredient ingredient--static">
+								<span class="ingredient__name">
+									{ ing.Name }
+									if ing.Note != "" {
+										<span class="ingredient__note">{ ing.Note }</span>
 									}
-								</li>
-							}
-						</ul>
+									if ing.Optional {
+										<span class="ingredient__opt">{ i18n.T(ctx, "recipes.optional") }</span>
+									}
+								</span>
+								if ing.Amount != "" {
+									<span class="ingredient__amount">{ ing.Amount }</span>
+								}
+							</li>
+						}
+					</ul>
+				} else {
+					<p class="muted">{ i18n.T(ctx, "recipes.noIngredients") }</p>
+				}
+			</section>
+			<div class="recipe-body__main">
+				<section class="recipe-section" aria-labelledby="method-title">
+					<div class="recipe-section__head">
+						<h2 class="recipe-section__title" id="method-title">{ i18n.T(ctx, "recipes.method") }</h2>
+					</div>
+					if len(v.Steps) > 0 {
+						@stepList(v.Steps)
 					} else {
-						<p class="muted">{ i18n.T(ctx, "recipes.noIngredients") }</p>
+						<p class="muted">{ i18n.T(ctx, "recipes.noSteps") }</p>
 					}
 				</section>
-				<div class="recipe-body__main">
-					<section class="recipe-section" aria-labelledby="method-title">
-						<div class="recipe-section__head">
-							<h2 class="recipe-section__title" id="method-title">{ i18n.T(ctx, "recipes.method") }</h2>
-						</div>
-						if len(v.Steps) > 0 {
-							@stepList(v.Steps)
-						} else {
-							<p class="muted">{ i18n.T(ctx, "recipes.noSteps") }</p>
-						}
-					</section>
-					if v.Nutrition != nil {
-						@nutritionSection(*v.Nutrition)
-					}
-				</div>
+				if v.Nutrition != nil {
+					@nutritionSection(*v.Nutrition)
+				}
 			</div>
-		</article>
-	}
+		</div>
+	</article>
 }
 
 // SharedGonePage answers a public link that is unknown or turned off, or
