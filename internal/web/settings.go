@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/raphi011/mise/internal/auth"
+	"github.com/raphi011/mise/internal/buildinfo"
 	"github.com/raphi011/mise/internal/groceries"
 	"github.com/raphi011/mise/internal/i18n"
 	"github.com/raphi011/mise/internal/store"
@@ -38,6 +40,7 @@ var notices = map[string]i18n.Key{
 	"linked":          "notice.ssoLinked",
 	"unlinked":        "notice.ssoUnlinked",
 	"tokenRevoked":    "notice.tokenRevoked",
+	"appRevoked":      "notice.appRevoked",
 	"left":            "notice.householdLeft",
 }
 
@@ -50,8 +53,12 @@ func noticeFor(r *http.Request) string {
 
 // identity returns the signed-in user; routes wrapped in user/admin always
 // have one.
-func identity(r *http.Request) *auth.Identity {
-	id, _ := auth.FromContext(r.Context())
+func identity(r *http.Request) *auth.Identity { return ctxIdentity(r.Context()) }
+
+// ctxIdentity returns the identity of a signed-in or token-authenticated
+// request's context.
+func ctxIdentity(ctx context.Context) *auth.Identity {
+	id, _ := auth.FromContext(ctx)
 	return id
 }
 
@@ -134,7 +141,7 @@ func (s *Server) renderSettings(w http.ResponseWriter, r *http.Request, status i
 	}
 	v := ui.SettingsView{
 		Name: id.Name, Username: id.Username, Color: id.AvatarColor, Admin: id.IsAdmin(),
-		Prefs: st.prefs, Notice: st.notice,
+		Prefs: st.prefs, Notice: st.notice, Version: buildinfo.Version(),
 		ListForm: st.list, ListFormID: st.listID, UndoList: st.undoList, Categories: len(cats), Tags: len(tags),
 		Themes: []ui.Option{
 			{Value: "system", Label: i18n.T(ctx, "theme.system")},

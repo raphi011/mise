@@ -18,20 +18,17 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"runtime/debug"
 	"syscall"
 	"time"
 	_ "time/tzdata" // household time zones must resolve in minimal containers
 
 	"github.com/raphi011/mise/internal/backup"
+	"github.com/raphi011/mise/internal/buildinfo"
 	"github.com/raphi011/mise/internal/config"
 	"github.com/raphi011/mise/internal/jobs"
 	"github.com/raphi011/mise/internal/store"
 	"github.com/raphi011/mise/internal/web"
 )
-
-// version is set at build time with -ldflags "-X main.version=...".
-var version = ""
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -51,7 +48,7 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 	}
 	switch cmd {
 	case "version":
-		_, err := fmt.Fprintln(stdout, versionString())
+		_, err := fmt.Fprintln(stdout, buildinfo.Version())
 		return err
 	case "serve", "migrate":
 	case "backup":
@@ -161,7 +158,7 @@ func serve(ctx context.Context, cfg config.Config, db *store.DB, log *slog.Logge
 
 	errc := make(chan error, 1)
 	go func() {
-		log.Info("listening", slog.String("addr", cfg.Listen), slog.String("version", versionString()))
+		log.Info("listening", slog.String("addr", cfg.Listen), slog.String("version", buildinfo.Version()))
 		errc <- srv.ListenAndServe()
 	}()
 
@@ -191,33 +188,4 @@ func newLogger(cfg config.Config, w io.Writer) *slog.Logger {
 		return slog.New(slog.NewTextHandler(w, opts))
 	}
 	return slog.New(slog.NewJSONHandler(w, opts))
-}
-
-func versionString() string {
-	if version != "" {
-		return version
-	}
-	info, ok := debug.ReadBuildInfo()
-	if !ok {
-		return "dev"
-	}
-	rev, dirty := "", false
-	for _, s := range info.Settings {
-		switch s.Key {
-		case "vcs.revision":
-			rev = s.Value
-		case "vcs.modified":
-			dirty = s.Value == "true"
-		}
-	}
-	if rev == "" {
-		return "dev"
-	}
-	if len(rev) > 12 {
-		rev = rev[:12]
-	}
-	if dirty {
-		rev += "-dirty"
-	}
-	return rev
 }

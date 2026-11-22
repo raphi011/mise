@@ -129,7 +129,7 @@ func (s *Service) LeaveHousehold(ctx context.Context, id *Identity, householdID 
 		if _, err := q.Exec(ctx, `DELETE FROM sessions WHERE household_id = ? AND user_id = ?`, householdID, id.UserID); err != nil {
 			return err
 		}
-		if _, err := q.Exec(ctx, `DELETE FROM api_tokens WHERE household_id = ? AND user_id = ?`, householdID, id.UserID); err != nil {
+		if err := dropMemberTokens(ctx, q, householdID, id.UserID); err != nil {
 			return err
 		}
 		_, err = q.Exec(ctx, `DELETE FROM invites WHERE household_id = ? AND invited_by = ? AND used_at IS NULL`, householdID, id.UserID)

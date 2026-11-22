@@ -2,7 +2,7 @@
 
 Self-hosted recipes, meal plan and shopping lists: one Go binary, server-rendered with templ + Datastar, SQLite or Postgres.
 
-- REST API and tokens: [docs/api.md](docs/api.md).
+- REST API and tokens: [docs/api.md](docs/api.md). MCP server and OAuth: [docs/mcp.md](docs/mcp.md).
 - Proxy, backup, SMTP, SSO: [docs/operations.md](docs/operations.md).
 - Writing a migration: [internal/store/migrations/README.md](internal/store/migrations/README.md).
 

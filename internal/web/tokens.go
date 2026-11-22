@@ -76,6 +76,22 @@ func (s *Server) renderTokens(w http.ResponseWriter, r *http.Request, status int
 		}
 		v.Tokens = append(v.Tokens, row)
 	}
+	grants, err := s.auth.OAuthGrants(ctx, id)
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	for _, g := range grants {
+		row := ui.AppRow{
+			ID: g.ID.String(), Name: g.ClientName, Scope: i18n.T(ctx, scopeLabel(g.Scope)), Write: g.Scope == auth.ScopeWrite,
+			Connected: i18n.T(ctx, "tokens.apps.connected", g.CreatedAt.In(loc).Format("2006-01-02")),
+			LastUsed:  i18n.T(ctx, "tokens.neverUsed"),
+		}
+		if g.LastUsedAt != nil {
+			row.LastUsed = i18n.T(ctx, "tokens.lastUsed", g.LastUsedAt.In(loc).Format("2006-01-02"))
+		}
+		v.Apps = append(v.Apps, row)
+	}
 	v.Scopes = []ui.Option{
 		{Value: string(auth.ScopeRead), Label: i18n.T(ctx, "tokens.scope.read"), Hint: i18n.T(ctx, "tokens.scope.readHint")},
 		{Value: string(auth.ScopeWrite), Label: i18n.T(ctx, "tokens.scope.write"), Hint: i18n.T(ctx, "tokens.scope.writeHint")},
@@ -150,4 +166,24 @@ func (s *Server) revokeToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	seeOther(w, r, tokensPath+"?done=tokenRevoked")
+}
+
+// revokeApp ends an app's OAuth grant: its tokens stop working and it has
+// to ask again.
+func (s *Server) revokeApp(w http.ResponseWriter, r *http.Request) {
+	grantID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		s.notFound(w, r)
+		return
+	}
+	err = s.auth.RevokeOAuthGrant(r.Context(), identity(r), grantID)
+	if errors.Is(err, auth.ErrNotFound) {
+		s.notFound(w, r)
+		return
+	}
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	seeOther(w, r, tokensPath+"?done=appRevoked")
 }

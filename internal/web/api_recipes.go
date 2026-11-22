@@ -2,6 +2,7 @@ package web
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -190,31 +191,30 @@ func intParam(r *http.Request, name string, def, max int) int {
 	return min(n, max)
 }
 
-// apiListRecipes lists recipes: ?q= searches names and ingredients, else
-// the library in ?sort= order (cooked, added, most, name, quickest), at
-// most ?limit= (default 50, max 200).
-func (s *Server) apiListRecipes(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+// recipeListJSON is a page of recipe cards.
+type recipeListJSON struct {
+	Recipes []recipeCardJSON `json:"recipes"`
+	// Total is how many recipes match, whatever the limit.
+	Total int `json:"total"`
+}
+
+// doListRecipes lists recipes: q searches names and ingredients, else the
+// library in sort order (cooked, added, most, name, quickest), at most
+// limit (0 means 50).
+func (s *Server) doListRecipes(ctx context.Context, q, sort string, limit int) (recipeListJSON, error) {
+	out := recipeListJSON{Recipes: []recipeCardJSON{}}
 	sc, err := s.db.Scope(ctx)
 	if err != nil {
-		s.apiErr(w, r, err)
-		return
+		return out, err
 	}
-	viewer := identity(r).UserID
-	limit := intParam(r, "limit", 50, 200)
-	if limit == 0 {
+	viewer := ctxIdentity(ctx).UserID
+	if limit <= 0 {
 		limit = 50
 	}
-	out := struct {
-		Recipes []recipeCardJSON `json:"recipes"`
-		// Total is how many recipes match, whatever the limit.
-		Total int `json:"total"`
-	}{Recipes: []recipeCardJSON{}}
-	if q := r.URL.Query().Get("q"); q != "" {
+	if q != "" {
 		res, err := s.recipes.Search(ctx, sc, viewer, q)
 		if err != nil {
-			s.apiErr(w, r, err)
-			return
+			return out, err
 		}
 		seen := map[uuid.UUID]bool{}
 		var cards []recipes.Card
@@ -232,49 +232,86 @@ func (s *Server) apiListRecipes(w http.ResponseWriter, r *http.Request) {
 		for _, c := range cards[:min(limit, len(cards))] {
 			out.Recipes = append(out.Recipes, cardJSON(c))
 		}
-		writeJSON(w, http.StatusOK, out)
-		return
+		return out, nil
 	}
-	f := recipes.Filter{Sort: recipes.Sort(r.URL.Query().Get("sort"))}
-	cards, total, err := s.recipes.LibraryPage(ctx, sc, viewer, f, limit)
+	cards, total, err := s.recipes.LibraryPage(ctx, sc, viewer, recipes.Filter{Sort: recipes.Sort(sort)}, limit)
 	if err != nil {
-		s.apiErr(w, r, err)
-		return
+		return out, err
 	}
 	out.Total = total
 	for _, c := range cards {
 		out.Recipes = append(out.Recipes, cardJSON(c))
 	}
+	return out, nil
+}
+
+func (s *Server) doGetRecipe(ctx context.Context, recipeID uuid.UUID) (recipeJSON, error) {
+	sc, err := s.db.Scope(ctx)
+	if err != nil {
+		return recipeJSON{}, err
+	}
+	rec, err := s.recipes.Get(ctx, sc, recipeID, ctxIdentity(ctx).UserID)
+	if err != nil {
+		return recipeJSON{}, err
+	}
+	return recipeToJSON(rec, i18n.Locale(ctx)), nil
+}
+
+func (s *Server) doCreateRecipe(ctx context.Context, in recipeIn) (recipeJSON, error) {
+	sc, err := s.db.Scope(ctx)
+	if err != nil {
+		return recipeJSON{}, err
+	}
+	id, err := s.recipes.Create(ctx, sc, ctxIdentity(ctx).UserID, in.input(i18n.Locale(ctx)))
+	if err != nil {
+		return recipeJSON{}, err
+	}
+	return s.doGetRecipe(ctx, id)
+}
+
+func (s *Server) doUpdateRecipe(ctx context.Context, recipeID uuid.UUID, in recipeIn) (recipeJSON, error) {
+	sc, err := s.db.Scope(ctx)
+	if err != nil {
+		return recipeJSON{}, err
+	}
+	if err := s.recipes.Update(ctx, sc, recipeID, ctxIdentity(ctx).UserID, in.input(i18n.Locale(ctx))); err != nil {
+		return recipeJSON{}, err
+	}
+	return s.doGetRecipe(ctx, recipeID)
+}
+
+func (s *Server) doDeleteRecipe(ctx context.Context, recipeID uuid.UUID) error {
+	sc, err := s.db.Scope(ctx)
+	if err != nil {
+		return err
+	}
+	return s.recipes.Delete(ctx, sc, recipeID)
+}
+
+// apiListRecipes lists recipes: ?q= searches names and ingredients, else
+// the library in ?sort= order, at most ?limit= (default 50, max 200).
+func (s *Server) apiListRecipes(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	out, err := s.doListRecipes(r.Context(), q.Get("q"), q.Get("sort"), intParam(r, "limit", 50, 200))
+	if err != nil {
+		s.apiErr(w, r, err)
+		return
+	}
 	writeJSON(w, http.StatusOK, out)
 }
 
 func (s *Server) apiGetRecipe(w http.ResponseWriter, r *http.Request) {
-	s.writeRecipe(w, r, http.StatusOK, "")
-}
-
-// writeRecipe answers with the recipe named by id, or by the path when id
-// is empty.
-func (s *Server) writeRecipe(w http.ResponseWriter, r *http.Request, status int, id string) {
-	ctx := r.Context()
-	if id == "" {
-		id = r.PathValue("id")
-	}
-	recipeID, err := uuid.Parse(id)
-	if err != nil {
-		apiNotFound(w, r)
-		return
-	}
-	sc, err := s.db.Scope(ctx)
+	recipeID, err := parseID(r.PathValue("id"))
 	if err != nil {
 		s.apiErr(w, r, err)
 		return
 	}
-	rec, err := s.recipes.Get(ctx, sc, recipeID, identity(r).UserID)
+	out, err := s.doGetRecipe(r.Context(), recipeID)
 	if err != nil {
 		s.apiErr(w, r, err)
 		return
 	}
-	writeJSON(w, status, recipeToJSON(rec, i18n.Locale(ctx)))
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (s *Server) apiCreateRecipe(w http.ResponseWriter, r *http.Request) {
@@ -282,56 +319,40 @@ func (s *Server) apiCreateRecipe(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &in) {
 		return
 	}
-	ctx := r.Context()
-	sc, err := s.db.Scope(ctx)
+	out, err := s.doCreateRecipe(r.Context(), in)
 	if err != nil {
 		s.apiErr(w, r, err)
 		return
 	}
-	id, err := s.recipes.Create(ctx, sc, identity(r).UserID, in.input(i18n.Locale(ctx)))
-	if err != nil {
-		s.apiErr(w, r, err)
-		return
-	}
-	w.Header().Set("Location", "/api/v1/recipes/"+id.String())
-	s.writeRecipe(w, r, http.StatusCreated, id.String())
+	w.Header().Set("Location", "/api/v1/recipes/"+out.ID)
+	writeJSON(w, http.StatusCreated, out)
 }
 
 func (s *Server) apiUpdateRecipe(w http.ResponseWriter, r *http.Request) {
-	recipeID, err := uuid.Parse(r.PathValue("id"))
+	recipeID, err := parseID(r.PathValue("id"))
 	if err != nil {
-		apiNotFound(w, r)
+		s.apiErr(w, r, err)
 		return
 	}
 	var in recipeIn
 	if !decodeJSON(w, r, &in) {
 		return
 	}
-	ctx := r.Context()
-	sc, err := s.db.Scope(ctx)
+	out, err := s.doUpdateRecipe(r.Context(), recipeID, in)
 	if err != nil {
 		s.apiErr(w, r, err)
 		return
 	}
-	if err := s.recipes.Update(ctx, sc, recipeID, identity(r).UserID, in.input(i18n.Locale(ctx))); err != nil {
-		s.apiErr(w, r, err)
-		return
-	}
-	s.writeRecipe(w, r, http.StatusOK, "")
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (s *Server) apiDeleteRecipe(w http.ResponseWriter, r *http.Request) {
-	recipeID, err := uuid.Parse(r.PathValue("id"))
-	if err != nil {
-		apiNotFound(w, r)
-		return
-	}
-	sc, err := s.db.Scope(r.Context())
+	recipeID, err := parseID(r.PathValue("id"))
 	if err != nil {
 		s.apiErr(w, r, err)
 		return
 	}
-	if err := s.recipes.Delete(r.Context(), sc, recipeID); err != nil {
+	if err := s.doDeleteRecipe(r.Context(), recipeID); err != nil {
 		s.apiErr(w, r, err)
 		return
 	}

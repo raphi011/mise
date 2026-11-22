@@ -38,6 +38,13 @@ func (r *router) write(method, path string, h http.Handler) {
 	r.patterns = append(r.patterns, method+" "+path)
 }
 
+// preflight registers a CORS preflight handler. OPTIONS changes nothing,
+// and CrossOriginProtection lets it through.
+func (r *router) preflight(path string, h http.Handler) {
+	r.mux.Handle(http.MethodOptions+" "+path, recordRoute(h))
+	r.patterns = append(r.patterns, http.MethodOptions+" "+path)
+}
+
 // oidcCallbackPath is where the OpenID Connect provider sends the browser
 // back after sign-in.
 const oidcCallbackPath = "/auth/oidc/callback"

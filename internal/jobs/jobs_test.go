@@ -14,6 +14,7 @@ import (
 	"golang.org/x/text/language"
 
 	"github.com/raphi011/mise/internal/ai"
+	"github.com/raphi011/mise/internal/auth"
 	"github.com/raphi011/mise/internal/groceries"
 	"github.com/raphi011/mise/internal/images"
 	"github.com/raphi011/mise/internal/recipes"
@@ -418,6 +419,68 @@ func TestSplitIngredientAmounts(t *testing.T) {
 			if n != want {
 				t.Errorf("changed %d rows, want %d", n, want)
 			}
+		}
+	})
+}
+
+func TestSweepOAuth(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		ctx := t.Context()
+		now := time.Date(2026, 11, 9, 12, 0, 0, 0, time.UTC)
+		hh := storetest.NewHousehold(t, db, "home")
+		at := func(d time.Duration) any { return store.T(now.Add(d)) }
+		// used is a client a member approved; fresh and stale were never
+		// approved, stale longer ago than auth.UnusedClientTTL. old was
+		// approved before auth.RefreshTTL and still has a grant;
+		// abandoned has none left.
+		used, fresh, stale, old, abandoned := store.NewID(), store.NewID(), store.NewID(), store.NewID(), store.NewID()
+		long := -auth.RefreshTTL - time.Hour
+		err := db.System().Tx(ctx, func(ctx context.Context, q store.Querier) error {
+			for _, c := range []struct {
+				id       uuid.UUID
+				lastUsed any
+				created  any
+			}{
+				{used, at(-48 * time.Hour), at(-48 * time.Hour)}, {fresh, nil, at(-time.Hour)}, {stale, nil, at(-25 * time.Hour)},
+				{old, at(long), at(long)}, {abandoned, at(long), at(long)},
+			} {
+				if _, err := q.Exec(ctx, `INSERT INTO oauth_clients (id, name, redirect_uris, last_used_at, created_at, updated_at)
+					VALUES (?, 'app', 'https://app.example/cb', ?, ?, ?)`, c.id, c.lastUsed, c.created, c.created); err != nil {
+					return err
+				}
+			}
+			for _, g := range []struct {
+				client                                uuid.UUID
+				codeExpires, codeUsed, refreshExpires any
+			}{
+				{used, at(time.Minute), nil, nil},                            // code still valid: stays
+				{used, at(-time.Minute), nil, nil},                           // code expired unused
+				{used, at(-time.Hour), at(-2 * time.Hour), at(time.Hour)},    // exchanged, refresh valid: stays
+				{used, at(-time.Hour), at(-2 * time.Hour), at(-time.Minute)}, // refresh expired
+				{old, at(long), at(long), at(time.Hour)},                     // refreshed ever since: stays
+			} {
+				if _, err := q.Exec(ctx, `INSERT INTO oauth_grants (id, household_id, user_id, client_id, scope, code_hash, code_challenge,
+						redirect_uri, code_expires_at, code_used_at, refresh_expires_at, created_at, updated_at)
+					VALUES (?, ?, ?, ?, 'read', ?, 'c', 'https://app.example/cb', ?, ?, ?, ?, ?)`,
+					store.NewID(), hh.ID, hh.Admin, g.client, uuid.NewString(), g.codeExpires, g.codeUsed, g.refreshExpires, store.T(now), store.T(now)); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		s := NewSweeper(db, slog.New(slog.DiscardHandler), func() time.Time { return now }, 0)
+		if got, err := s.Sweep(ctx); err != nil || got != (Swept{Grants: 2, Clients: 2}) {
+			t.Fatalf("sweep: %+v, %v", got, err)
+		}
+		var left []uuid.UUID
+		if err := db.System().Read().Select(ctx, &left, `SELECT id FROM oauth_clients ORDER BY id`); err != nil || len(left) != 3 {
+			t.Errorf("clients left: %v, %v", left, err)
+		}
+		if got, err := s.Sweep(ctx); err != nil || got != (Swept{}) {
+			t.Errorf("second sweep: %+v, %v", got, err)
 		}
 	})
 }

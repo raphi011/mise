@@ -10,6 +10,7 @@ Self-hosted recipes, meal plan and shared shopping lists for your household. One
 - **Shopping lists.** Add a meal's ingredients to a list in one tap, or type "2 lemons". Lists update live on every device, so two people can shop from one.
 - **Cook mode.** Full-screen steps with ingredient amounts inline and step timers; the screen stays on.
 - **Households.** Invite members by link or email; password sign-in plus optional single sign-on (OpenID Connect).
+- **AI agents.** An MCP server with OAuth, so Claude and other apps can plan meals and fill the list, and a REST API with tokens ([MCP](docs/mcp.md), [API](docs/api.md)).
 - **Works everywhere.** Installable on phones, light and dark theme, English and German, usable without JavaScript (Datastar only enhances).
 
 <p>

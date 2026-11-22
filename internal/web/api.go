@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -8,7 +9,10 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"github.com/raphi011/mise/internal/auth"
+	"github.com/raphi011/mise/internal/buildinfo"
 	"github.com/raphi011/mise/internal/groceries"
 	"github.com/raphi011/mise/internal/i18n"
 	"github.com/raphi011/mise/internal/plan"
@@ -54,24 +58,61 @@ func apiNotFound(w http.ResponseWriter, _ *http.Request) {
 	apiFail(w, http.StatusNotFound, "not_found", "Not found.", nil)
 }
 
-// apiErr answers for err from a domain call: validation errors are 422,
-// missing resources 404, anything else is logged and 500.
+// apiProblem is an error the API reports as is, outside the domain's
+// validation (a malformed date, an unknown id).
+type apiProblem struct {
+	status  int
+	code    string
+	message string
+	fields  map[string]string
+}
+
+func (p *apiProblem) Error() string { return p.code + ": " + p.message }
+
+// errAPINotFound reports an unknown id or one of another household.
+var errAPINotFound = &apiProblem{status: http.StatusNotFound, code: "not_found", message: "Not found."}
+
+// parseID reads a resource id, or returns errAPINotFound.
+func parseID(v string) (uuid.UUID, error) {
+	id, err := uuid.Parse(v)
+	if err != nil {
+		return uuid.Nil, errAPINotFound
+	}
+	return id, nil
+}
+
+// apiErr answers for err from an API operation: problems as they are,
+// validation errors 422, missing resources 404, anything else is logged
+// and 500.
 func (s *Server) apiErr(w http.ResponseWriter, r *http.Request, err error) {
 	ctx := r.Context()
+	var p *apiProblem
 	var fe fieldErrors
 	switch {
+	case errors.As(err, &p):
+		apiFail(w, p.status, p.code, p.message, p.fields)
 	case errors.As(err, &fe):
-		fields := map[string]string{}
-		for field, key := range fe.Fields() {
-			fields[field] = i18n.T(ctx, key)
-		}
-		apiFail(w, http.StatusUnprocessableEntity, "invalid", i18n.T(ctx, "form.error.summary"), fields)
-	case errors.Is(err, recipes.ErrNotFound), errors.Is(err, plan.ErrNotFound), errors.Is(err, groceries.ErrNotFound):
+		apiFail(w, http.StatusUnprocessableEntity, "invalid", i18n.T(ctx, "form.error.summary"), translateFields(ctx, fe))
+	case isNotFound(err):
 		apiNotFound(w, r)
 	default:
 		s.log.ErrorContext(ctx, "api request failed", slog.String("route", r.Pattern), slog.Any("err", err))
 		apiFail(w, http.StatusInternalServerError, "internal", "Something went wrong.", nil)
 	}
+}
+
+// isNotFound reports whether err is a domain's not-found error.
+func isNotFound(err error) bool {
+	return errors.Is(err, recipes.ErrNotFound) || errors.Is(err, plan.ErrNotFound) || errors.Is(err, groceries.ErrNotFound)
+}
+
+// translateFields translates validation errors by field.
+func translateFields(ctx context.Context, fe fieldErrors) map[string]string {
+	fields := map[string]string{}
+	for field, key := range fe.Fields() {
+		fields[field] = i18n.T(ctx, key)
+	}
+	return fields
 }
 
 // decodeJSON reads the request body into dst, refusing unknown fields,
@@ -159,16 +200,23 @@ type meJSON struct {
 	} `json:"household"`
 	// Scope is the token's: read or write.
 	Scope string `json:"scope"`
+	// Version is the running build of mise.
+	Version string `json:"version"`
 }
 
-func (s *Server) apiMe(w http.ResponseWriter, r *http.Request) {
-	id := identity(r)
+func doMe(ctx context.Context) meJSON {
+	id, _ := auth.FromContext(ctx)
 	var v meJSON
 	v.User.ID, v.User.Username, v.User.Name = id.UserID.String(), id.Username, id.Name
 	v.Household.ID, v.Household.Name, v.Household.Timezone = id.HouseholdID.String(), id.HouseholdName, id.Timezone
 	v.Household.WeekStart, v.Household.Language = id.WeekStart, id.HouseholdLanguage
 	v.Scope = string(id.APIScope)
-	writeJSON(w, http.StatusOK, v)
+	v.Version = buildinfo.Version()
+	return v
+}
+
+func (s *Server) apiMe(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, doMe(r.Context()))
 }
 
 // apiRoutes registers /api/v1.

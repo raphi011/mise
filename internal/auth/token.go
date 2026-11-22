@@ -165,9 +165,10 @@ func (s *Service) RevokeToken(ctx context.Context, id *Identity, tokenID uuid.UU
 	})
 }
 
-// AuthenticateToken resolves a bearer token to its member's identity in the
-// token's household, with the token's scope in Identity.APIScope. It returns
-// ErrNoToken for unknown or expired tokens and removed members.
+// AuthenticateToken resolves a bearer token, an API token or an OAuth
+// access token, to its member's identity in the token's household, with
+// the token's scope in Identity.APIScope. It returns ErrNoToken for
+// unknown or expired tokens and removed members.
 func (s *Service) AuthenticateToken(ctx context.Context, token string) (*Identity, error) {
 	if !strings.HasPrefix(token, TokenPrefix) || len(token) > 200 {
 		return nil, ErrNoToken
@@ -190,6 +191,9 @@ func (s *Service) AuthenticateToken(ctx context.Context, token string) (*Identit
 		JOIN households h ON h.id = t.household_id
 		WHERE t.token_hash = ?`, hashToken(token))
 	if errors.Is(err, sql.ErrNoRows) {
+		if strings.HasPrefix(token, AccessTokenPrefix) {
+			return s.authenticateAccessToken(ctx, token)
+		}
 		return nil, ErrNoToken
 	}
 	if err != nil {

@@ -39,6 +39,8 @@ type SettingsView struct {
 	// searches. Shown to admins only.
 	Household string
 	Sites     int
+	// Version is the running build of mise.
+	Version string
 }
 
 // MemberRow is one person in the People list.
@@ -222,6 +224,7 @@ templ Settings(p Page, v SettingsView) {
 				<div class="settings-signout">
 					@postButton("/signout", i18n.T(ctx, "settings.signOut"), "btn btn--destructive", nil)
 				</div>
+				<p class="settings-version">{ i18n.T(ctx, "settings.version", v.Version) }</p>
 	}
 }
 
