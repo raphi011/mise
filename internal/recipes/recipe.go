@@ -104,7 +104,10 @@ type Input struct {
 	Notes       string
 	// Photo is an image content hash from internal/images, or empty.
 	Photo string
-	Tags  []string
+	// KeepPhoto makes Update leave the photo as it is and ignore Photo,
+	// for writers that manage the photo on its own (SetPhoto).
+	KeepPhoto bool
+	Tags      []string
 	// Links are the recipes that go well with this one. The link goes both
 	// ways; IDs that are not live recipes of the household are ignored.
 	Links       []uuid.UUID
@@ -374,6 +377,33 @@ func (s *Service) Update(ctx context.Context, sc store.Scoped, id, by uuid.UUID,
 	return nil
 }
 
+// SetPhoto makes photo, an image content hash from internal/images, the
+// recipe's photo, or removes the photo when it is empty.
+func (s *Service) SetPhoto(ctx context.Context, sc store.Scoped, id, by uuid.UUID, photo string) error {
+	if photo != "" && !photoHash.MatchString(photo) {
+		return FieldErrors{"photo": "form.error.choice"}
+	}
+	var linked []uuid.UUID
+	err := sc.Tx(ctx, func(ctx context.Context, q store.Querier) error {
+		res, err := q.Exec(ctx, `UPDATE recipes SET photo = ?, updated_by = ?, updated_at = ?
+			WHERE household_id = ? AND id = ? AND deleted_at IS NULL AND draft = ?`,
+			nullable(photo), by, s.clock(), sc.HouseholdID(), id, false)
+		if err != nil {
+			return err
+		}
+		if err := mustAffect(res); err != nil {
+			return err
+		}
+		linked, err = linkedIDs(ctx, q, sc, id)
+		return err
+	})
+	if err != nil {
+		return err
+	}
+	s.publish(sc, append(linkEvents(linked), recipeChanged(id), recipesChanged)...)
+	return nil
+}
+
 // update writes Update's changes inside its transaction. A changed name
 // gives the recipe a new slug and keeps the old one in its history.
 func (s *Service) update(ctx context.Context, q store.Querier, sc store.Scoped, id, by uuid.UUID, in Input) (newItems bool, linked []uuid.UUID, err error) {
@@ -401,13 +431,14 @@ func (s *Service) update(ctx context.Context, q store.Querier, sc store.Scoped, 
 	if in.Notes != "" {
 		notesBy, notesAt = &by, &now
 	}
-	if _, err := q.Exec(ctx, `UPDATE recipes SET name = ?, name_key = ?, slug = ?, description = ?, photo = ?, prep_min = ?,
+	if _, err := q.Exec(ctx, `UPDATE recipes SET name = ?, name_key = ?, slug = ?, description = ?,
+			photo = CASE WHEN ? THEN photo ELSE ? END, prep_min = ?,
 			cook_min = ?, servings = ?, source_url = ?,
 			notes_by = CASE WHEN notes = ? THEN notes_by ELSE ? END,
 			notes_at = CASE WHEN notes = ? THEN notes_at ELSE ? END,
 			notes = ?, updated_by = ?, updated_at = ?
 		WHERE household_id = ? AND id = ?`,
-		in.Name, groceries.NameKey(in.Name), slug, in.Description, nullable(in.Photo), in.PrepMin,
+		in.Name, groceries.NameKey(in.Name), slug, in.Description, in.KeepPhoto, nullable(in.Photo), in.PrepMin,
 		in.CookMin, in.Servings, nullable(in.SourceURL),
 		in.Notes, notesBy, in.Notes, notesAt,
 		in.Notes, by, now, hh, id); err != nil {

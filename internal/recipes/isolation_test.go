@@ -3,6 +3,7 @@ package recipes
 import (
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -133,6 +134,8 @@ func TestHouseholdIsolation(t *testing.T) {
 			notFound("delete", s.Delete(ctx, sc, other.recipe.ID))
 			notFound("restore", s.Restore(ctx, sc, other.binned.ID))
 			notFound("favourite", s.SetFavourite(ctx, sc, me, other.recipe.ID, false))
+			notFound("set photo", s.SetPhoto(ctx, sc, other.recipe.ID, me, strings.Repeat("a", 64)))
+			notFound("remove photo", s.SetPhoto(ctx, sc, other.recipe.ID, me, ""))
 			_, err = s.CreateShare(ctx, sc, me, other.recipe.ID)
 			notFound("share other's recipe", err)
 			notFound("revoke other's share", s.RevokeShare(ctx, sc, other.recipe.ID))
@@ -190,7 +193,7 @@ func TestHouseholdIsolation(t *testing.T) {
 			}
 
 			if got, err := other.s.Get(ctx, other.sc, other.recipe.ID, other.hh.Admin); err != nil ||
-				got.Name != "Dal" || !got.Favourite || len(got.Tags) != 1 || got.Tags[0].Name != "Vegan" || got.Tags[0].Pinned {
+				got.Name != "Dal" || got.Photo != "" || !got.Favourite || len(got.Tags) != 1 || got.Tags[0].Name != "Vegan" || got.Tags[0].Pinned {
 				t.Errorf("other's recipe changed: %+v, %v", got, err)
 			}
 			if sh, ok, err := other.s.Share(ctx, other.sc, other.recipe.ID); err != nil || !ok || sh.Token != other.share.Token {

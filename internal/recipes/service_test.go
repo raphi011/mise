@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -504,6 +505,61 @@ func TestToggleIngredient(t *testing.T) {
 		rice := e.create(t, Input{Name: "Rice", Servings: 2, Ingredients: ings("100 g rice")})
 		if got, err := e.s.ToggleIngredient(ctx, e.sc, e.hh.Admin, rice.ID, rice.Ingredients[0].ID, 100000, true, language.English); err != nil || got.Added.Amount.Text != "100 g" {
 			t.Errorf("servings not bounded: %+v, %v", got.Added, err)
+		}
+	})
+}
+
+func TestSetPhoto(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		ctx := t.Context()
+		e := newEnv(t, db, "home")
+		naan := e.create(t, Input{Name: "Naan"})
+		r := e.create(t, Input{Name: "Dal", Links: []uuid.UUID{naan.ID}})
+		photo, other := strings.Repeat("a", 64), strings.Repeat("b", 64)
+		e.rec.take()
+
+		if err := e.s.SetPhoto(ctx, e.sc, r.ID, e.hh.Member, photo); err != nil {
+			t.Fatal(err)
+		}
+		if ev := e.rec.take(); !slices.Contains(ev, recipeChanged(r.ID)) || !slices.Contains(ev, recipeChanged(naan.ID)) ||
+			!slices.Contains(ev, recipesChanged) {
+			t.Errorf("events %v", ev)
+		}
+		if got, _ := e.s.Get(ctx, e.sc, r.ID, e.hh.Admin); got.Photo != photo {
+			t.Errorf("photo %q", got.Photo)
+		}
+		var fe FieldErrors
+		if err := e.s.SetPhoto(ctx, e.sc, r.ID, e.hh.Member, "../../etc/passwd"); !errors.As(err, &fe) || fe["photo"] == "" {
+			t.Errorf("bad hash: %v", err)
+		}
+
+		// An update that keeps the photo leaves it, whatever Photo says.
+		if err := e.s.Update(ctx, e.sc, r.ID, e.hh.Admin, Input{Name: "Dal tadka", Servings: 2, KeepPhoto: true, Photo: other}); err != nil {
+			t.Fatal(err)
+		}
+		if got, _ := e.s.Get(ctx, e.sc, r.ID, e.hh.Admin); got.Photo != photo || got.Name != "Dal tadka" {
+			t.Errorf("kept photo %q, name %q", got.Photo, got.Name)
+		}
+		// One that doesn't writes Photo.
+		if err := e.s.Update(ctx, e.sc, r.ID, e.hh.Admin, Input{Name: "Dal tadka", Servings: 2, Photo: other}); err != nil {
+			t.Fatal(err)
+		}
+		if got, _ := e.s.Get(ctx, e.sc, r.ID, e.hh.Admin); got.Photo != other {
+			t.Errorf("replaced photo %q", got.Photo)
+		}
+
+		if err := e.s.SetPhoto(ctx, e.sc, r.ID, e.hh.Member, ""); err != nil {
+			t.Fatal(err)
+		}
+		if got, _ := e.s.Get(ctx, e.sc, r.ID, e.hh.Admin); got.Photo != "" {
+			t.Errorf("photo not removed: %q", got.Photo)
+		}
+
+		if err := e.s.Delete(ctx, e.sc, r.ID); err != nil {
+			t.Fatal(err)
+		}
+		if err := e.s.SetPhoto(ctx, e.sc, r.ID, e.hh.Member, photo); !errors.Is(err, ErrNotFound) {
+			t.Errorf("photo on a deleted recipe: %v", err)
 		}
 	})
 }
