@@ -228,6 +228,9 @@ func (s *Server) apiRoutes(r *router) {
 	r.write(http.MethodPost, "/api/v1/recipes", s.apiWrite(s.apiCreateRecipe))
 	r.write(http.MethodPut, "/api/v1/recipes/{id}", s.apiWrite(s.apiUpdateRecipe))
 	r.write(http.MethodDelete, "/api/v1/recipes/{id}", s.apiWrite(s.apiDeleteRecipe))
+	r.read("/api/v1/recipes/{id}/photo", s.apiRead(s.apiGetRecipePhoto))
+	r.write(http.MethodPut, "/api/v1/recipes/{id}/photo", s.apiWrite(s.apiSetRecipePhoto))
+	r.write(http.MethodDelete, "/api/v1/recipes/{id}/photo", s.apiWrite(s.apiRemoveRecipePhoto))
 
 	r.read("/api/v1/plan", s.apiRead(s.apiGetPlan))
 	r.write(http.MethodPost, "/api/v1/plan/meals", s.apiWrite(s.apiAddMeal))

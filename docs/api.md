@@ -26,7 +26,7 @@ Every error is `{"error": {"code", "message", "fields"?}}`:
 | 401 | `unauthorized`, `invalid_token` | Missing, unknown, expired or revoked token |
 | 403 | `insufficient_scope` | Read token on a write endpoint |
 | 404 | `not_found` | Unknown path or id (also ids of other households) |
-| 413 | `too_large` | Body over 1 MiB |
+| 413 | `too_large` | Body over 1 MiB, or a photo over 15 MB |
 | 422 | `invalid` | Validation; `fields` maps field name to message |
 | 503 | `setup_required` | mise is not set up yet |
 
@@ -40,8 +40,11 @@ Messages follow the token owner's language.
 | `GET /recipes?q=&sort=&limit=` | Library cards (`sort`: `cooked`, `added`, `most`, `name`, `quickest`; `limit` default 50, max 200) or, with `q`, recipes whose name or an ingredient matches. Returns `{recipes, total}` |
 | `GET /recipes/{id}` | One recipe with ingredients, steps, tags, links |
 | `POST /recipes` | Create (201 with the recipe) |
-| `PUT /recipes/{id}` | Replace: tags, ingredients, steps and links not sent are removed |
+| `PUT /recipes/{id}` | Replace: tags, ingredients, steps and links not sent are removed; the photo stays |
 | `DELETE /recipes/{id}` | Delete (204) |
+| `GET /recipes/{id}/photo?size=` | The photo as JPEG, 2400 px on the long edge or with `size=thumb` 600 px; revalidate by `ETag` |
+| `PUT /recipes/{id}/photo` | Set or replace the photo: the image file as the raw body (`curl --data-binary @dal.jpg`), JPEG, PNG or WebP up to 15 MB, no HEIC. Returns the recipe |
+| `DELETE /recipes/{id}/photo` | Remove the photo (204) |
 | `GET /plan?date=YYYY-MM-DD` | The week containing the date (default today) |
 | `POST /plan/meals` | `{recipe_id, date, servings?, add_to_list?}`; `add_to_list` puts the required ingredients on the default list, scaled |
 | `DELETE /plan/meals/{id}` | Take a meal off the plan (204) |
@@ -72,6 +75,6 @@ Messages follow the token owner's language.
 }
 ```
 
-Ingredients and steps are either one line (amounts are read like the shopping list's add field, in the owner's language) or an object. An ingredient's `amount` may carry a note after the amount (`"600 g, gemischt"`, `"1 TL, rot"`); it is stored separately and returned joined again. To keep an existing ingredient across an update, send its `id` back. Photos are not part of the API yet.
+Ingredients and steps are either one line (amounts are read like the shopping list's add field, in the owner's language) or an object. An ingredient's `amount` may carry a note after the amount (`"600 g, gemischt"`, `"1 TL, rot"`); it is stored separately and returned joined again. To keep an existing ingredient across an update, send its `id` back. Recipes and cards carry `photo_url`, the path of the photo endpoint, or `null`; photos are stored as JPEG without their metadata, like uploads in the app.
 
 Amounts come back as one string ("400 g", "½ bunch"), formatted for the owner's language. Dates are `YYYY-MM-DD`; times are RFC 3339.

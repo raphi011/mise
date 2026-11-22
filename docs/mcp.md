@@ -18,9 +18,11 @@ OAuth needs the public base URL (`MISE_BASE_URL` or the one entered at setup) to
 
 Read: `whoami` (member, household, scope, today's date), `search_recipes`, `get_recipe`, `get_plan`, `list_shopping_lists`, `get_shopping_list`.
 
-Read and write also: `create_recipe`, `update_recipe`, `delete_recipe`, `plan_meal`, `remove_meal`, `add_to_shopping_list`, `check_entry`, `uncheck_entry`, `remove_entry`.
+Read and write also: `create_recipe`, `update_recipe`, `delete_recipe`, `set_recipe_photo`, `remove_recipe_photo`, `plan_meal`, `remove_meal`, `add_to_shopping_list`, `check_entry`, `uncheck_entry`, `remove_entry`.
 
 They do what the matching [REST endpoints](api.md#endpoints) do. Ingredients are lines like `"400 g spaghetti"`; `get_shopping_list` and `add_to_shopping_list` default to the household's first list.
+
+`set_recipe_photo` takes the image as `image_base64` (bare or a `data:` URL) or as `image_url`, an https link mise downloads: only from public addresses on ports 443 or 80 (checked on every connection, redirects included), JPEG, PNG or WebP, up to 15 MB within 15 seconds. An MCP request carries at most 1 MiB, so base64 photos stay under about 750 KB; send larger ones by URL or through the REST endpoint.
 
 ## OAuth details
 
