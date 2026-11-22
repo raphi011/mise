@@ -2,6 +2,7 @@ package ai_test
 
 import (
 	"context"
+	"crypto/x509"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -234,5 +235,38 @@ func TestFetchOnHost(t *testing.T) {
 	// Unpinned, the same redirect is followed.
 	if res, err := f.Fetch(t.Context(), s.URL+"/away", ai.KindPage); err != nil || string(res.Body) != "page" {
 		t.Errorf("unpinned redirect: %v", err)
+	}
+}
+
+// FetchHTTPS refuses http, also when a redirect leads there.
+func TestFetchHTTPS(t *testing.T) {
+	plain := serve(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write([]byte("png"))
+	})
+	secure := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/downgrade" {
+			http.Redirect(w, r, plain.URL+"/photo.png", http.StatusFound)
+			return
+		}
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write([]byte("png"))
+	}))
+	t.Cleanup(secure.Close)
+	pool := x509.NewCertPool()
+	pool.AddCert(secure.Certificate())
+	f := fetcher(t, 0, plain, secure).TrustForTest(pool)
+
+	if res, err := f.FetchHTTPS(t.Context(), secure.URL+"/photo.png", ai.KindImage); err != nil || string(res.Body) != "png" {
+		t.Errorf("https: %+v, %v", res, err)
+	}
+	for _, target := range []string{plain.URL + "/photo.png", secure.URL + "/downgrade"} {
+		if _, err := f.FetchHTTPS(t.Context(), target, ai.KindImage); !errors.Is(err, ai.ErrNotHTTPS) {
+			t.Errorf("%s: %v, want ErrNotHTTPS", target, err)
+		}
+	}
+	// Fetch itself still follows the same redirect.
+	if _, err := f.Fetch(t.Context(), secure.URL+"/downgrade", ai.KindImage); err != nil {
+		t.Errorf("plain fetch: %v", err)
 	}
 }

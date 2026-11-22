@@ -2,6 +2,8 @@ package ai
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
@@ -43,10 +45,15 @@ var (
 	ErrTooManyRedirects = errors.New("ai: too many redirects")
 	// ErrOtherHost: a fetch pinned to one host was redirected to another.
 	ErrOtherHost = errors.New("ai: redirected to another host")
+	// ErrNotHTTPS: an https-only fetch was given or redirected to http.
+	ErrNotHTTPS = errors.New("ai: not an https URL")
 )
 
 // pinnedHost is the context key of the host a fetch must stay on.
 type pinnedHost struct{}
+
+// httpsOnly is the context key marking a fetch that must stay on https.
+type httpsOnly struct{}
 
 // StatusError is a response with a status other than 200.
 type StatusError struct{ Code int }
@@ -117,7 +124,10 @@ func NewFetcher() *Fetcher {
 			if host, ok := req.Context().Value(pinnedHost{}).(string); ok && !strings.EqualFold(req.URL.Hostname(), host) {
 				return ErrOtherHost
 			}
-			return checkURL(req.URL)
+			if err := checkURL(req.URL); err != nil {
+				return err
+			}
+			return checkHTTPS(req.Context(), req.URL)
 		},
 	}
 	return f
@@ -134,6 +144,13 @@ func (f *Fetcher) AllowForTest(fn func(netip.AddrPort) bool, timeout time.Durati
 	return f
 }
 
+// TrustForTest makes f trust the certificates in pool, for tests that
+// serve https from httptest; never call it outside tests.
+func (f *Fetcher) TrustForTest(pool *x509.CertPool) *Fetcher {
+	f.client.Transport.(*http.Transport).TLSClientConfig = &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}
+	return f
+}
+
 // Fetch gets rawURL, expecting a page (HTML, XHTML or plain text) or an
 // image.
 func (f *Fetcher) Fetch(ctx context.Context, rawURL string, kind Kind) (Fetched, error) {
@@ -147,9 +164,18 @@ func (f *Fetcher) FetchOnHost(ctx context.Context, rawURL, host string, kind Kin
 	return f.fetch(ctx, rawURL, kind, host)
 }
 
+// FetchHTTPS is Fetch for a URL that must be https, redirects included
+// (ErrNotHTTPS), as a photo an agent names by URL must be.
+func (f *Fetcher) FetchHTTPS(ctx context.Context, rawURL string, kind Kind) (Fetched, error) {
+	return f.fetch(context.WithValue(ctx, httpsOnly{}, true), rawURL, kind, "")
+}
+
 func (f *Fetcher) fetch(ctx context.Context, rawURL string, kind Kind, host string) (Fetched, error) {
 	u, err := ParseURL(rawURL)
 	if err != nil {
+		return Fetched{}, err
+	}
+	if err := checkHTTPS(ctx, u); err != nil {
 		return Fetched{}, err
 	}
 	if host != "" {
@@ -203,7 +229,7 @@ func (f *Fetcher) fetch(ctx context.Context, rawURL string, kind Kind, host stri
 // unwrapFetchErr surfaces our sentinel errors from inside url.Error and
 // net.OpError.
 func unwrapFetchErr(err error) error {
-	for _, target := range []error{ErrBlockedAddress, ErrBadURL, ErrTooManyRedirects, ErrOtherHost} {
+	for _, target := range []error{ErrBlockedAddress, ErrBadURL, ErrTooManyRedirects, ErrOtherHost, ErrNotHTTPS} {
 		if errors.Is(err, target) {
 			return fmt.Errorf("%w: %w", target, err)
 		}
@@ -230,6 +256,14 @@ func ParseURL(raw string) (*url.URL, error) {
 func checkURL(u *url.URL) error {
 	if (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || u.User != nil {
 		return ErrBadURL
+	}
+	return nil
+}
+
+// checkHTTPS refuses a URL other than https for a FetchHTTPS fetch.
+func checkHTTPS(ctx context.Context, u *url.URL) error {
+	if ctx.Value(httpsOnly{}) != nil && u.Scheme != "https" {
+		return ErrNotHTTPS
 	}
 	return nil
 }
