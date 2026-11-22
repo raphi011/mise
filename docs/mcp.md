@@ -30,12 +30,12 @@ mise is its own OAuth 2.1 authorization server, advertised through the protected
 |---|---|
 | `GET /.well-known/oauth-protected-resource/mcp` | Resource metadata (RFC 9728) |
 | `GET /.well-known/oauth-authorization-server` | Server metadata (RFC 8414) |
-| `POST /oauth/register` | Dynamic client registration (RFC 7591); public clients only, 10 per IP and minute |
+| `POST /oauth/register` | Dynamic client registration (RFC 7591); public clients only; 10 per IP at once, then one a minute |
 | `GET /oauth/authorize` | Consent page; `response_type=code` with PKCE `S256` required |
 | `POST /oauth/token` | `authorization_code` and `refresh_token` grants |
 | `POST /oauth/revoke` | Token revocation (RFC 7009) |
 
 - Scopes are `read` and `write`; the member's choice on the consent page wins over what the app asked for.
-- Redirect URIs are https, http on a loopback address (any port matches), or an app scheme like `cursor://`.
-- Codes last 10 minutes and work once. Access tokens (`mise_at_...`) last an hour and also open the REST API; refresh tokens (`mise_rt_...`) rotate on every use and expire after 90 days unused. Replaying a used code or refresh token ends the grant.
-- Like API tokens, grants end when the member is removed, leaves the household, or has their password reset. Clients nobody approves are deleted after a day.
+- Redirect URIs are https, http on a loopback address (any port matches), or an app scheme like `cursor://`. A client with one redirect URI may leave `redirect_uri` out of the authorization request, and then out of the token request too.
+- Codes last 10 minutes and work once. Access tokens (`mise_at_...`) last an hour and also open the REST API; refresh tokens (`mise_rt_...`) rotate on every use and expire after 90 days unused. Replaying a used code, or the refresh token that was just replaced, ends the grant.
+- Like API tokens, grants end when the member is removed, leaves the household, or has their password reset. Clients nobody approves are deleted after a day, and clients without grants 90 days after their last approval.

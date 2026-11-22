@@ -286,12 +286,15 @@ func (s *Server) validResource(r *http.Request, res string) bool {
 
 // authzRequest is a validated authorization request.
 type authzRequest struct {
-	client      auth.OAuthClient
-	redirectURI string
-	state       string
-	challenge   string
-	scope       auth.TokenScope
-	params      []ui.Hidden
+	client auth.OAuthClient
+	// redirectURI is where the browser goes back to; requestedRedirect
+	// is the request's redirect_uri, which may be left out.
+	redirectURI       string
+	requestedRedirect string
+	state             string
+	challenge         string
+	scope             auth.TokenScope
+	params            []ui.Hidden
 }
 
 // parseAuthz validates an authorization request from the query (GET) or
@@ -313,10 +316,8 @@ func (s *Server) parseAuthz(w http.ResponseWriter, r *http.Request, v url.Values
 		s.serverError(w, r, err)
 		return req, false
 	}
-	req.redirectURI = v.Get("redirect_uri")
-	if req.redirectURI == "" && len(req.client.RedirectURIs) == 1 {
-		req.redirectURI = req.client.RedirectURIs[0]
-	}
+	req.requestedRedirect = v.Get("redirect_uri")
+	req.redirectURI = req.client.Redirect(req.requestedRedirect)
 	if !req.client.RedirectAllowed(req.redirectURI) {
 		s.oauthErrorPage(w, r, i18n.T(ctx, "oauth.error.redirect"))
 		return req, false
@@ -436,7 +437,7 @@ func (s *Server) consentSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	code, err := s.auth.Authorize(ctx, identity(r), auth.AuthorizeInput{
-		ClientID: req.client.ID, RedirectURI: req.redirectURI, CodeChallenge: req.challenge, Scope: req.scope,
+		ClientID: req.client.ID, RedirectURI: req.requestedRedirect, CodeChallenge: req.challenge, Scope: req.scope,
 	})
 	if errors.Is(err, auth.ErrTooManyGrants) {
 		s.renderConsent(w, r, http.StatusUnprocessableEntity, req, i18n.T(ctx, "oauth.consent.tooMany"))

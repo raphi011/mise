@@ -43,7 +43,8 @@ const (
 	// refresh restarts it.
 	RefreshTTL = 90 * 24 * time.Hour
 	// UnusedClientTTL is how long a registered client nobody approved is
-	// kept.
+	// kept. A client whose grants all ended is kept for RefreshTTL after
+	// its last approval.
 	UnusedClientTTL = 24 * time.Hour
 )
 
@@ -136,8 +137,8 @@ func checkRedirectURI(raw string) error {
 	}
 	switch scheme := strings.ToLower(u.Scheme); {
 	case scheme == "https":
-		if u.Host == "" {
-			return bad("https redirect URIs need a host.")
+		if !validHostname(u.Hostname()) {
+			return bad("https redirect URIs need a valid host name.")
 		}
 	case scheme == "http":
 		if !isLoopback(u.Hostname()) {
@@ -147,6 +148,24 @@ func checkRedirectURI(raw string) error {
 		return bad("This redirect URI scheme is not allowed.")
 	}
 	return nil
+}
+
+// validHostname reports whether host is a DNS name or an IP address.
+// url.Parse lets through characters such as ';', '*' and quotes, which
+// would change the meaning of the consent page's CSP form-action source.
+func validHostname(host string) bool {
+	if host == "" {
+		return false
+	}
+	if net.ParseIP(host) != nil {
+		return true
+	}
+	for _, r := range host {
+		if (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') && (r < '0' || r > '9') && r != '-' && r != '.' {
+			return false
+		}
+	}
+	return true
 }
 
 func isLoopback(host string) bool {
@@ -185,7 +204,7 @@ func (c OAuthClient) RedirectAllowed(uri string) bool {
 		}
 	}
 	got, err := url.Parse(uri)
-	if err != nil || got.Scheme != "http" || !isLoopback(got.Hostname()) {
+	if err != nil || got.Scheme != "http" || !isLoopback(got.Hostname()) || strings.Contains(uri, "#") {
 		return false
 	}
 	for _, r := range c.RedirectURIs {
@@ -198,9 +217,22 @@ func (c OAuthClient) RedirectAllowed(uri string) bool {
 	return false
 }
 
+// Redirect is where an authorization request with redirect_uri uri goes
+// back to: uri, or the client's only redirect URI when uri is empty. The
+// result still has to pass RedirectAllowed.
+func (c OAuthClient) Redirect(uri string) string {
+	if uri == "" && len(c.RedirectURIs) == 1 {
+		return c.RedirectURIs[0]
+	}
+	return uri
+}
+
 // AuthorizeInput is a member's consent to a client.
 type AuthorizeInput struct {
-	ClientID    uuid.UUID
+	ClientID uuid.UUID
+	// RedirectURI is the request's redirect_uri. A client with one
+	// registered URI may leave it out; the token request must then leave
+	// it out too.
 	RedirectURI string
 	// CodeChallenge is the PKCE S256 challenge.
 	CodeChallenge string
@@ -223,7 +255,7 @@ func (s *Service) Authorize(ctx context.Context, id *Identity, in AuthorizeInput
 	if err != nil {
 		return "", err
 	}
-	if !client.RedirectAllowed(in.RedirectURI) {
+	if !client.RedirectAllowed(client.Redirect(in.RedirectURI)) {
 		return "", ErrOAuthRedirect
 	}
 	if !ValidCodeChallenge(in.CodeChallenge) || !in.Scope.Valid() {
@@ -283,7 +315,9 @@ const grantColumns = `g.id, g.client_id, g.scope, g.code_challenge, g.redirect_u
 
 // ExchangeCode trades an authorization code for tokens. The code works
 // once: presenting it again revokes the grant, since someone else may have
-// seen it (OAuth 2.1 §4.1.3). Every failure is ErrOAuthGrant.
+// seen it (OAuth 2.1 §4.1.3). redirectURI must equal the authorization
+// request's redirect_uri, empty when it left it out. Every failure is
+// ErrOAuthGrant.
 func (s *Service) ExchangeCode(ctx context.Context, clientID uuid.UUID, code, redirectURI, verifier string) (TokenPair, error) {
 	var pair TokenPair
 	replayed := uuid.Nil
@@ -306,6 +340,10 @@ func (s *Service) ExchangeCode(ctx context.Context, clientID uuid.UUID, code, re
 			return ErrOAuthGrant
 		}
 		pair, err = s.issueTokens(ctx, q, g, now, `code_used_at = ?, `, store.T(now))
+		if errors.Is(err, ErrOAuthGrant) {
+			// A concurrent exchange redeemed the code first.
+			replayed = g.ID
+		}
 		return err
 	})
 	if replayed != uuid.Nil {

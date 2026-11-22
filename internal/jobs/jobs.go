@@ -73,8 +73,8 @@ type Swept struct {
 	// ai.ReadyRetention ago, and canceled ones.
 	Imports int64
 	// Grants are OAuth grants whose code or refresh token expired;
-	// Clients are registered OAuth clients nobody approved within
-	// auth.UnusedClientTTL.
+	// Clients are registered OAuth clients without grants that nobody
+	// approved within auth.UnusedClientTTL, or not within auth.RefreshTTL.
 	Grants  int64
 	Clients int64
 }
@@ -147,8 +147,10 @@ func (s *Sweeper) Sweep(ctx context.Context) (Swept, error) {
 		if out.Grants, err = res.RowsAffected(); err != nil {
 			return err
 		}
-		res, err = q.Exec(ctx, `DELETE FROM oauth_clients WHERE last_used_at IS NULL AND created_at < ?`,
-			store.T(s.now().Add(-auth.UnusedClientTTL)))
+		res, err = q.Exec(ctx, `DELETE FROM oauth_clients WHERE
+			NOT EXISTS (SELECT 1 FROM oauth_grants g WHERE g.client_id = oauth_clients.id)
+			AND ((last_used_at IS NULL AND created_at < ?) OR last_used_at < ?)`,
+			store.T(s.now().Add(-auth.UnusedClientTTL)), store.T(s.now().Add(-auth.RefreshTTL)))
 		if err != nil {
 			return err
 		}

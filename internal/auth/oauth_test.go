@@ -116,7 +116,7 @@ func TestOAuthCodeChecks(t *testing.T) {
 		// Loopback redirects match on any port, others exactly.
 		for uri, want := range map[string]bool{
 			testCallback: true, testCallback + "/x": false, "http://127.0.0.1:9999/cb": true, "http://127.0.0.1:9999/other": false,
-			"http://localhost:8000/cb": false,
+			"http://localhost:8000/cb": false, "http://127.0.0.1:9999/cb#frag": false,
 		} {
 			if c.RedirectAllowed(uri) != want {
 				t.Errorf("RedirectAllowed(%s) = %v", uri, !want)
@@ -124,9 +124,10 @@ func TestOAuthCodeChecks(t *testing.T) {
 		}
 		in := AuthorizeInput{ClientID: c.ID, RedirectURI: testCallback, CodeChallenge: testChallenge(), Scope: ScopeRead}
 		for name, mod := range map[string]func(*AuthorizeInput){
-			"unregistered redirect": func(in *AuthorizeInput) { in.RedirectURI = "https://evil.example/cb" },
-			"plain challenge":       func(in *AuthorizeInput) { in.CodeChallenge = "short" },
-			"unknown client":        func(in *AuthorizeInput) { in.ClientID = uuid.New() },
+			"unregistered redirect":       func(in *AuthorizeInput) { in.RedirectURI = "https://evil.example/cb" },
+			"plain challenge":             func(in *AuthorizeInput) { in.CodeChallenge = "short" },
+			"unknown client":              func(in *AuthorizeInput) { in.ClientID = uuid.New() },
+			"no redirect, two registered": func(in *AuthorizeInput) { in.RedirectURI = "" },
 		} {
 			bad := in
 			mod(&bad)
@@ -225,4 +226,53 @@ func TestOAuthGrantIsolation(t *testing.T) {
 			t.Errorf("b's token: %+v, %v", got, err)
 		}
 	})
+}
+
+// TestOAuthOmittedRedirect checks that a client with one redirect URI may
+// leave redirect_uri out of the authorization request, and then must
+// leave it out of the token request too.
+func TestOAuthOmittedRedirect(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, db *store.DB) {
+		ctx := t.Context()
+		s, _ := newService(t, db)
+		f := addHousehold(t, db, "home")
+		id := identityOf(t, s, db, f.member)
+		c, err := s.RegisterClient(ctx, "app", []string{testCallback})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if c.Redirect("") != testCallback {
+			t.Errorf("Redirect(\"\") = %q", c.Redirect(""))
+		}
+		in := AuthorizeInput{ClientID: c.ID, CodeChallenge: testChallenge(), Scope: ScopeRead}
+		code, err := s.Authorize(ctx, id, in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.ExchangeCode(ctx, c.ID, code, "", testVerifier); err != nil {
+			t.Errorf("exchange without redirect_uri: %v", err)
+		}
+		code, err = s.Authorize(ctx, id, in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.ExchangeCode(ctx, c.ID, code, testCallback, testVerifier); !errors.Is(err, ErrOAuthGrant) {
+			t.Errorf("exchange adding a redirect_uri: %v", err)
+		}
+	})
+}
+
+func TestCheckRedirectURI(t *testing.T) {
+	for uri, ok := range map[string]bool{
+		"https://app.example/cb": true, "https://app.example:8443/cb": true, "https://192.0.2.1/cb": true,
+		"http://[::1]:3000/cb": true, "cursor://anysphere.cursor-mcp/oauth/callback": true,
+		// Characters that would add sources or directives to the
+		// consent page's CSP.
+		"https://*/cb": false, "https://a;script-src/cb": false, "https://a'b/cb": false, "https://a,b/cb": false,
+		"https:///cb": false, "http://app.example/cb": false, "javascript:alert(1)": false,
+	} {
+		if err := checkRedirectURI(uri); (err == nil) != ok {
+			t.Errorf("checkRedirectURI(%q) = %v", uri, err)
+		}
+	}
 }

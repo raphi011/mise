@@ -173,6 +173,7 @@ func TestOAuthRegister(t *testing.T) {
 	household(t, srv)
 	for _, uris := range [][]string{
 		{"http://evil.example/cb"}, {"javascript:alert(1)"}, {"https://x.example/cb#frag"}, {}, {"/relative"},
+		{"https://*/cb"}, {"https://x;script-src/cb"},
 	} {
 		status, v := postJSON(t, srv.URL+oauthRegisterPath, map[string]any{"redirect_uris": uris})
 		if status != http.StatusBadRequest || v["error"] != "invalid_redirect_uri" {
@@ -284,6 +285,24 @@ func TestOAuthFlow(t *testing.T) {
 		if meStatus(t, srv.URL, next["access_token"].(string)) != http.StatusUnauthorized {
 			t.Error("grant survived a replayed refresh token")
 		}
+
+		// A client with one redirect URI may leave it out of both requests.
+		q = c.authorizeQuery("read")
+		q.Del("redirect_uri")
+		anna.get(oauthAuthorizePath+"?"+q.Encode()).expect(t, "consent without redirect_uri", http.StatusOK)
+		q.Set("decision", "allow")
+		p = anna.post(oauthAuthorizePath, q).expect(t, "allow without redirect_uri", http.StatusSeeOther)
+		u, err := url.Parse(p.location)
+		if err != nil || !strings.HasPrefix(p.location, testRedirect+"?") {
+			t.Fatalf("without redirect_uri: redirect to %q", p.location)
+		}
+		status, tok = postToken(t, srv.URL+oauthTokenPath, url.Values{
+			"grant_type": {"authorization_code"}, "client_id": {c.id}, "code": {u.Query().Get("code")}, "code_verifier": {c.verifier},
+		})
+		if status != http.StatusOK {
+			t.Fatalf("exchange without redirect_uri: %d %v", status, tok)
+		}
+		postToken(t, srv.URL+oauthRevokePath, url.Values{"client_id": {c.id}, "token": {tok["access_token"].(string)}})
 
 		// Revocation ends the grant.
 		_, tok = c.exchange(c.approve(anna, "read"))
