@@ -34,6 +34,8 @@ type recipeCardJSON struct {
 	CreatedBy    string     `json:"created_by"`
 	TimesCooked  int        `json:"times_cooked"`
 	LastCookedAt *time.Time `json:"last_cooked_at"`
+	// PhotoURL is the API path of the photo, or null.
+	PhotoURL *string `json:"photo_url"`
 }
 
 func cardJSON(c recipes.Card) recipeCardJSON {
@@ -43,7 +45,7 @@ func cardJSON(c recipes.Card) recipeCardJSON {
 	}
 	return recipeCardJSON{
 		ID: c.ID.String(), Name: c.Name, TotalMin: c.TotalMin, Servings: c.Servings, Tags: tags, Favourite: c.Favourite,
-		CreatedBy: c.CreatedBy.Name, TimesCooked: c.TimesCooked, LastCookedAt: c.LastCookedAt,
+		CreatedBy: c.CreatedBy.Name, TimesCooked: c.TimesCooked, LastCookedAt: c.LastCookedAt, PhotoURL: photoURL(c.ID, c.Photo),
 	}
 }
 
@@ -69,6 +71,7 @@ type recipeJSON struct {
 	Servings    int              `json:"servings"`
 	SourceURL   string           `json:"source_url"`
 	Notes       string           `json:"notes"`
+	PhotoURL    *string          `json:"photo_url"`
 	Tags        []string         `json:"tags"`
 	Ingredients []ingredientJSON `json:"ingredients"`
 	Steps       []stepJSON       `json:"steps"`
@@ -88,7 +91,7 @@ type linkJSON struct {
 func recipeToJSON(r recipes.Recipe, lang language.Tag) recipeJSON {
 	v := recipeJSON{
 		ID: r.ID.String(), Name: r.Name, Description: r.Description, PrepMin: r.PrepMin, CookMin: r.CookMin,
-		Servings: r.Servings, SourceURL: r.SourceURL, Notes: r.Notes, Favourite: r.Favourite,
+		Servings: r.Servings, SourceURL: r.SourceURL, Notes: r.Notes, PhotoURL: photoURL(r.ID, r.Photo), Favourite: r.Favourite,
 		CreatedBy: r.CreatedBy.Name, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 		Tags: []string{}, Ingredients: []ingredientJSON{}, Steps: []stepJSON{}, Links: []linkJSON{},
 	}
@@ -145,7 +148,8 @@ func (s *stepIn) UnmarshalJSON(b []byte) error {
 }
 
 // recipeIn is a recipe being written. PUT replaces everything: tags,
-// ingredients, steps and links not listed are removed.
+// ingredients, steps and links not listed are removed. The photo has its
+// own endpoints and stays.
 type recipeIn struct {
 	Name        string         `json:"name"`
 	Description string         `json:"description"`
@@ -163,7 +167,7 @@ type recipeIn struct {
 func (in recipeIn) input(lang language.Tag) recipes.Input {
 	out := recipes.Input{
 		Name: in.Name, Description: in.Description, PrepMin: in.PrepMin, CookMin: in.CookMin, Servings: in.Servings,
-		SourceURL: in.SourceURL, Notes: in.Notes, Tags: in.Tags, Links: in.Links,
+		SourceURL: in.SourceURL, Notes: in.Notes, Tags: in.Tags, Links: in.Links, KeepPhoto: true,
 	}
 	for _, i := range in.Ingredients {
 		var row recipes.IngredientInput

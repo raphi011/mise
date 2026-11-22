@@ -1,9 +1,11 @@
 package web
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"slices"
@@ -211,6 +213,12 @@ type mcpUpdateRecipeIn struct {
 	Recipe mcpRecipeIn `json:"recipe" jsonschema:"the whole recipe: tags, ingredients, steps and links left out are removed"`
 }
 
+type mcpSetPhotoIn struct {
+	ID          string `json:"id" jsonschema:"the recipe's id"`
+	ImageBase64 string `json:"image_base64,omitempty" jsonschema:"the image file base64-encoded, or as a data: URL; JPEG, PNG or WebP. A request may carry at most 1 MB, so send larger photos as image_url"`
+	ImageURL    string `json:"image_url,omitempty" jsonschema:"an https link to a JPEG, PNG or WebP image on a public website, up to 15 MB; mise downloads it"`
+}
+
 type mcpPlanIn struct {
 	Date string `json:"date,omitempty" jsonschema:"any day of the week to show, YYYY-MM-DD (default today)"`
 }
@@ -259,6 +267,8 @@ var (
 	additive    = &mcp.ToolAnnotations{DestructiveHint: boolPtr(false), OpenWorldHint: boolPtr(false)}
 	idempotent  = &mcp.ToolAnnotations{DestructiveHint: boolPtr(false), IdempotentHint: true, OpenWorldHint: boolPtr(false)}
 	destructive = &mcp.ToolAnnotations{DestructiveHint: boolPtr(true), IdempotentHint: true, OpenWorldHint: boolPtr(false)}
+	// replacing writes over what was there and may download from the web.
+	replacing = &mcp.ToolAnnotations{DestructiveHint: boolPtr(true), IdempotentHint: true, OpenWorldHint: boolPtr(true)}
 )
 
 // addTool registers a tool whose handler runs as id, in lang.
@@ -341,7 +351,7 @@ func (s *Server) mcpServer(id *auth.Identity, lang language.Tag, schemas *mcp.Sc
 		})
 	addTool(s, srv, id, lang, &mcp.Tool{Name: "update_recipe", Title: "Update recipe",
 		Description: "Replace a recipe. Send the whole recipe: tags, ingredients, steps and links left out are removed. " +
-			"Send ingredient ids from get_recipe to keep existing ingredients.",
+			"Send ingredient ids from get_recipe to keep existing ingredients. The photo stays; set_recipe_photo changes it.",
 		Annotations: idempotent},
 		func(ctx context.Context, in mcpUpdateRecipeIn) (recipeJSON, error) {
 			recipeID, err := mcpID("id", in.ID)
@@ -363,6 +373,40 @@ func (s *Server) mcpServer(id *auth.Identity, lang language.Tag, schemas *mcp.Sc
 				return mcpDone{}, err
 			}
 			return mcpDone{OK: true}, s.doDeleteRecipe(ctx, recipeID)
+		})
+	addTool(s, srv, id, lang, &mcp.Tool{Name: "set_recipe_photo", Title: "Set recipe photo",
+		Description: "Attach a photo to a recipe, replacing any it has. Send exactly one of image_base64 or image_url. " +
+			"The photo is resized and its metadata removed; HEIC is not supported.",
+		Annotations: replacing},
+		func(ctx context.Context, in mcpSetPhotoIn) (recipeJSON, error) {
+			recipeID, err := mcpID("id", in.ID)
+			if err != nil {
+				return recipeJSON{}, err
+			}
+			switch {
+			case (in.ImageBase64 == "") == (in.ImageURL == ""):
+				return recipeJSON{}, fieldProblem(ctx, "recipes.photo.oneSource", "image_base64", "image_url")
+			case in.ImageURL != "":
+				return s.doSetRecipePhoto(ctx, recipeID, "image_url", func(ctx context.Context) (io.Reader, error) {
+					return s.fetchPhoto(ctx, "image_url", in.ImageURL)
+				})
+			}
+			data, ok := decodeImageData(in.ImageBase64)
+			if !ok {
+				return recipeJSON{}, fieldProblem(ctx, "recipes.photo.base64", "image_base64")
+			}
+			return s.doSetRecipePhoto(ctx, recipeID, "image_base64", func(context.Context) (io.Reader, error) {
+				return bytes.NewReader(data), nil
+			})
+		})
+	addTool(s, srv, id, lang, &mcp.Tool{Name: "remove_recipe_photo", Title: "Remove recipe photo",
+		Description: "Take the photo off a recipe.", Annotations: destructive},
+		func(ctx context.Context, in mcpRecipeIDIn) (mcpDone, error) {
+			recipeID, err := mcpID("id", in.ID)
+			if err != nil {
+				return mcpDone{}, err
+			}
+			return mcpDone{OK: true}, s.doRemoveRecipePhoto(ctx, recipeID)
 		})
 	addTool(s, srv, id, lang, &mcp.Tool{Name: "plan_meal", Title: "Plan meal",
 		Description: "Plan a recipe for a day, optionally putting its ingredients on the default shopping list.",

@@ -89,6 +89,9 @@ type Server struct {
 	// discover searches the recipe sites; tests rebuild it with fake ones.
 	discover *discover.Service
 	images   *images.Store
+	// fetcher downloads from the public internet only: import pages and
+	// photos, and photos agents name by URL. Tests swap it.
+	fetcher *ai.Fetcher
 	// sso signs users in with the OIDC provider; nil without one.
 	sso *sso.Client
 	// clock is the current time, for tests; nil means time.Now.
@@ -173,11 +176,11 @@ func New(cfg config.Config, db *store.DB, log *slog.Logger) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	fetcher := ai.NewFetcher()
-	s.aiConfig = ai.Config{Box: box, Groceries: s.groceries, Recipes: s.recipes, Fetcher: fetcher, Now: s.now,
+	s.fetcher = ai.NewFetcher()
+	s.aiConfig = ai.Config{Box: box, Groceries: s.groceries, Recipes: s.recipes, Fetcher: s.fetcher, Now: s.now,
 		DB: db, Publisher: s.live, Log: log}
 	s.ai = ai.New(s.aiConfig)
-	s.discover = discover.New(fetcher, discover.Sites(), s.now)
+	s.discover = discover.New(s.fetcher, discover.Sites(), s.now)
 	s.auth = auth.New(db, auth.Config{Log: log, SecureCookie: s.secureCookie, OnSetup: s.seedHousehold})
 	if cfg.BaseURL != nil {
 		if err := s.setBaseURL(cfg.BaseURL); err != nil {

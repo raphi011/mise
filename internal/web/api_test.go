@@ -147,6 +147,7 @@ func TestAPIAuth(t *testing.T) {
 		const id = "00000000-0000-0000-0000-000000000001"
 		for _, rt := range []struct{ method, path string }{
 			{"POST", "/api/v1/recipes"}, {"PUT", "/api/v1/recipes/" + id}, {"DELETE", "/api/v1/recipes/" + id},
+			{"PUT", "/api/v1/recipes/" + id + "/photo"}, {"DELETE", "/api/v1/recipes/" + id + "/photo"},
 			{"POST", "/api/v1/plan/meals"}, {"DELETE", "/api/v1/plan/meals/" + id},
 			{"POST", "/api/v1/lists/" + id + "/entries"}, {"POST", "/api/v1/entries/" + id + "/check"},
 			{"POST", "/api/v1/entries/" + id + "/uncheck"}, {"DELETE", "/api/v1/entries/" + id},
