@@ -1,0 +1,75 @@
+package ui
+
+import "github.com/raphi011/mise/internal/i18n"
+
+// ConsentView is the OAuth consent page: an app (an MCP client) asks to act
+// for the signed-in member in their active household.
+type ConsentView struct {
+	// Client is the name the app registered with; apps choose it
+	// themselves, so the page also shows where it sends the browser back.
+	Client    string
+	Host      string
+	Household string
+	UserName  string
+	Scopes    []Option
+	Scope     string
+	// Params are the authorization request's parameters, sent back with
+	// the decision.
+	Params []Hidden
+	// Alert is a translated error above the form.
+	Alert string
+}
+
+// Hidden is a hidden form field.
+type Hidden struct {
+	Name  string
+	Value string
+}
+
+templ Consent(p Page, v ConsentView) {
+	@AuthLayout(p, defaultPanel()) {
+		<div class="auth__intro">
+			<span class="auth__phone-logo">
+				@logo(56)
+			</span>
+			<h1 class="auth__title">{ i18n.T(ctx, "oauth.consent.title", v.Client) }</h1>
+			<p class="auth__lead">{ i18n.T(ctx, "oauth.consent.lead", v.Household, v.UserName) }</p>
+		</div>
+		<form class="stack" method="post" action="/oauth/authorize">
+			@formAlert(Form{Alert: v.Alert})
+			for _, h := range v.Params {
+				<input type="hidden" name={ h.Name } value={ h.Value }/>
+			}
+			<fieldset class="choices">
+				<legend class="field__label">{ i18n.T(ctx, "oauth.consent.scope") }</legend>
+				for _, o := range v.Scopes {
+					<label class="choice">
+						<input type="radio" name="scope" value={ o.Value } checked?={ v.Scope == o.Value }/>
+						<span class="choice__text">
+							<span class="choice__title">{ o.Label }</span>
+							<span class="choice__hint">{ o.Hint }</span>
+						</span>
+					</label>
+				}
+			</fieldset>
+			<p class="field__hint">{ i18n.T(ctx, "oauth.consent.redirect", v.Host) }</p>
+			<button class="btn btn--primary btn--block" type="submit" name="decision" value="allow">{ i18n.T(ctx, "oauth.consent.allow") }</button>
+			<button class="btn btn--secondary btn--block" type="submit" name="decision" value="deny">{ i18n.T(ctx, "oauth.consent.deny") }</button>
+		</form>
+	}
+}
+
+// OAuthError is shown when an authorization request can't be sent back to
+// the app: its client or redirect URI is unknown.
+templ OAuthError(p Page, message string) {
+	@AuthLayout(p, defaultPanel()) {
+		<div class="auth__intro">
+			<span class="auth__phone-logo">
+				@logo(56)
+			</span>
+			<h1 class="auth__title">{ i18n.T(ctx, "oauth.error.title") }</h1>
+			<p class="auth__lead">{ message }</p>
+		</div>
+		<a class="btn btn--secondary btn--block" href="/recipes">{ i18n.T(ctx, "oauth.error.back") }</a>
+	}
+}

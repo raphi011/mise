@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"net/http"
 	"time"
 
@@ -43,51 +44,53 @@ func entryToJSON(e groceries.Entry, lang language.Tag) entryJSON {
 	return v
 }
 
-func (s *Server) apiLists(w http.ResponseWriter, r *http.Request) {
-	sc, err := s.db.Scope(r.Context())
+type listsJSON struct {
+	Lists []listJSON `json:"lists"`
+}
+
+type listViewJSON struct {
+	ID      string      `json:"id"`
+	Name    string      `json:"name"`
+	Entries []entryJSON `json:"entries"`
+}
+
+// addEntryIn puts an item on a list: Text is read like the add field
+// ("2 tbsp soy sauce"); Name and Amount are explicit.
+type addEntryIn struct {
+	Text   string `json:"text"`
+	Name   string `json:"name"`
+	Amount string `json:"amount"`
+}
+
+func (s *Server) doLists(ctx context.Context) (listsJSON, error) {
+	out := listsJSON{Lists: []listJSON{}}
+	sc, err := s.db.Scope(ctx)
 	if err != nil {
-		s.apiErr(w, r, err)
-		return
+		return out, err
 	}
-	lists, err := s.groceries.Lists(r.Context(), sc)
+	lists, err := s.groceries.Lists(ctx, sc)
 	if err != nil {
-		s.apiErr(w, r, err)
-		return
+		return out, err
 	}
-	out := struct {
-		Lists []listJSON `json:"lists"`
-	}{Lists: []listJSON{}}
 	for _, l := range lists {
 		out.Lists = append(out.Lists, listJSON{ID: l.ID.String(), Name: l.Name, Open: l.Open})
 	}
-	writeJSON(w, http.StatusOK, out)
+	return out, nil
 }
 
-// apiList answers with a list's entries: those still to get in aisle
-// order, then the cart.
-func (s *Server) apiList(w http.ResponseWriter, r *http.Request) {
-	listID, err := uuid.Parse(r.PathValue("id"))
-	if err != nil {
-		apiNotFound(w, r)
-		return
-	}
-	ctx := r.Context()
+// doList returns a list's entries: those still to get in aisle order, then
+// the cart.
+func (s *Server) doList(ctx context.Context, listID uuid.UUID) (listViewJSON, error) {
 	sc, err := s.db.Scope(ctx)
 	if err != nil {
-		s.apiErr(w, r, err)
-		return
+		return listViewJSON{}, err
 	}
 	view, err := s.groceries.ListView(ctx, sc, listID)
 	if err != nil {
-		s.apiErr(w, r, err)
-		return
+		return listViewJSON{}, err
 	}
 	lang := i18n.Locale(ctx)
-	out := struct {
-		ID      string      `json:"id"`
-		Name    string      `json:"name"`
-		Entries []entryJSON `json:"entries"`
-	}{ID: view.List.ID.String(), Name: view.List.Name, Entries: []entryJSON{}}
+	out := listViewJSON{ID: view.List.ID.String(), Name: view.List.Name, Entries: []entryJSON{}}
 	for _, g := range view.Groups {
 		for _, e := range g.Entries {
 			out.Entries = append(out.Entries, entryToJSON(e, lang))
@@ -96,33 +99,18 @@ func (s *Server) apiList(w http.ResponseWriter, r *http.Request) {
 	for _, e := range view.Cart {
 		out.Entries = append(out.Entries, entryToJSON(e, lang))
 	}
-	writeJSON(w, http.StatusOK, out)
+	return out, nil
 }
 
-// apiAddEntry puts an item on a list: {"text": "2 tbsp soy sauce"} is read
-// like the add field; {"name": "soy sauce", "amount": "2 tbsp"} is explicit.
-// An item already on the list gets the amount added when units match.
-func (s *Server) apiAddEntry(w http.ResponseWriter, r *http.Request) {
-	listID, err := uuid.Parse(r.PathValue("id"))
-	if err != nil {
-		apiNotFound(w, r)
-		return
-	}
-	var in struct {
-		Text   string `json:"text"`
-		Name   string `json:"name"`
-		Amount string `json:"amount"`
-	}
-	if !decodeJSON(w, r, &in) {
-		return
-	}
-	ctx := r.Context()
+// doAddEntry puts an item on a list. An item already on the list gets the
+// amount added when units match.
+func (s *Server) doAddEntry(ctx context.Context, listID uuid.UUID, in addEntryIn) (entryJSON, error) {
 	lang := i18n.Locale(ctx)
 	if (in.Text == "") == (in.Name == "") {
-		apiFail(w, http.StatusUnprocessableEntity, "invalid", "Send either text or name.", map[string]string{"name": "Send either text or name."})
-		return
+		return entryJSON{}, &apiProblem{status: http.StatusUnprocessableEntity, code: "invalid", message: "Send either text or name.",
+			fields: map[string]string{"name": "Send either text or name."}}
 	}
-	add := groceries.AddInput{ListID: listID, AddedBy: identity(r).UserID, Lang: lang}
+	add := groceries.AddInput{ListID: listID, AddedBy: ctxIdentity(ctx).UserID, Lang: lang}
 	if in.Text != "" {
 		add.Amount, add.Name = groceries.ParseEntry(in.Text, lang)
 	} else {
@@ -130,60 +118,114 @@ func (s *Server) apiAddEntry(w http.ResponseWriter, r *http.Request) {
 	}
 	sc, err := s.db.Scope(ctx)
 	if err != nil {
-		s.apiErr(w, r, err)
-		return
+		return entryJSON{}, err
 	}
 	added, err := s.groceries.Add(ctx, sc, add)
 	if err != nil {
-		s.apiErr(w, r, err)
-		return
+		return entryJSON{}, err
 	}
-	writeJSON(w, http.StatusCreated, entryToJSON(added.Entry, lang))
+	return entryToJSON(added.Entry, lang), nil
 }
 
-func (s *Server) apiEntryAction(w http.ResponseWriter, r *http.Request, do func(*groceries.Service, store.Scoped, uuid.UUID) (groceries.Entry, error)) {
-	entryID, err := uuid.Parse(r.PathValue("id"))
+// entryAction is a change to one entry.
+type entryAction func(*groceries.Service, context.Context, store.Scoped, uuid.UUID) (groceries.Entry, error)
+
+var (
+	checkEntry   entryAction = (*groceries.Service).Check
+	uncheckEntry entryAction = (*groceries.Service).Uncheck
+)
+
+func (s *Server) doEntryAction(ctx context.Context, entryID uuid.UUID, do entryAction) (entryJSON, error) {
+	sc, err := s.db.Scope(ctx)
 	if err != nil {
-		apiNotFound(w, r)
-		return
+		return entryJSON{}, err
 	}
-	sc, err := s.db.Scope(r.Context())
+	e, err := do(s.groceries, ctx, sc, entryID)
+	if err != nil {
+		return entryJSON{}, err
+	}
+	return entryToJSON(e, i18n.Locale(ctx)), nil
+}
+
+func (s *Server) doRemoveEntry(ctx context.Context, entryID uuid.UUID) error {
+	sc, err := s.db.Scope(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = s.groceries.Remove(ctx, sc, entryID)
+	return err
+}
+
+func (s *Server) apiLists(w http.ResponseWriter, r *http.Request) {
+	out, err := s.doLists(r.Context())
 	if err != nil {
 		s.apiErr(w, r, err)
 		return
 	}
-	e, err := do(s.groceries, sc, entryID)
+	writeJSON(w, http.StatusOK, out)
+}
+
+func (s *Server) apiList(w http.ResponseWriter, r *http.Request) {
+	listID, err := parseID(r.PathValue("id"))
 	if err != nil {
 		s.apiErr(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, entryToJSON(e, i18n.Locale(r.Context())))
+	out, err := s.doList(r.Context(), listID)
+	if err != nil {
+		s.apiErr(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+func (s *Server) apiAddEntry(w http.ResponseWriter, r *http.Request) {
+	listID, err := parseID(r.PathValue("id"))
+	if err != nil {
+		s.apiErr(w, r, err)
+		return
+	}
+	var in addEntryIn
+	if !decodeJSON(w, r, &in) {
+		return
+	}
+	out, err := s.doAddEntry(r.Context(), listID, in)
+	if err != nil {
+		s.apiErr(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, out)
+}
+
+func (s *Server) apiEntryAction(w http.ResponseWriter, r *http.Request, do entryAction) {
+	entryID, err := parseID(r.PathValue("id"))
+	if err != nil {
+		s.apiErr(w, r, err)
+		return
+	}
+	out, err := s.doEntryAction(r.Context(), entryID, do)
+	if err != nil {
+		s.apiErr(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (s *Server) apiCheckEntry(w http.ResponseWriter, r *http.Request) {
-	s.apiEntryAction(w, r, func(g *groceries.Service, sc store.Scoped, id uuid.UUID) (groceries.Entry, error) {
-		return g.Check(r.Context(), sc, id)
-	})
+	s.apiEntryAction(w, r, checkEntry)
 }
 
 func (s *Server) apiUncheckEntry(w http.ResponseWriter, r *http.Request) {
-	s.apiEntryAction(w, r, func(g *groceries.Service, sc store.Scoped, id uuid.UUID) (groceries.Entry, error) {
-		return g.Uncheck(r.Context(), sc, id)
-	})
+	s.apiEntryAction(w, r, uncheckEntry)
 }
 
 func (s *Server) apiRemoveEntry(w http.ResponseWriter, r *http.Request) {
-	entryID, err := uuid.Parse(r.PathValue("id"))
-	if err != nil {
-		apiNotFound(w, r)
-		return
-	}
-	sc, err := s.db.Scope(r.Context())
+	entryID, err := parseID(r.PathValue("id"))
 	if err != nil {
 		s.apiErr(w, r, err)
 		return
 	}
-	if _, err := s.groceries.Remove(r.Context(), sc, entryID); err != nil {
+	if err := s.doRemoveEntry(r.Context(), entryID); err != nil {
 		s.apiErr(w, r, err)
 		return
 	}

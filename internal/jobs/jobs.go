@@ -12,6 +12,7 @@ import (
 	"golang.org/x/text/language"
 
 	"github.com/raphi011/mise/internal/ai"
+	"github.com/raphi011/mise/internal/auth"
 	"github.com/raphi011/mise/internal/groceries"
 	"github.com/raphi011/mise/internal/images"
 	"github.com/raphi011/mise/internal/recipes"
@@ -71,6 +72,11 @@ type Swept struct {
 	// Imports are recipe imports that finished more than
 	// ai.ReadyRetention ago, and canceled ones.
 	Imports int64
+	// Grants are OAuth grants whose code or refresh token expired;
+	// Clients are registered OAuth clients nobody approved within
+	// auth.UnusedClientTTL.
+	Grants  int64
+	Clients int64
 }
 
 // Sweep deletes soft-deleted rows older than groceries.UndoWindow.
@@ -129,7 +135,24 @@ func (s *Sweeper) Sweep(ctx context.Context) (Swept, error) {
 		if err != nil {
 			return err
 		}
-		out.Imports, err = res.RowsAffected()
+		if out.Imports, err = res.RowsAffected(); err != nil {
+			return err
+		}
+		now := store.T(s.now())
+		res, err = q.Exec(ctx, `DELETE FROM oauth_grants WHERE (code_used_at IS NULL AND code_expires_at < ?)
+			OR refresh_expires_at < ?`, now, now)
+		if err != nil {
+			return err
+		}
+		if out.Grants, err = res.RowsAffected(); err != nil {
+			return err
+		}
+		res, err = q.Exec(ctx, `DELETE FROM oauth_clients WHERE last_used_at IS NULL AND created_at < ?`,
+			store.T(s.now().Add(-auth.UnusedClientTTL)))
+		if err != nil {
+			return err
+		}
+		out.Clients, err = res.RowsAffected()
 		return err
 	})
 	if err != nil || s.images == nil {
@@ -186,7 +209,8 @@ func (s *Sweeper) Run(ctx context.Context) {
 		case swept != (Swept{}):
 			s.log.InfoContext(ctx, "swept soft-deleted rows",
 				slog.Int64("entries", swept.Entries), slog.Int64("lists", swept.Lists), slog.Int64("meals", swept.Meals),
-				slog.Int64("recipes", swept.Recipes), slog.Int64("images", swept.Images), slog.Int64("imports", swept.Imports))
+				slog.Int64("recipes", swept.Recipes), slog.Int64("images", swept.Images), slog.Int64("imports", swept.Imports),
+				slog.Int64("oauth_grants", swept.Grants), slog.Int64("oauth_clients", swept.Clients))
 		}
 		select {
 		case <-ctx.Done():

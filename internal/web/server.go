@@ -103,6 +103,7 @@ type Server struct {
 	resetIPLimit     *auth.Limiter
 	resetAddrLimit   *auth.Limiter
 	resetSubmitLimit *auth.Limiter
+	registerLimit    *auth.Limiter
 
 	// mailer sends invite and reset emails; nil without SMTP.
 	mailer mail.Mailer
@@ -134,6 +135,13 @@ func New(cfg config.Config, db *store.DB, log *slog.Logger) (*Server, error) {
 		resetIPLimit:     auth.NewLimiter(resetIPBurst, resetIPInterval, limiterMaxKeys, nil),
 		resetAddrLimit:   auth.NewLimiter(resetAddrBurst, resetAddrInterval, limiterMaxKeys, nil),
 		resetSubmitLimit: auth.NewLimiter(resetSubmitBurst, resetSubmitInterval, limiterMaxKeys, nil),
+		registerLimit:    auth.NewLimiter(registerBurst, registerInterval, limiterMaxKeys, nil),
+	}
+	// OAuth clients and MCP requests authenticate with PKCE or a bearer
+	// token, never a cookie, and browser-based clients call them from
+	// their own origin.
+	for _, p := range []string{oauthRegisterPath, oauthTokenPath, oauthRevokePath, mcpPath} {
+		s.csrf.AddInsecureBypassPattern("POST " + p)
 	}
 	if cfg.SMTP.Enabled() {
 		s.mailer = mail.NewSMTP(cfg.SMTP)
@@ -323,8 +331,9 @@ func isInfra(path string) bool {
 func skipSession(mw func(http.Handler) http.Handler, next http.Handler) http.Handler {
 	wrapped := mw(next)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// The API authenticates by bearer token, never by cookie.
-		if isInfra(r.URL.Path) || isShare(r.URL.Path) || isAPI(r.URL.Path) {
+		// The API, OAuth clients and MCP authenticate by bearer token or
+		// PKCE, never by cookie.
+		if isInfra(r.URL.Path) || isShare(r.URL.Path) || isAPI(r.URL.Path) || isMachine(r.URL.Path) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -344,7 +353,7 @@ func (s *Server) requireSetup(next http.Handler) http.Handler {
 			s.serverError(w, r, err)
 			return
 		}
-		if need && isAPI(r.URL.Path) {
+		if need && (isAPI(r.URL.Path) || isMachine(r.URL.Path)) {
 			apiFail(w, http.StatusServiceUnavailable, "setup_required", "mise has not been set up yet.", nil)
 			return
 		}
@@ -492,7 +501,10 @@ func (s *Server) routes(r *router) {
 	r.read(tokensPath, s.user(s.tokensPage))
 	r.write(http.MethodPost, tokensPath, s.user(s.createToken))
 	r.write(http.MethodPost, tokensPath+"/{id}/revoke", s.user(s.revokeToken))
+	r.write(http.MethodPost, "/settings/account/apps/{id}/revoke", s.user(s.revokeApp))
 	s.apiRoutes(r)
+	s.oauthRoutes(r)
+	s.mcpRoutes(r)
 	r.write(http.MethodPost, "/settings/lists", s.user(s.createList))
 	r.write(http.MethodPost, "/settings/lists/{id}/rename", s.user(s.renameList))
 	r.write(http.MethodPost, "/settings/lists/{id}/move", s.user(s.moveList))

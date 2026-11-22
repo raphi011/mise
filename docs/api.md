@@ -1,13 +1,14 @@
 # REST API
 
-For scripts and AI agents. Base path `/api/v1`, JSON in and out, one household per token.
+For scripts and AI agents. Base path `/api/v1`, JSON in and out, one household per token. AI apps can also use the [MCP server](mcp.md).
 
 ## Tokens
 
-Create one under **Settings › Account & security › API tokens**: a name, an access level and an optional expiry. The token (`mise_...`) is shown once; mise stores only its SHA-256.
+Create one under **Settings › Account & security › Apps and API tokens**: a name, an access level and an optional expiry. The token (`mise_...`) is shown once; mise stores only its SHA-256.
 
 - **Read** tokens call `GET` endpoints; **Read and write** tokens also change things (`insufficient_scope`, 403, otherwise).
 - A token acts as its member in the household it was created in. Removing the member, resetting their password, or revoking the token ends it. A normal password change does not.
+- OAuth access tokens issued to [MCP apps](mcp.md) work here too, with the scope the member granted.
 - Send it as `Authorization: Bearer <token>`. The API ignores the session cookie, and tokens don't open the web pages or create other tokens.
 - At most 20 tokens per person.
 
@@ -35,7 +36,7 @@ Messages follow the token owner's language.
 
 | | |
 |---|---|
-| `GET /me` | The token's user, household and scope |
+| `GET /me` | The token's user, household and scope, and the server's `version` |
 | `GET /recipes?q=&sort=&limit=` | Library cards (`sort`: `cooked`, `added`, `most`, `name`, `quickest`; `limit` default 50, max 200) or, with `q`, recipes whose name or an ingredient matches. Returns `{recipes, total}` |
 | `GET /recipes/{id}` | One recipe with ingredients, steps, tags, links |
 | `POST /recipes` | Create (201 with the recipe) |

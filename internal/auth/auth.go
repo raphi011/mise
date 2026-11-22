@@ -169,8 +169,9 @@ func (s *Service) clock() store.Time { return store.T(s.now()) }
 // the session for every request.
 type Identity struct {
 	SessionID string
-	// TokenID and APIScope are set for requests made with an API token
-	// instead of a session; SessionID is empty then.
+	// TokenID and APIScope are set for requests made with an API token or
+	// an OAuth access token (TokenID is then the grant's) instead of a
+	// session; SessionID is empty then.
 	TokenID     uuid.UUID
 	APIScope    TokenScope
 	UserID      uuid.UUID
