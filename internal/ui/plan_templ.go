@@ -161,7 +161,7 @@ func PlanWeekRegion(v PlanWeekView) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if v.HasMeals() {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<p class=\"muted plan__hint\"><span class=\"only-phone\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<p class=\"muted plan__hint\" data-show=\"true\" style=\"display: none\"><span class=\"only-phone\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -2169,14 +2169,14 @@ func PlanMonthRegion(v PlanMonthView) templ.Component {
 				}
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 179, "</div></div><p class=\"muted plan__hint only-wide\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 179, "</div></div><p class=\"muted plan__hint only-wide\" data-show=\"true\" style=\"display: none\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var116 string
 		templ_7745c5c3_Var116, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, "plan.month.legend"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 328, Col: 74}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/plan.templ`, Line: 328, Col: 113}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var116))
 		if templ_7745c5c3_Err != nil {

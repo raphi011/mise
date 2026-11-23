@@ -27,7 +27,7 @@ templ PlanWeekRegion(v PlanWeekView) {
 		@planToolbar(false, "/plan?week="+v.Week, v.MonthHref, v.PrevHref, v.TodayHref, v.NextHref, v.Current,
 			i18n.T(ctx, "plan.prevWeek"), i18n.T(ctx, "plan.nextWeek"), v.HasMeals())
 		if v.HasMeals() {
-			<p class="muted plan__hint">
+			<p class="muted plan__hint" data-show="true" style="display: none">
 				<span class="only-phone">{ i18n.T(ctx, "plan.hint.phone") }</span>
 				<span class="only-wide">{ i18n.T(ctx, "plan.hint.web") }</span>
 			</p>
@@ -325,7 +325,7 @@ templ PlanMonthRegion(v PlanMonthView) {
 				}
 			</div>
 		</div>
-		<p class="muted plan__hint only-wide">{ i18n.T(ctx, "plan.month.legend") }</p>
+		<p class="muted plan__hint only-wide" data-show="true" style="display: none">{ i18n.T(ctx, "plan.month.legend") }</p>
 	</div>
 }
 
